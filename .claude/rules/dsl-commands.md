@@ -49,7 +49,7 @@ paths:
   `threshold` 等)→ `waitSeconds:` → `scroll:` → `maxSwipes:`」**を全コマンドで守る(Swift は既定値つきでも
   順序を強制するので、族の中で並びが割れると書き手が1つずつ覚える羽目になる)。
   **`ft_batch` は DSL の行を受けるので、索引の signature を変えたら `MCPServer.batchStepBuilders` のキーも同時に変える**
-  (片方だけだと実在するラベルを断り、無いラベルを受ける。緑のまま通った = `BatchLineParserTests.testWaitCapLabelFollowsTheDSL`)
+  (片方だけだと実在するラベルを断り、無いラベルを受ける。全コマンドの差は `BatchLineParserTests` が表と等号で比べる)
 - **書けないテストのための検証の語彙(要素の寸法・位置・描画落ち・伏せ字・アプリが落ちたこと)は置かない**(DR-227。今の機能で書ける分は user-docs に書き方を足す)
 - **置いていない名前は `Sources/FTDSL/UnavailableCommands.swift` で受け止める**(他ツールの名前・
   対称性から実在すると誤解される別名。`cannot find in scope` の代わりに正しい書き方を出す)

@@ -105,19 +105,47 @@ final class JudgmentCaptureTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     }
 
-    /// 画像判定のファイルは主ドライバで直に撮らない(撮るのは judgmentScreenshot / judgmentCapture だけ)。
-    /// Assert.swift は画像判定の撮影口を持たない(可視性検証の絵は guardScreenshot)が、直撮りが入らないよう走査は掛け続ける
+    /// 主ドライバで絵を直に撮る(`driver.screenshot()` / `treeDriver.screenshot()`)ファイル。画像判定の絵は judgmentScreenshot /
+    /// judgmentCapture だけで撮る。**新しい直撮りは、判定の絵でないと言える理由を付けてここへ足す**(判定の絵なら judgmentScreenshot へ)
+    private static let directCaptureSites: [String: String] = [
+        "FTCore/StepExecutor+JudgmentCapture.swift": "撮り分けの定義元(主ドライバへ落ちる側)",
+        "FTCore/StepExecutor.swift": "recordPreLaunchFrame: Android の鮮度の基準の絵(キーボードを省く構成が無い)",
+        "FTCore/BlankWorkerTriage.swift": "ワーカーの白紙判定(デバイスの状態の確認で、画像判定ではない)",
+        "FTCore/StepExecutor+RenderCollapse.swift": "描画崩壊の判定。キーボードは木の枠でアプリの領域から除く(キーボードの絵は要らない)",
+        "FTCore/StepExecutor+TypeClear.swift": "打った文字が欄に描かれたかの OCR。欄の矩形だけを読むのでキーボードの絵は要らない(写らずに欄が見えれば「描かれた」側 = 追送しない側へ倒れる)",
+        "FTCore/StepExecutor+ClearResidual.swift": "消した後の残りの OCR。キーボードが欄に重なるときは先に断る(ClearResidualDrawn.unreadableReason)",
+        "FTDSL/FTRuntime.swift": "失敗の証跡・動画用の絵(画面全体を先に撮り、撮れなければ主ドライバ)",
+    ]
+
     func testJudgmentFilesDoNotCaptureWithThePrimaryDirectly() throws {
         let judgmentFiles = ["Sources/FTCore/StepExecutor+AssertState.swift", "Sources/FTCore/StepExecutor+FindImage.swift",
-                             // linkText の OCR の絵(直撮りに戻すとキーボードが写らない絵で読む退行 = 2026-11-24 に塞いだ穴)
                              "Sources/FTCore/StepExecutor+LinkText.swift"]
-        for path in judgmentFiles + ["Sources/FTCore/StepExecutor+Assert.swift", "Sources/FTCore/StepExecutor+VisibilityPipeline.swift"] {
+        for path in judgmentFiles {
             let source = try String(contentsOf: Self.repoRoot.appendingPathComponent(path), encoding: .utf8)
-            XCTAssertFalse(source.contains("driver.screenshot()"), "\(path) が画像判定の絵を主ドライバで直に撮っている")
-            if judgmentFiles.contains(path) {
-                XCTAssertTrue(source.contains("judgment"), "\(path) の走査が撮影の口に届いていない")
+            XCTAssertTrue(source.contains("judgment"), "\(path) の走査が撮影の口に届いていない")
+        }
+        let pattern = try NSRegularExpression(pattern: #"[dD]river\.screenshot\(\)"#)
+        var found: Set<String> = []
+        var scanned = 0
+        for dir in ["FTCore", "FTDSL"] {
+            let root = Self.repoRoot.appendingPathComponent("Sources/" + dir)
+            let walker = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            for case let url as URL in walker where url.pathExtension == "swift" {
+                scanned += 1
+                let text = try String(contentsOf: url, encoding: .utf8)
+                let code = text.replacingOccurrences(of: #"/\*[\s\S]*?\*/"#, with: "", options: .regularExpression)
+                    .split(separator: "\n", omittingEmptySubsequences: false)
+                    .map { line in line.range(of: "//").map { String(line[..<$0.lowerBound]) } ?? String(line) }
+                    .joined(separator: "\n")
+                if pattern.firstMatch(in: code, range: NSRange(code.startIndex..., in: code)) != nil {
+                    found.insert(dir + "/" + url.lastPathComponent)
+                }
             }
         }
+        XCTAssertGreaterThan(scanned, 100, "走査が Sources/FTCore・FTDSL に届いていない")
+        XCTAssertEqual(found, Set(Self.directCaptureSites.keys),
+                       "主ドライバで絵を直に撮るファイルが表と違う。画像判定の絵なら judgmentScreenshot / judgmentCapture を通す。"
+                       + "判定の絵でないなら directCaptureSites へ理由付きで足す")
     }
 
     /// 印を立てるのは inapp-boost モードの分岐(fallbackDriver = SystemUIDriver を組む所)だけで、FTDriveCore へ渡す

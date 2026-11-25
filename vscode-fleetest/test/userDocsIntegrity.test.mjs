@@ -114,6 +114,42 @@ test("index に全ページが載り、各ページから index へ戻れる", (
   assert.deepEqual(noWayBack, [], `index へのリンクが無いページ: ${noWayBack.join(", ")}`);
 });
 
+/** ページ末尾の `### Link` 節の本文(無ければ null)。節の後ろに別の見出しがあれば末尾でないので null にせず見出しごと返す。 */
+function linkSection(source) {
+  const m = source.match(/^### Link[ \t]*\n([\s\S]*)$/m);
+  return m ? m[1] : null;
+}
+
+test("index 以外の全ページの末尾に ### Link 節があり、en/ja で同じリンク先(対応する言語)を指す", () => {
+  const problems = [];
+  let checked = 0;
+  for (const page of pages) {
+    if (page === "index.md" || page === "index_ja.md") continue;
+    const section = linkSection(readPage(page));
+    if (section === null) {
+      problems.push(`${page}: ### Link 節が無い(ページ末尾に index へ戻るリンクを置く)`);
+      continue;
+    }
+    if (/^#/m.test(section)) problems.push(`${page}: ### Link の後ろに別の見出しがある(Link 節は末尾に置く)`);
+    for (const line of section.split("\n").filter((l) => l.trim() !== "")) {
+      if (!/^- \[[^\]]+\]\([^)\s]+\)$/.test(line)) problems.push(`${page}: Link 節に「- [名前](リンク先)」でない行: ${line}`);
+    }
+    if (isJa(page)) continue;
+    // en のリンク先を ja の対へ読み替えたものが、ja の Link 節のリンク先と一致する(順序は問わない・件数も等号)
+    const fromDir = path.dirname(page);
+    const resolve = (t) => path.posix.normalize(path.posix.join(fromDir, t));
+    const toJa = (rel) => (rel.endsWith(".md") ? twinOf(rel) : rel);
+    const en = relativeLinks(section).map((t) => toJa(resolve(t))).sort();
+    const ja = relativeLinks(linkSection(readPage(twinOf(page))) ?? "").map(resolve).sort();
+    checked += 1;
+    if (en.join("\n") !== ja.join("\n")) {
+      problems.push(`${page}: Link 節のリンク先が ${twinOf(page)} と対応しない(en→ja に読み替え: ${en.join(", ")} / ja: ${ja.join(", ")})`);
+    }
+  }
+  assert.ok(checked > 100, `Link 節の対を走査できていない: ${checked}`);
+  assert.deepEqual(problems, []);
+});
+
 // ---------------------------------------------------------------------------
 // 以下は「対とリンク」ではなく **中身が実装とズレていないか** を落とす走査。
 // 追加の経緯は docs/user-docs レビュー(8件)。いずれも1度は実際にズレていた。

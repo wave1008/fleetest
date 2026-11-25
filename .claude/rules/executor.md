@@ -125,8 +125,8 @@ paths:
   **①シナリオ実行バイナリを起こす経路を足したら入口を通す**(起こし方に関わらず利用者のコードが動きうる)/
   **②子が書く場所を足したら `writablePaths` にも足す**(親が決める場所は `Scope.extraWritable`)・
   **`simctl` / `devicectl` / `adb` の呼び出しを足したら `SimctlPolicy` / `DevicectlPolicy` / `AdbPolicy` にも足す**
-  (子は CoreSimulator / CoreDevice / adb サーバに繋げず、親の `SandboxBroker` が代行する。adb は
-  `AdbPolicyBuilderSyncTests` が組み立てとドライバの定数の呼び出しを表に当てる)/
+  (子は CoreSimulator / CoreDevice / adb サーバに繋げず、親の `SandboxBroker` が代行する。
+  `AdbPolicyBuilderSyncTests.swift` が adb の組み立てと、Sources の simctl / devicectl の定数の呼び出しを方針と両方向で突き合わせる)/
   **③緩める口をプロジェクトと環境変数に置かない**(設定はマシン側の固定パスだけ・`HOME` / `TMPDIR` /
   `XDG_CONFIG_HOME` / `FT_*_DIR` から書ける場所や読ませない場所を広げない)/
   **④開けるものは名指しで足す**(全許可へ戻さない。全許可の枠からは `simctl spawn` と `open -a` で外へ出られた)/

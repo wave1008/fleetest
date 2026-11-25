@@ -566,28 +566,65 @@ final class NoteCoverageTests: XCTestCase {
 
     // MARK: - 柵(目録の外に注記を足させない)
 
-    /// **応答の組み立て側が注記関数を直に呼んでいないこと**。ここを通さずに足された注記は
-    /// 発火が測れず、A/B でも黙らせられないまま増える(この台帳が意味を失う)
-    func testSnapshotBodyEmitsOnlyCatalogNotes() throws {
-        let sources = URL(fileURLWithPath: #filePath)
+    /// スナップショットを受けて注記の文字列を返す関数のうち、NoteCatalog を通らないもの(理由1行)。
+    /// **新しい注記関数を足したら NoteCatalog.snapshotNotes へ載せる**(ここへ足すのは、画面の注記ではなく
+    /// 特定のツールの応答にだけ付く文のとき)
+    private static let nonCatalogSnapshotNotes: [String: String] = [
+        "backgroundedSessionNote": "アプリが背景に回った応答の注記(ドライバへ聞く)。画面の注記ではない",
+        "capHogNote": "truncationNote の本文の中で言い足す部品",
+        "keyboardSwipeAreaNote": "ft_swipe の応答だけに付く",
+        "noFocusNote": "ft_type 系の応答だけに付く",
+        "refFrontAppNote": "ref を取るツールの応答だけに付く",
+    ]
+
+    private static func mcpSourceTexts() throws -> [String: String] {
+        let dir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/fleetest-mcp")
+        var result: [String: String] = [:]
+        for file in try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter({ $0.hasSuffix(".swift") }).sorted() {
+            let text = try String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8)
+            let noBlocks = text.replacingOccurrences(of: #"/\*[\s\S]*?\*/"#, with: "", options: .regularExpression)
+            result[file] = noBlocks.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { line in line.range(of: "//").map { String(line[..<$0.lowerBound]) } ?? String(line) }
+                .joined(separator: "\n")
+        }
+        return result
+    }
+
+    private static func captures(_ pattern: String, in text: String) -> Set<String> {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        return Set(regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
+            Range(match.range(at: 1), in: text).map { String(text[$0]) }
+        })
+    }
+
+    /// **応答の組み立て側が注記関数を直に呼んでいないこと**。ここを通さずに足された注記は
+    /// 発火が測れず、A/B でも黙らせられないまま増える(この台帳が意味を失う)。
+    /// 注記関数は走査で集める: ①`func xxxNote(_ snapshot: SnapshotResponse` の定義 = NoteCatalog が呼ぶ集合 + 表の集合と等号 ②カタログが呼ぶ関数は
+    /// 定義元(Hints / WebViewHints / LabelHints)と NoteCatalog 以外から呼ばない
+    func testSnapshotBodyEmitsOnlyCatalogNotes() throws {
+        let texts = try Self.mcpSourceTexts()
+        let defined = texts.values.reduce(into: Set<String>()) {
+            $0.formUnion(Self.captures(#"func (\w+Note)\(_ \w+: SnapshotResponse"#, in: $1))
+        }
+        let catalogText = try XCTUnwrap(texts["NoteCatalog.swift"])
+        let catalogCalled = Self.captures(#"MCPServer\.(\w+Note)\("#, in: catalogText)
+        XCTAssertGreaterThanOrEqual(catalogCalled.count, 15, "NoteCatalog の走査が注記関数に届いていない")
+        XCTAssertEqual(defined, catalogCalled.union(Self.nonCatalogSnapshotNotes.keys),
+                       "スナップショットを受ける注記関数が NoteCatalog.snapshotNotes と nonCatalogSnapshotNotes の和と違う。"
+                       + "新しい注記は NoteCatalog.snapshotNotes へ載せる(画面の注記でないなら nonCatalogSnapshotNotes へ理由付きで)")
         // 定義元(Hints / WebViewHints / LabelHints)と唯一の呼び口(NoteCatalog)以外は直に呼んではいけない関数
-        let forbidden = ["ghostNote(", "truncationNote(", "bulkExemptNote(",
-                         "unlabeledClickablesNote(", "ambiguousLabelsNote(", "duplicateIDsNote(",
-                         "keyboardCoverageNote(", "sliverNote(",
-                         "SnapshotRenderer.truncatedLabelNote("]
+        let forbidden = catalogCalled.map { #"\b"# + $0 + #"\("# } + [#"SnapshotRenderer\.truncatedLabelNote\("#]
         let exempt: Set<String> = ["MCPServer+Hints.swift", "MCPServer+WebViewHints.swift",
                                    "MCPServer+LabelHints.swift", "NoteCatalog.swift"]
-        for file in try FileManager.default.contentsOfDirectory(atPath: sources.path)
-            .filter({ $0.hasSuffix(".swift") }).sorted() where !exempt.contains(file) {
-            let text = try String(contentsOf: sources.appendingPathComponent(file), encoding: .utf8)
+        for (file, text) in texts.sorted(by: { $0.key < $1.key }) where !exempt.contains(file) {
             for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-                let code = line.trimmingCharacters(in: .whitespaces)
-                guard !code.hasPrefix("//") else { continue }
-                for symbol in forbidden where code.contains(symbol) {
-                    XCTFail("\(file): 注記関数 \(symbol) を直に呼んでいる —— NoteCatalog へ足すこと"
-                            + "(そうしないと発火が測れず、A/B でも黙らせられない): \(code)")
+                let code = String(line)
+                for pattern in forbidden where code.range(of: pattern, options: .regularExpression) != nil {
+                    XCTFail("\(file): 注記関数 \(pattern) を直に呼んでいる —— NoteCatalog へ足すこと"
+                            + "(そうしないと発火が測れず、A/B でも黙らせられない): \(code.trimmingCharacters(in: .whitespaces))")
                 }
             }
         }

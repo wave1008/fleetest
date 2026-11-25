@@ -19,6 +19,53 @@ final class RunTunablesWiringTests: XCTestCase {
             .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
     }
 
+    /// `RunTunables` の欄に写されていて、実行時は `tunables.<欄>` で解く `FlowStep` の既定。
+    /// 欄を足したら `RunTunables` の init の既定値に `FlowStep.<定数>` を書き、ここへも足す(下の走査テストが突き合わせる)
+    private static let tunableBackedConstants = ["defaultWaitSeconds", "defaultMaxSwipes", "defaultSwipeDurationSeconds",
+                                                 "defaultFlickDurationSeconds", "defaultFlickIntervalSeconds",
+                                                 "defaultPinchDurationSeconds", "defaultHoldSeconds",
+                                                 "defaultIsScreenWaitSeconds"]
+
+    /// `FlowStep` の既定のうち tunables に欄が無い固定値。理由は1行
+    private static let fixedConstants: [String: String] = [
+        "defaultTapHoldSeconds": "タップの保持。DSL の引数 holdSeconds が直接持つ(プロファイルの欄なし)",
+        "defaultMaxEdgeSwipes": "端までのスクロールの上限。欄なし(maxSwipes とは別の意味)",
+        "defaultDragPressSeconds": "ドラッグの押下時間。ジェスチャ合成の内部定数で欄なし",
+        "defaultPinchOutScale": "pinchOut の倍率。DSL の引数 scale が持つ",
+        "defaultPinchInScale": "pinchIn の倍率。DSL の引数 scale が持つ",
+    ]
+
+    private func codeLines(_ path: String) throws -> [String] {
+        try String(contentsOf: Self.repoRoot.appendingPathComponent(path), encoding: .utf8)
+            .components(separatedBy: "\n").map { $0.components(separatedBy: "//")[0] }
+    }
+
+    /// `FlowStep` の `static let default…` を Sources から集め、tunables の欄に写されるものと固定値の表へ漏れなく分ける。
+    /// 写されるものは `RunTunables` の init が既定値に使う `FlowStep.<定数>`(+ `DefaultWait.seconds` = defaultWaitSeconds)から導く
+    func testEveryFlowStepDefaultIsClassifiedAsTunableOrFixed() throws {
+        let declared = Set(try codeLines("Sources/FTCore/Flow.swift").compactMap { line -> String? in
+            guard let range = line.range(of: #"static let (default\w+)"#, options: .regularExpression) else { return nil }
+            return String(line[range].dropFirst("static let ".count))
+        })
+        XCTAssertGreaterThanOrEqual(declared.count, 10, "FlowStep の既定の走査が拾えていない")
+        let tunables = try codeLines("Sources/FTCore/RunTunables.swift")
+        var backed = Set(tunables.flatMap { line -> [String] in
+            line.components(separatedBy: "FlowStep.").dropFirst().compactMap { rest in
+                let name = String(rest.prefix { $0.isLetter || $0.isNumber })
+                return name.hasPrefix("default") ? name : nil
+            }
+        })
+        if tunables.contains(where: { $0.contains("DefaultWait.seconds") }) { backed.insert("defaultWaitSeconds") }
+        XCTAssertEqual(backed, Set(Self.tunableBackedConstants),
+                       "RunTunables が既定に使う FlowStep の定数の集合が表(tunableBackedConstants)と違う —— 欄を足した/外したなら"
+                       + "表と、StepExecutor・DSL の `?? FlowStep.<定数>` を禁じる2つのテストの対象を揃える。差分: "
+                       + "\(backed.symmetricDifference(Set(Self.tunableBackedConstants)).sorted())")
+        XCTAssertEqual(declared.subtracting(backed), Set(Self.fixedConstants.keys),
+                       "FlowStep に tunables の欄が無い既定が増減した。足したなら欄を作る(RunTunables)か、固定値として"
+                       + " fixedConstants へ理由付きで足す。差分: "
+                       + "\(declared.subtracting(backed).symmetricDifference(Set(Self.fixedConstants.keys)).sorted())")
+    }
+
     func testScenarioHostAlwaysForwardsTheTunables() throws {
         let host = try source("Sources/FTCore/ScenarioHost.swift")
         XCTAssertTrue(host.contains("let tunables = settings.tunables"), "settings の tunables を読んでいない")
@@ -45,9 +92,7 @@ final class RunTunablesWiringTests: XCTestCase {
         let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
             .filter { $0.hasPrefix("StepExecutor") && $0.hasSuffix(".swift") }
         XCTAssertGreaterThan(files.count, 5, "走査が StepExecutor のファイルに届いていない")
-        let constants = ["defaultWaitSeconds", "defaultMaxSwipes", "defaultSwipeDurationSeconds",
-                         "defaultFlickDurationSeconds", "defaultFlickIntervalSeconds",
-                         "defaultPinchDurationSeconds", "defaultHoldSeconds", "defaultIsScreenWaitSeconds"]
+        let constants = Self.tunableBackedConstants
         for constant in constants {
             let offenders = try files.filter {
                 try source("Sources/FTCore/\($0)").contains("?? FlowStep.\(constant)")
@@ -62,9 +107,7 @@ final class RunTunablesWiringTests: XCTestCase {
         let dir = Self.repoRoot.appendingPathComponent("Sources/FTDSL")
         let files = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".swift") }
         XCTAssertGreaterThan(files.count, 5, "走査が FTDSL のファイルに届いていない")
-        let constants = ["defaultWaitSeconds", "defaultMaxSwipes", "defaultSwipeDurationSeconds",
-                         "defaultFlickDurationSeconds", "defaultFlickIntervalSeconds",
-                         "defaultPinchDurationSeconds", "defaultHoldSeconds", "defaultIsScreenWaitSeconds"]
+        let constants = Self.tunableBackedConstants
         for file in files {
             let text = try source("Sources/FTDSL/\(file)")
             for constant in constants {

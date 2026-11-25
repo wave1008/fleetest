@@ -242,7 +242,7 @@ extension MCPServer {
             return (step, "irregularHandler \"\(detect.text)\" → dismiss \"\(dismiss.text)\"")
         },
         "swipeElementToElement": BatchStepBuilder(
-            keys: ["selector", "to", "durationSeconds", "maxGestureSeconds", "settle"]
+            keys: ["selector", "to", "durationSeconds", "maxGestureSeconds", "settle", "waitSeconds"]
         ) { raw in
             let from = try requiredBatchSelector(raw, command: "swipeElementToElement")
             guard let toText = raw["to"] as? String, !toText.isEmpty else {
@@ -252,6 +252,7 @@ extension MCPServer {
             let duration = raw["durationSeconds"] as? Double ?? FlowStep.defaultSwipeDurationSeconds
             let step = FlowStep(action: "swipeElementToElement", locator: from.primary,
                                 fallbacks: batchFallbacks(from), endLocator: to.primary,
+                                timeout: raw["waitSeconds"] as? Double,
                                 duration: duration == FlowStep.defaultSwipeDurationSeconds ? nil : duration,
                                 maxGestureSeconds: raw["maxGestureSeconds"] as? Double,
                                 settle: batchSettle(raw))

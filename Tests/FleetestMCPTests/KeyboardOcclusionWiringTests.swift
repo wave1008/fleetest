@@ -27,24 +27,84 @@ final class KeyboardOcclusionWiringTests: XCTestCase {
         text.components(separatedBy: .whitespacesAndNewlines).joined()
     }
 
-    /// スナップショットから KeyboardOcclusion を組み立てる側の4箇所。**ft_double_tap
-    /// (MCPServer+GesturesTools.swift)も同じ被覆にする契約なので同列に含む**
-    /// (RefGuard.keyboardWarning は呼び出し元から渡された値を転送するだけなので対象外)
-    func testAllResolveSitesBuildKeyboardOcclusionFromTheSnapshot() throws {
-        let sites = [
-            "FTCore/StepExecutor+Actions.swift",
-            "FTCore/StepExecutor+ActionHelpers.swift",   // visibleDragArea(キーボードを除いたドラッグの範囲)
-            "FTCore/StepExecutor+KeyboardCover.swift",   // liftCoveredTarget(覆いの下から送り出す)
-            "fleetest-mcp/MCPServer+Snapshot.swift",
-            "fleetest-mcp/MCPServer+Hints.swift",
-            "fleetest-mcp/MCPServer+GesturesTools.swift",
-        ]
-        for site in sites {
-            let text = compact(try source(site))
-            XCTAssertTrue(text.contains("KeyboardOcclusion.resolve(reported:"),
-                          "\(site) が KeyboardOcclusion.resolve から作っていない"
-                          + "(chrome 除外を持ち回らない生の keyboardFrame へ後退していないか)")
+    /// Sources 全体の .swift(相対パス → コメントを落とした本文)
+    private func allSources() throws -> [String: String] {
+        let root = Self.repoRoot.appendingPathComponent("Sources")
+        let walker = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+        var result: [String: String] = [:]
+        for case let url as URL in walker where url.pathExtension == "swift" {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let noBlocks = text.replacingOccurrences(of: #"/\*[\s\S]*?\*/"#, with: "", options: .regularExpression)
+            result[String(url.path.dropFirst(root.path.count + 1))] = noBlocks
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map { line in line.range(of: "//").map { String(line[..<$0.lowerBound]) } ?? String(line) }
+                .joined(separator: "\n")
         }
+        return result
+    }
+
+    private func matches(_ regex: String, in text: String) -> Int {
+        (try? NSRegularExpression(pattern: regex)).map { $0.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text)) } ?? 0
+    }
+
+    /// `KeyboardOcclusion.resolve(reported:` を呼ぶファイル。**ft_double_tap(MCPServer+GesturesTools)も同じ被覆にする契約なので
+    /// 同列**。新しい呼び出し元はここへ足す(足さないと落ちる)。RefGuard.keyboardWarning は渡された値を転送するだけなので対象外
+    private static let resolveSites: [String: String] = [
+        "FTCore/CoordinateGuards.swift": "座標ガード",
+        "FTCore/PinchRegion.swift": "ピンチの領域",
+        "FTCore/ScrollFrameCandidates.swift": "スクロール容器の候補",
+        "FTCore/SelectorNaming.swift": "セレクタ命名の被覆",
+        "FTCore/StepExecutor+ActionHelpers.swift": "visibleDragArea(キーボードを除いたドラッグの範囲)",
+        "FTCore/StepExecutor+Actions.swift": "DSL の tap / doubleTap・ドラッグ",
+        "FTCore/StepExecutor+Assert.swift": "assert の可視性",
+        "FTCore/StepExecutor+DirectActions.swift": "直接操作(入力・Enter)",
+        "FTCore/StepExecutor+Hold.swift": "hold",
+        "FTCore/StepExecutor+KeyboardCover.swift": "liftCoveredTarget(覆いの下から送り出す)",
+        "FTCore/StepExecutor+PreTouch.swift": "撃つ前の確かめ",
+        "FTCore/StepExecutor+ScrollFrame.swift": "スクロール枠",
+        "FTCore/StepExecutor+ScrollSearch.swift": "スクロール探索",
+        "FTCore/StepExecutor+TypeClear.swift": "打つ・消す",
+        "FTCore/StepExecutor+VisibilityPipeline.swift": "可視性検証(guardKeyboardFrame)",
+        "FTCore/TreeCoverage.swift": "木の被覆",
+        "fleetest-mcp/MCPServer+GesturesTools.swift": "ft_double_tap",
+        "fleetest-mcp/MCPServer+Hints.swift": "MCP のヒント",
+        "fleetest-mcp/MCPServer+ScrollTools.swift": "ft_scroll の着地",
+        "fleetest-mcp/MCPServer+Snapshot.swift": "ft_tap",
+    ]
+
+    /// `.keyboardFrame` を resolve のないファイルで読む箇所(生の申告 = chrome 除外を持ち回らない)
+    private static let rawReaders: [String: String] = [
+        "FTCore/BridgeDTO.swift": "欄の宣言",
+        "FTCore/KeyboardWait.swift": "出ているかの判定そのもの(画面内の矩形かどうか)",
+        "FTCore/StepExecutor+SystemUIWait.swift": "打つ前の枠を控えるだけ(retypeRescueKeyboardFrame。比べる側が使う)",
+        "FTCore/AppIconLocator.swift": "KeyboardWait.isShown で出ているときだけ枠を返す(SpringBoard の木のアイコン探し)",
+        "FTCore/StepExecutor+ClearResidual.swift": "欄との重なりだけを見る(隠れたキーボードの画面外の矩形は重ならない)",
+        "FTCore/StepExecutor+RenderCollapse.swift": "アプリの領域から除くだけ(画面外の矩形は何も除かない)",
+        "FTCore/StepExecutor+XCUITestTreeConsult.swift": "KeyboardWait.isShown と組で渡す(出ていないときは枠を見ない)",
+        "fleetest-mcp/MCPServer+Batch.swift": "carryPendingTypeKeyboardCheck へ控えを渡すだけ",
+    ]
+
+    func testAllResolveSitesBuildKeyboardOcclusionFromTheSnapshot() throws {
+        let sources = try allSources()
+        var found: Set<String> = []
+        var raw: Set<String> = []
+        for (path, text) in sources {
+            let compacted = compact(text)
+            let calls = compacted.components(separatedBy: "KeyboardOcclusion.resolve(reported:").count - 1
+            if calls > 0 {
+                found.insert(path)
+                // 申告(keyboardFrame)から作っていること
+                let fed = matches(#"KeyboardOcclusion\.resolve\(reported:[^,)]*[kK]eyboardFrame"#, in: compacted)
+                XCTAssertEqual(fed, calls, "\(path) の KeyboardOcclusion.resolve に keyboardFrame 以外が渡っている")
+            }
+            if matches(#"\.keyboardFrame\b(?!\()"#, in: text) > 0 { raw.insert(path) }
+        }
+        XCTAssertEqual(found, Set(Self.resolveSites.keys),
+                       "KeyboardOcclusion.resolve を呼ぶファイルが表と違う。新しい呼び出し元は resolveSites へ(理由1行)足す。"
+                       + "表の行が消えた/移したなら移した先へ直す(生の keyboardFrame へ後退していないか)")
+        XCTAssertEqual(raw.subtracting(found), Set(Self.rawReaders.keys),
+                       "keyboardFrame を resolve を通さず読むファイルが表と違う。resolve を通すか rawReaders へ理由付きで足す")
+        XCTAssertGreaterThanOrEqual(sources.count, 100, "Sources の走査が空に近い")
     }
 
     /// RefGuard 側は`KeyboardOcclusion` を受け取って転送するだけ。生の `FTRect?` を

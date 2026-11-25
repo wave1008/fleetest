@@ -54,8 +54,8 @@ paths:
   の5本で対照を取る(docs/verification/)。**条件判定の1本**(`ifCanSelect`)は ——
   **perform を通らないので操作・検証を直しても守られない**
 - **要素の testTag/`#id`/ラベルの唯一の正は `E2EAppCMP/docs/ui-contract.md`**(全 SUT とシナリオが
-  これを参照。片方だけ変えない。`uiContractSync.test.mjs` が「SUT 側の `#id` が母体に実在するか」を
-  検出)。**型語彙・OS/フレームワーク固有の罠だけ**は各 SUT の `<SUT>/docs/ui-contract.md` に置く
+  これを参照。片方だけ変えない。`uiContractSync.test.mjs` が E2E / E2EX / E2EY の各系統で
+  契約ファイルの一覧と「SUT 側の `#id` が母体に実在するか」を検出)。**型語彙・OS/フレームワーク固有の罠だけ**は各 SUT の `<SUT>/docs/ui-contract.md` に置く
   (同じ `#id` でも型は SUT ごとに違う。例: ボタンは CMP/Android で `Cell`、View/XML なら `Button`)
 - **シナリオは画面の解像度に依存しない形で書く**(DR-81)。**背の高い
   シミュレータで緑になっても、背の低い実機では落ちる** —— 逆向き(小さい画面で通したら

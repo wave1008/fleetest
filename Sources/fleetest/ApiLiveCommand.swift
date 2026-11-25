@@ -786,6 +786,7 @@ struct ApiLiveServe: AsyncParsableCommand {
                                                   bridgeStarting: await bridgeStartingFlag(starter), deliveryUnknown: false))
             } catch {
                 if let humanLabel { deviceLease?.recordHumanOperation(label: humanLabel, ok: false, at: operatedAt) }
+                ResidentProcessGuard.noteCommandProgress()
                 let message = await annotated(error, starter: starter, operated: true, port: port)
                 // **annotated の後で読む**: noteConnectionRefused() が idle→starting へ遷移させ得るため
                 let starting = await bridgeStartingFlag(starter)

@@ -49,7 +49,7 @@
   文中リンクの `#id` は付けられない(入れ子の `Text` に `testID` は通らない)ので**ラベルで指す**
 - **A6 の入れ子リンクの a11y**: iOS は Fabric の `RCTParagraphComponentView` が `accessibilityRole="link"` の
   入れ子 `Text` を子要素として出す想定、Android は `ClickableSpan` の仮想ノード。**どちらも実機未確認**
-- **A7 の `#pin_len`** は 4 桁目で `pin=…` を出したあと表示を空へ戻すので `pin_len=0` に戻る
+- **A7 の `#txt_pin_len`** は 4 桁目で `pin=…` を出したあと表示を空へ戻すので `pin_len=0` に戻る
 - **A7 の箱 `#otp_box_N`** は `Text`(空のときは半角空白)。実体は箱に重ねた透明(`opacity: 0.02`)の
   `TextInput` `#field_otp` で、箱の上のタップはこの欄が受ける
 - **A9 の畳んだ状態でキューは木に居ない**(中身を `index` で出し分け: 畳み = ミニプレーヤー / 半分・全開 =

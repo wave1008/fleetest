@@ -84,7 +84,7 @@ paths:
   猶予が無いと、内側の期限より先に watchdog が serve ごと殺す → MN-66。
   **観測の段(前面追従・screenshot・snapshot・springboard 退避・失敗の注記)は段の数を猶予へ足さず、手前で
   `ResidentProcessGuard.noteCommandProgress()` を撃って窓を張り直す**(窓は「進まない時間」を測る。前面追従は
-  `followFrontmost` だけを通す。`LiveWatchdogProgressScanTests`)→ MN-68.1
+  `followFrontmost` だけを通す。`LiveWatchdogProgressScanTests` がファイル全体の await を走査し、操作の段だけ表で免除)→ MN-68.1
   **実機に2本目のランナーを立てない**(ライブ操作の自動起動 `LiveBridgeAutoStarter.launchBridge` が、同じ実機を
   宛先に持つ別ポートの xcodebuild を見たら断る。起動途中のランナーは走査に載らない。bridge up / 供給は起動途中のデバイスを
   待って引き取るので門は置かない)→ MN-49.4。

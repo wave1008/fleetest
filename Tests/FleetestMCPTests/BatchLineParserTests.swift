@@ -90,6 +90,63 @@ final class BatchLineParserTests: XCTestCase {
         }
     }
 
+    /// 索引の signature に `waitSeconds:` を持つコマンドは、ビルダを持つ限り全部 ft_batch でも `waitSeconds:` を受ける(待ちの上限は全コマンド共通の名前)。
+    /// 受けていない既知の穴だけを表に置く(直したら表から消す。消し忘れは下の逆向きの検査で落ちる)
+    private static let waitSecondsNotAcceptedInBatch: [String: String] = [:]
+
+    func testEveryBuilderWhoseSignatureHasWaitSecondsAcceptsIt() throws {
+        var checked = 0
+        for (command, builder) in MCPServer.batchStepBuilders.sorted(by: { $0.key < $1.key }) {
+            let info = try XCTUnwrap(DSLCommandIndex.all.first { $0.name == command }, command)
+            let hasLabel = BatchArgSpecTable.forms(for: command, signature: info.signature)
+                .contains { $0.labels.contains("waitSeconds") }
+            guard hasLabel else { continue }
+            checked += 1
+            let args = try BatchLineParser.parse("\(command) waitSeconds: 2").args
+            let resolved = try? BatchStepResolver.resolve(command: command, signature: info.signature,
+                                                          args: args, declaredKeys: builder.keys, stepIndex: 0)
+            if Self.waitSecondsNotAcceptedInBatch[command] != nil {
+                XCTAssertNil(resolved, "\(command) は waitSeconds: を受けるようになっている —— waitSecondsNotAcceptedInBatch から消すこと")
+            } else {
+                XCTAssertEqual(resolved?["waitSeconds"] as? Double, 2,
+                               "\(command) は signature に waitSeconds: があるのにビルダの keys が受けない —— "
+                               + "MCPServer.batchStepBuilders[\"\(command)\"].keys へ足す(索引と同時に変える規律)")
+            }
+        }
+        XCTAssertGreaterThanOrEqual(checked, 10, "waitSeconds: を持つコマンドの走査が空に近い")
+    }
+
+    /// signature のラベル全体(waitSeconds 以外も)と keys の差。**ft_batch が意図して受けないラベルだけ**を表に置く
+    private static let labelsNotAcceptedInBatch: [String: Set<String>] = [
+        "irregularHandler": ["maxDismissals"],   // 既定のまま(FlowStep に欄を足さない)
+        // 以下は未対応(OI-402): DSL は実行環境の既定と合わせて解く(`effectiveContainerInference` 等)ので、ビルダへ写すには同じ解決が要る
+        "tap": ["containerInference"],
+        "scrollTo": ["containerInference", "startMarginRatio", "endMarginRatio"],
+        "select": ["requireVisible"],
+        "scrollUp": ["startMarginRatio", "endMarginRatio"],
+        "scrollDown": ["startMarginRatio", "endMarginRatio"],
+        "scrollLeft": ["startMarginRatio", "endMarginRatio"],
+        "scrollRight": ["startMarginRatio", "endMarginRatio"],
+        "scrollToTop": ["startMarginRatio", "endMarginRatio"],
+        "scrollToBottom": ["startMarginRatio", "endMarginRatio"],
+        "scrollToLeftEdge": ["startMarginRatio", "endMarginRatio"],
+        "scrollToRightEdge": ["startMarginRatio", "endMarginRatio"],
+    ]
+
+    func testSignatureLabelsMissingFromBuilderKeysAreExactlyTheKnownGaps() throws {
+        var gaps: [String: Set<String>] = [:]
+        for (command, builder) in MCPServer.batchStepBuilders {
+            let info = try XCTUnwrap(DSLCommandIndex.all.first { $0.name == command }, command)
+            let labels = Set(BatchArgSpecTable.forms(for: command, signature: info.signature).flatMap(\.labels)
+                .map { BatchArgSpecTable.dictKeyAliases[$0] ?? $0 })
+            let missing = labels.subtracting(builder.keys)
+            if !missing.isEmpty { gaps[command] = missing }
+        }
+        XCTAssertEqual(gaps, Self.labelsNotAcceptedInBatch,
+                       "索引の signature のラベルと batchStepBuilders の keys の差が表と違う。索引を変えたらビルダの keys も同時に変える"
+                       + "(意図して受けないラベルだけ labelsNotAcceptedInBatch へ理由付きで)")
+    }
+
     /// `type("…", pressEnter: true)`(ft_type の引数の書き方)は、pressEnter が別の行のコマンドだと言う(地図の計測で3回、同じ書き方で1手を失った)。
     /// コマンド名でないラベルには言わない
     func testALabelThatIsACommandPointsToItsOwnLine() throws {

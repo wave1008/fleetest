@@ -123,7 +123,7 @@ paths:
   **戻らない `dispatch_main()` も囲むので一度も空にならない** —— フレームは gQueue(GCD)の上で処理され、
   暗黙の pool はキューが空になるまで空かないので、**1フレームごとに入る関数の本体を pool で始める**
   (Swift のトップレベルには pool が1つも無い。どちらの言語も区切りは自分で置く)。`StreamingHelperAutoreleaseScanTests` が
-  取り込みヘルパーの集合と「画像を作る行が pool の内側にあること」(ObjC は1フレームごとの関数を名前で固定)を固定する → MN-43。
+  取り込みヘルパーの集合と「画像を作る行が pool の内側・待ち(sleep)は外」(ObjC は1フレームごとの関数を名前で固定)を固定する → MN-43。
   **グループの残存は直接の子の終了と独立に見る**(Codex 指摘 2026-09-06: 子が SIGTERM で素直に
   終わっても `trap '' TERM` の孫は残る。猶予が尽きたら `killpg(pgid, 0)` で残りを確かめ SIGKILL)。
   witness は `ShellTimeoutTests` の孫3本
@@ -136,8 +136,7 @@ paths:
   自分に SIGTERM を送るだけ(時限の `_exit` はしない = 後始末を打ち切らない)。**opt-in** = 端末のシェルから `fleetest run &` した親が閉じても run を
   巻き込まない。**opt-in の例外は fleetest-mcp**(印が無くても起動した親を見張る = `armOnLaunchingParent`。応答の読み手は親だけで、
   処理中は stdin を読まないので EOF では長い待ちの最中の親の死に気づけない)。`Process()` で `fleetest` / `fleetest-scenarios` を起こす経路を足したら
-  `ParentDeathWatch.childEnvironment()` を渡し、**`ParentDeathWatchWiringTests` の spawnSites へ自分で足す**(テストは表の各ファイルに
-  鍵があるかを見るだけで、新しい起こし元を走査で見つけない = 表へ足し忘れると緑のまま孤児が残る)。
+  `ParentDeathWatch.childEnvironment()` を渡す(`ParentDeathWatchWiringTests` が Sources の起こし元を走査して表と等号で比べる)。
   **例外は `compile-ocr` と背景の掃除(`RunCompletionSweep`)と FM の常駐プロセス(`api fm-serve`。`FMServeHost.serverEnvironment` が
   `FT_PARENT_PID` を消す)と録画の見張り(`api recorder-watch`。`IOSSimulatorVideoRecorder.watcherLaunch` が `FT_PARENT_PID` を消す)の4つ**:
   どれも親の死を生き延びないと目的を果たせない(コンパイルのコミット / 親の run は掃除より先に必ず終わる / run を跨いでモデルを載せたままにする /
@@ -179,8 +178,8 @@ paths:
   黙らない)。仕分けは `BridgeToolchainLedger.decide` の1箇所 → MN-3.8。
   採番は `ProvisionLock` の内側でだけ行う
   (`provision` / `XCUIBridgeResolver` / `LiveBridgeAutoStarter` / **`ApiLiveCommand`**(要求されたデバイスの
-  ブリッジがどこにも無いとき空きポートを充てる)の4経路。`ProvisionLockStartupPathsSyncTests` は
-  表の各ファイルが `ProvisionLock` を参照するかを見るだけ(新しい起動経路は見つけない = **足したら表へ自分で足す**)。**ライブ操作の1件は「選ぶだけで起動しない」= 予約ではない**ので、
+  ブリッジがどこにも無いとき空きポートを充てる)の4経路。`ProvisionLockStartupPathsSyncTests` が
+  Sources の起動経路(`startDetached` / `freePort` の呼び手)を走査して表と等号で比べる。**ライブ操作の1件は「選ぶだけで起動しない」= 予約ではない**ので、
   起動までに埋まったら `LiveBridgeAutoStarter` が占有者を名指しして諦め、**自動起動を待つ間も毎コマンドの
   本人確認を撃ち**(placeholder の期待ブリッジを nil にしない)、別のデバイスが答えたら解決し直して別の空きポートへ移る
   (`LivePlaceholderIdentityScanTests` → MN-73.1))。拡張の孤児掃除(`orphanSweep.ts`)は配信

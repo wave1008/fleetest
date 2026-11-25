@@ -9,6 +9,7 @@
 //
 // 判定は2段: ①取り込み系ヘルパーの集合を等号で固定(新しいヘルパーを足して忘れると落ちる)
 // ②その主ループ(`while true`)の直後に pool があること(devicepoll の形を固定)。
+// ③待ち(sleep)は pool の外(中で待つと待っている間ずっと1周ぶんを抱える)。
 
 import Foundation
 import XCTest
@@ -85,6 +86,75 @@ final class StreamingHelperAutoreleaseScanTests: XCTestCase {
                        "1周ごとに作る画像を autoreleasepool の外で作っている(抜けないループでは1枚も"
                        + "解放されない。2026-09-22: devicepoll が 55 GB/時): "
                        + offenders.joined(separator: ", "))
+    }
+
+    /// 待ちの呼び出しの目印(Swift: `Thread.sleep` / `usleep` / `Task.sleep`、ObjC: `[NSThread sleepForTimeInterval:]`)
+    private static let sleepMarkers = ["sleep(", "sleepForTimeInterval", "sleepUntil"]
+
+    /// pool(`autoreleasepool` / `@autoreleasepool` の `{`)の内側にある待ちの行番号(1始まり)。
+    /// 波括弧の深さで追う(コメントは呼び手が落とす。文字列リテラル内の波括弧は数えてしまうので、待ちを持つヘルパーでは書かない)
+    static func sleepsInsidePool(code: [String]) -> [Int] {
+        var depth = 0
+        var poolDepths: [Int] = []
+        var pendingPool = false
+        var offenders: [Int] = []
+        for (index, line) in code.enumerated() {
+            if line.contains("autoreleasepool") { pendingPool = true }
+            // 待ちの位置で深さを見る(`autoreleasepool { Thread.sleep(…) }` の1行は、行頭では pool の外に見える)
+            let characters = Array(line)
+            let starts = Set(sleepMarkers.flatMap { marker -> [Int] in
+                let m = Array(marker)
+                guard characters.count >= m.count else { return [] }
+                return (0...(characters.count - m.count)).filter { Array(characters[$0..<($0 + m.count)]) == m }
+            })
+            var flagged = false
+            for (position, character) in characters.enumerated() {
+                if starts.contains(position), !poolDepths.isEmpty, !flagged { offenders.append(index + 1); flagged = true }
+                if character == "{" {
+                    depth += 1
+                    if pendingPool { poolDepths.append(depth); pendingPool = false }
+                } else if character == "}" {
+                    if poolDepths.last == depth { poolDepths.removeLast() }
+                    depth -= 1
+                }
+            }
+        }
+        return offenders
+    }
+
+    /// ③**待ちは pool の外**。pool の中で待つと、1周ぶんの画像(autoreleased)を待っている間ずっと抱える
+    func testSleepsAreOutsideThePool() throws {
+        let root = sourcesRoot()
+        var offenders: [String] = []
+        var sleeps = 0
+        for helper in Self.capturingHelpers.sorted() {
+            let files = try XCTUnwrap(FileManager.default.enumerator(
+                at: root.appendingPathComponent(helper), includingPropertiesForKeys: nil))
+            for case let url as URL in files where ["swift", "m"].contains(url.pathExtension) {
+                let code = try String(contentsOf: url, encoding: .utf8).components(separatedBy: "\n")
+                    .map { $0.components(separatedBy: "//")[0] }
+                sleeps += code.filter { line in Self.sleepMarkers.contains { line.contains($0) } }.count
+                offenders += Self.sleepsInsidePool(code: code).map { "\(helper)/\(url.lastPathComponent):\($0)" }
+            }
+        }
+        XCTAssertGreaterThanOrEqual(sleeps, 1, "待ちの呼び出しが見つからない —— 走査の前提が崩れた(devicepoll の Thread.sleep)")
+        XCTAssertEqual(offenders, [],
+                       "pool の中で待っている(待つ間ずっと1周ぶんの画像を抱える)。sleep は autoreleasepool の外へ出す: "
+                       + offenders.joined(separator: ", "))
+    }
+
+    /// ③の判定自体の確かめ(内側の待ちを拾い、外側の待ちを拾わない)
+    func testSleepDetectorSeparatesInsideFromOutside() {
+        let inside = ["while true {", "autoreleasepool {", "Thread.sleep(forTimeInterval: 1)", "}", "}"]
+        XCTAssertEqual(Self.sleepsInsidePool(code: inside), [3])
+        let outside = ["while true {", "autoreleasepool {", "work()", "}", "Thread.sleep(forTimeInterval: 1)", "}"]
+        XCTAssertEqual(Self.sleepsInsidePool(code: outside), [])
+        XCTAssertEqual(Self.sleepsInsidePool(code: ["while true {", "autoreleasepool { Thread.sleep(forTimeInterval: 1) }", "}"]), [2],
+                       "1行の pool の中の待ち")
+        XCTAssertEqual(Self.sleepsInsidePool(code: ["autoreleasepool { work() }; Thread.sleep(forTimeInterval: 1)"]), [],
+                       "同じ行でも pool を閉じた後の待ちは外")
+        let objc = ["@autoreleasepool {", "if (x) {", "}", "[NSThread sleepForTimeInterval:1];", "}"]
+        XCTAssertEqual(Self.sleepsInsidePool(code: objc), [4])
     }
 
     /// ObjC ヘルパーで**1フレームごとに入る関数**。本体の最初の文が `@autoreleasepool` であること。
