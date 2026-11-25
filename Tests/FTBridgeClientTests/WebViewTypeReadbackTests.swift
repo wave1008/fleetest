@@ -126,4 +126,22 @@ final class WebViewTypeReadbackTests: XCTestCase {
         XCTAssertEqual(log.entries.filter { $0.hasPrefix("delegated.type") }.count, 1,
                        "加工された値でも張り直さないこと: \\(log.entries)")
     }
+
+    /// **撮り直しで ref が別の欄へ振り直されたら、値の比較はしない**(届いていた入力を二重に打たない)
+    func testDoesNotRetypeWhenTheRefNowPointsAtAnotherField() async throws {
+        let log = DOMPrimaryDriver.Log()
+        let other = ElementInfo(ref: 1, type: "textField", identifier: nil, label: nil, value: "",
+                                placeholder: "別の欄", enabled: true,
+                                frame: FTRect(x: 20, y: 100, width: 300, height: 40), depth: 2, web: true)
+        var moved = field(value: "hello123")
+        moved.ref = 2
+        let primary = DOMPrimaryDriver(scripted: [[field(value: "")], [other, moved]], log: log)
+        let driver = WebViewDelegatingDriver(primary: primary, delegated: DelegatedDriver(log: log))
+        _ = try await driver.snapshot()
+
+        try await driver.type(ref: 1, text: "hello123")
+
+        XCTAssertEqual(log.entries.filter { $0.hasPrefix("delegated.type") }.count, 1,
+                       "別の欄を指す ref の値で判定しないこと: \\(log.entries)")
+    }
 }

@@ -50,6 +50,7 @@ struct KeyboardCoverScroll: UIViewRepresentable {
         spacer.heightAnchor.constraint(equalToConstant: 500).isActive = true
         stack.addArrangedSubview(spacer)
 
+        context.coordinator.observeKeyboard(for: scroll)
         scroll.addSubview(stack)
         // **frameLayoutGuide を参照する制約は階層へ入れたあとで張る**。先に活性化すると
         // 共通の祖先がまだ無く `NSLayoutConstraint` が例外を投げてアプリごと落ちる
@@ -99,6 +100,42 @@ struct KeyboardCoverScroll: UIViewRepresentable {
             field.addTarget(self, action: isAbove ? #selector(changedAbove(_:)) : #selector(changedUnder(_:)),
                             for: .editingChanged)
             return field
+        }
+
+        /// **キーボードの下に沈んだ文字**の witness(`tap(#kb_footer, linkText:)` の撃つ前の門の陽性対照)。
+        /// キーボードが出ている間だけ window の下端から 60pt 上に置く(最小のキーボードでも 233pt = 必ず内側)。
+        /// window に直に置くので容器の配置(下の欄の witness)を動かさない。出ていない間は置かない(タブバーを覆わない)
+        private var footer: UIView?
+
+        func observeKeyboard(for scroll: UIScrollView) {
+            let center = NotificationCenter.default
+            center.addObserver(forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main) { [weak self, weak scroll] _ in
+                MainActor.assumeIsolated { self?.showFooter(in: scroll?.window) }
+            }
+            center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.footer?.removeFromSuperview(); self?.footer = nil }
+            }
+        }
+
+        @MainActor private func showFooter(in window: UIWindow?) {
+            guard footer == nil, let window else { return }
+            let box = UIView()
+            box.accessibilityIdentifier = Tags.kbFooter
+            box.translatesAutoresizingMaskIntoConstraints = false
+            let label = UILabel()
+            label.text = "キーボードの下の文"
+            label.translatesAutoresizingMaskIntoConstraints = false
+            box.addSubview(label)
+            window.addSubview(box)
+            NSLayoutConstraint.activate([
+                box.leadingAnchor.constraint(equalTo: window.leadingAnchor, constant: 16),
+                box.trailingAnchor.constraint(equalTo: window.trailingAnchor, constant: -16),
+                box.bottomAnchor.constraint(equalTo: window.bottomAnchor, constant: -60),
+                box.heightAnchor.constraint(equalToConstant: 44),
+                label.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+                label.centerYAnchor.constraint(equalTo: box.centerYAnchor),
+            ])
+            footer = box
         }
 
         @objc func changedAbove(_ sender: UITextField) { above.wrappedValue = sender.text ?? "" }

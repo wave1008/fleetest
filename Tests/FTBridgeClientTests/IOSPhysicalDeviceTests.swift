@@ -360,7 +360,7 @@ final class IOSPhysicalDeviceTests: XCTestCase {
         try FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        // 起動引数にポート専用の xctestrun 名と UDID を含む生きたプロセス(ランナーの代役。照合は両方を見る = OI-380)
+        // 起動引数にポート専用の xctestrun 名と UDID を含む生きたプロセス(ランナーの代役。照合は両方を見る)
         let udid = "00008130-001819863E60001C"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")

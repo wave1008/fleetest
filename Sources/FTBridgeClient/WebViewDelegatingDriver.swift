@@ -264,6 +264,7 @@ public final class WebViewDelegatingDriver: AppDriver {
         }
         let point = try domInteropPoint(ref: ref)
         let before = domValues[ref]
+        let frameBefore = domFrames[ref]
         await pingDelegatedBeforeEvent()
         try await delegated.tap(x: point.x, y: point.y)
         try await delegated.type(ref: nil, text: text)
@@ -272,7 +273,9 @@ public final class WebViewDelegatingDriver: AppDriver {
         guard !text.isEmpty, let before, before != nil else { return }
         // 読み返しは DOM の再取得(in-app 経路。実測 1手 3ms 級なので正常系でも重くない)
         _ = try await snapshot()
-        guard let after = domValues[ref], after != nil, after == before else { return }
+        // ref は snapshot ごとに振り直される: 同じ枠に居る要素だけを同じ欄とみなす
+        // (別の欄の値と比べて「不変」と誤認すると、届いていた入力を二重に打つ)
+        guard domFrames[ref] == frameBefore, let after = domValues[ref], after != nil, after == before else { return }
         note = "the typed text did not reach the WebView field; tapped and typed again"
         try await delegated.tap(x: point.x, y: point.y)
         try await delegated.type(ref: nil, text: text)

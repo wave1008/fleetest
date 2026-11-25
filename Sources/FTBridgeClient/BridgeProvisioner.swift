@@ -152,7 +152,10 @@ public struct BridgeProvisioner: Sendable {
         // 他 fleetest プロセスと同じ空きポートを取り合う bindFailed(48) を防ぐ(ProvisionLock 参照)。
         let provisionLock = try ProvisionLock(stateDir: repoRoot.appendingPathComponent(".fleetest"))
         await provisionLock.acquire(onWait: { safeLog("→ " + $0) })
-        defer { provisionLock.release() }
+        // 早期解放と adopt の起動し直し区間の調停(ProvisionLockHold)。finish が末尾の解放を兼ねる(冪等)
+        let lockHold = ProvisionLockHold(
+            held: provisionLock, stateDir: repoRoot.appendingPathComponent(".fleetest"))
+        defer { lockHold.finish() }
 
         // TTL 自主終了などで残った死んだランナーの pid ファイル、および対応する実体が消えた
         // .inapp/.endpoint/.device を採番前に回収する(assignPort は .pid/.inapp の有無だけで
@@ -304,7 +307,7 @@ public struct BridgeProvisioner: Sendable {
         let claimBarrier = PortClaimBarrier(expected: plans.reduce(0) { $0 + $1.bridges.count })
         let earlyRelease = Task {
             await claimBarrier.waitAll()
-            provisionLock.release()  // 冪等。末尾の defer と二重に呼ばれてよい
+            lockHold.barrierCompleted()  // 起動し直し中(adopt)の数が 0 になるまで解かない
         }
         defer { earlyRelease.cancel() }
 
@@ -333,7 +336,7 @@ public struct BridgeProvisioner: Sendable {
                 return Result<ProvisionedIOSDevice, Error>.success(try await self.executeDevice(
                     plan: plan, bundleID: bundleID,
                     preinstallAppPath: preinstallAppPath,
-                    claimBarrier: claimBarrier, log: safeLog))
+                    claimBarrier: claimBarrier, lockHold: lockHold, log: safeLog))
             } catch {
                 return .failure(error)
             }
@@ -757,7 +760,7 @@ public struct BridgeProvisioner: Sendable {
     /// (inapp-boost モードの inapp → xcuitest)は同一シミュレータへの simctl 競合を避けるため直列。
     /// inapp が失敗したら xcuitest は実行しない(直列版と同じ)
     private func executeDevice(plan: DevicePlan, bundleID: String?, preinstallAppPath: String?,
-                               claimBarrier: PortClaimBarrier,
+                               claimBarrier: PortClaimBarrier, lockHold: ProvisionLockHold,
                                log: @escaping @Sendable (String) -> Void) async throws -> ProvisionedIOSDevice {
         var portsByBridge: [String: UInt16] = [:]
         // **XCUITest ランナーを先に、in-app を後に**(Self.executionOrder): ランナーの起動し直し
@@ -774,7 +777,7 @@ public struct BridgeProvisioner: Sendable {
                 portsByBridge[bridge.kind] = try await executeBridge(
                     bridge: bridge.kind, plan: bridge.plan, name: plan.name, sim: plan.sim,
                     bundleID: bundleID, preinstallAppPath: preinstallAppPath,
-                    claimed: { await claim.fire() }, log: log,
+                    claimed: { await claim.fire() }, log: log, lockHold: lockHold,
                     // inapp-boost モードの実機: in-app のトンネルが相方(先に起動する xcuitest)のトンネルを消さないよう残す
                     keepPeerPort: bridge.kind == "inapp" ? portsByBridge["xcuitest"] : nil)
                 await claim.fire()
@@ -1115,6 +1118,7 @@ public struct BridgeProvisioner: Sendable {
                                bundleID: String?, preinstallAppPath: String?,
                                claimed: @escaping @Sendable () async -> Void,
                                log: @escaping @Sendable (String) -> Void,
+                               lockHold: ProvisionLockHold? = nil,
                                keepPeerPort: UInt16? = nil,
                                escalating: Bool = false) async throws -> UInt16 {
         // 止まった run のためにランナーを起動・引き取り・起こし直さない(再利用は撃たないので通す)
@@ -1140,7 +1144,8 @@ public struct BridgeProvisioner: Sendable {
         if bridge == "xcuitest", !escalating, case .launch = plan {
             let launched = try await executeBridge(
                 bridge: bridge, plan: plan, name: name, sim: sim, bundleID: bundleID,
-                preinstallAppPath: preinstallAppPath, claimed: claimed, log: log, escalating: true)
+                preinstallAppPath: preinstallAppPath, claimed: claimed, log: log, lockHold: lockHold,
+                escalating: true)
             return try await probeAndRestartIfDegraded(
                 name: name, sim: sim, port: launched, claimed: claimed, log: log) ?? launched
         }
@@ -1263,14 +1268,24 @@ public struct BridgeProvisioner: Sendable {
                 log(message)
                 return try await stopAndRelaunch()
             }
+            // **止める(pid ファイルが消える)から起動し直しの確保(pid の書き直し)までロックの外に出さない**
+            // —— 外へ出ると別プロセスの採番がこのポートを空きと読む(ProvisionLockHold)
             func stopAndRelaunch() async throws -> UInt16 {
+                await lockHold?.beginRestart(onWait: { log("→ " + $0) })
+                let ended = LockedValue(false)
+                let endRestart: @Sendable () -> Void = {
+                    guard !ended.withLock({ let was = $0; $0 = true; return was }) else { return }
+                    lockHold?.endRestart()
+                }
+                defer { endRestart() }
                 try? await launcher.stopAndWait()
                 return try await executeBridge(
                     bridge: bridge,
                     plan: .launch(port: port, needsInstall: false,
                                   stopStalePort: nil, reclaimInApp: false),
                     name: name, sim: sim, bundleID: bundleID,
-                    preinstallAppPath: preinstallAppPath, claimed: claimed, log: log)
+                    preinstallAppPath: preinstallAppPath,
+                    claimed: { await claimed(); endRestart() }, log: log)
             }
             // **Shutdown のシミュレータに張り付いたランナーは待たない**(decide の simulatorBooted)
             let simulatorBooted = sim.physical || sim.booted

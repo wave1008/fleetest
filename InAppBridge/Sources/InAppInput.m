@@ -396,13 +396,16 @@ id _Nullable FTCurrentTextReceiver(void) {
     return ftClearTarget();
 }
 
-void FTMoveCursorToEndInFirstResponder(void) {
-    id responder = ftClearTarget();
+static void ftMoveCursorToEnd(id responder) {
     if (ftIsFlutterApp() || ![responder conformsToProtocol:@protocol(UITextInput)]) return;
     id<UITextInput> input = (id<UITextInput>)responder;
     UITextPosition *end = input.endOfDocument;
     UITextRange *range = end ? [input textRangeFromPosition:end toPosition:end] : nil;
     if (range) input.selectedTextRange = range;
+}
+
+void FTMoveCursorToEndInFirstResponder(void) {
+    ftMoveCursorToEnd(ftClearTarget());
 }
 
 BOOL FTClearTextInFirstResponder(void) {
@@ -467,6 +470,8 @@ BOOL FTClearTextInFirstResponder(void) {
     // (= 呼び出し側が 409 で xcuitest を案内する既知の縮退。嘘の成功を返さないことが要点)
     if ([responder conformsToProtocol:@protocol(UIKeyInput)]) {
         id<UIKeyInput> ki = (id<UIKeyInput>)responder;
+        // deleteBackward は caret より前しか消さない: 文中や選択中のままだと後ろが残って NO になる
+        ftMoveCursorToEnd(responder);
         NSInteger attempts = 0;
         NSUInteger remaining = ftRemainingTextLength(responder);
         // NSNotFound(長さを読めない実装)は「空でない」とも言えないので即 NO

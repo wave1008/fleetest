@@ -45,6 +45,8 @@ enum Tags {
     static let navKeyboardCover = "nav_keyboard_cover"
     static let fieldAboveKeyboard = "field_above_keyboard"
     static let fieldUnderKeyboard = "field_under_keyboard"
+    /// キーボードが出ている間だけ window の下端(キーボードの内側)に置く文字の入れ物
+    static let kbFooter = "kb_footer"
 
     // セレクタ
     static let selectorResult = "txt_selector_result"

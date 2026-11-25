@@ -52,7 +52,7 @@ extension StepExecutor {
         return element
     }
 
-    /// アプリの XCUITest の木を1回読む(DR-199・DR-202・OI-390 の照会が共有する読み口)。
+    /// アプリの XCUITest の木を1回読む(DR-199・DR-202 の照会が共有する読み口)。
     /// XCUITest の snapshot は対象を activate する = 前面を離れたアプリを引き戻すので、activate しない /appstate で前面を確かめてから読む。
     /// 前面に無い → 注記なしの nil / 確認が答えない・木を読めない → `xcuitestTreeUnread` を立てた nil
     func readAppXCUITestTree(xcuitest: AppDriver, bundleID: String, phase: inout PhaseAccumulator) async -> SnapshotResponse? {
@@ -72,7 +72,7 @@ extension StepExecutor {
         return tree
     }
 
-    /// 否定形(notExist / waitForClose)が in-app の木で「無い」と結論する直前の照会の答え(OI-390)
+    /// 否定形(notExist / waitForClose)が in-app の木で「無い」と結論する直前の照会の答え(DR-199)
     enum ScopedAbsenceVerdict: Equatable {
         /// 照会の条件に当たらない(スコープの容器が子を持つ・スコープ無し・Android・xcuitest モード)
         case notApplicable
@@ -84,7 +84,7 @@ extension StepExecutor {
 
     /// セレクタ(主・フォールバック)のスコープ(`>>`)の容器が in-app の木で解決できたのに子孫が空か。
     /// iOS の Compose の ScrollableTabRow・PullToRefreshBox は容器の直後に同じ枠の `other` が兄弟で並び子が浅い depth になるので
-    /// `scopeDescendants` が空を返し、居る要素が「無い」に見える(OI-390)。**全ての notExist に照会を足すと遅い**ので、この形だけに絞る
+    /// `scopeDescendants` が空を返し、居る要素が「無い」に見える(DR-199)。**全ての notExist に照会を足すと遅い**ので、この形だけに絞る
     static func scopeContainerIsChildless(_ step: FlowStep, in elements: [ElementInfo]) -> Bool {
         ([step.locator] + (step.fallbacks ?? []).map { Optional($0) }).contains { locator in
             guard let locator else { return false }
@@ -106,6 +106,26 @@ extension StepExecutor {
         }
         noteCodesThisStep.insert(.absenceContradictedByXCUITestTree)
         return .stillThere
+    }
+
+    /// 肯定形(countIs・select・送りの探索の各周)の解決用に、スコープの容器が in-app の木で空の形だけアプリの XCUITest の木を1回読んで返す(DR-199)。
+    /// 否定形(`scopedAbsenceConsult`)と同じ条件・同じ読み口。**ref はその木を撮った XCUITest ドライバでだけ有効**なので、
+    /// 撃つ操作に使うなら `appXCUITestTreeActionTarget` のようにドライバごと渡す。前面に無い・読めない = nil(従来どおり in-app の木で決める)
+    func scopedPresenceTree(step: FlowStep, snapshot: SnapshotResponse, phase: inout PhaseAccumulator) async -> SnapshotResponse? {
+        guard !isAndroid, let xcuitest = typeDriver, let bundleID = launchedBundleID,
+              Self.scopeContainerIsChildless(step, in: snapshot.elements) else { return nil }
+        return await readAppXCUITestTree(xcuitest: xcuitest, bundleID: bundleID, phase: &phase)
+    }
+
+    /// 肯定形の検証(exist・テキスト比較・enabled・checked)の各周で in-app の木では解けなかったとき、`scopedPresenceTree` の条件の形だけ
+    /// XCUITest の木で解く。解けたら `snapshot` をその木に差し替える(以後の読み・遮蔽の検証・失敗時の木はその木 = 要素と同じ木)
+    func resolveScopedViaXCUITestTree(step: FlowStep, snapshot: inout SnapshotResponse, phase: inout PhaseAccumulator) async
+        -> (element: ElementInfo, usedFallback: FlowLocator?, quality: LocatorResolver.MatchQuality)? {
+        guard let tree = await scopedPresenceTree(step: step, snapshot: snapshot, phase: &phase),
+              let found = LocatorResolver.resolveDetailed(step: step, in: tree, strictForAssert: true) else { return nil }
+        snapshot = tree
+        noteCodesThisStep.insert(.scopeResolvedViaXCUITestTree)
+        return found
     }
 
     /// 操作(tap・type 等)の対象が in-app の木で解けなかったとき、キーボードを閉じる・赤にする前にアプリの XCUITest の木を1回照会する。

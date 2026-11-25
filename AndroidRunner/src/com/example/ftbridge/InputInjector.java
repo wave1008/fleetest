@@ -579,6 +579,9 @@ final class InputInjector {
             if (matches.size() > 1) return nearest(matches, x, y, tmp);
             AccessibilityNodeInfo inside = editableInsideTagged(root, shortId, x, y, tmp);
             if (inside != null) return inside;
+            // 木のどこにも id が無い = 対象は消えた。座標へ落とすと同じ位置の別の欄へ書く。
+            // id のノードが在るのに欄でない形(Compose の testTag が内側のノードに付く等)だけ座標で引く
+            if (!hasNodeWithId(root, shortId)) return null;
         }
         return editableAt(root, x, y, tmp);
     }

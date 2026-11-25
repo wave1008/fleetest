@@ -601,6 +601,9 @@ extension StepExecutor {
                 snapshot = try await retakenAtElementLimitCeiling(snapshot, phase: &phase)
                 resolvedDetail = LocatorResolver.resolveDetailed(step: step, in: snapshot, strictForAssert: true)
             }
+            if resolvedDetail == nil {
+                resolvedDetail = await resolveScopedViaXCUITestTree(step: step, snapshot: &snapshot, phase: &phase)
+            }
             lastSnapshot = snapshot
             // アサーションでは type+index のみのフォールバックを使わない。
             // 別画面の無関係な要素にマッチして誤った緑になる(実測済み)
@@ -785,8 +788,11 @@ extension StepExecutor {
                 needsCeiling = true
                 snapshot = try await retakenAtElementLimitCeiling(snapshot, phase: &phase)
             }
-            lastSnapshot = snapshot
             var candidate = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
+            if candidate == nil, let scoped = await resolveScopedViaXCUITestTree(step: step, snapshot: &snapshot, phase: &phase) {
+                candidate = (scoped.element, scoped.usedFallback)
+            }
+            lastSnapshot = snapshot
             var fromFallbackDriver = false
             // この周にフォールバックの木を見たか(下の間引きで見ない周は「消えた」の根拠にしない)
             var consultedFallback = false
@@ -1118,7 +1124,7 @@ extension StepExecutor {
                         continue
                     }
                 }
-                // スコープの容器が in-app の木で空の形だけ、XCUITest の木にも居ないことを確かめる(OI-390)。
+                // スコープの容器が in-app の木で空の形だけ、XCUITest の木にも居ないことを確かめる(DR-199)。
                 // 居れば不在を結論せず、他の「まだ在る」と同じく締め切りまで待つ。答えられなければ従来どおり(注記だけ残る)
                 if await scopedAbsenceConsult(step: step, snapshot: snapshot, phase: &phase) == .stillThere {
                     if Date() >= deadline {
@@ -1216,9 +1222,12 @@ extension StepExecutor {
                 needsCeiling = true
                 snapshot = try await retakenAtElementLimitCeiling(snapshot, phase: &phase)
             }
+            var resolvedNow = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
+            if resolvedNow == nil, let scoped = await resolveScopedViaXCUITestTree(step: step, snapshot: &snapshot, phase: &phase) {
+                resolvedNow = (scoped.element, scoped.usedFallback)
+            }
             lastSeenElements = snapshot.elements
             lastSnapshot = snapshot
-            let resolvedNow = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
             missingOnLastRead = resolvedNow == nil
             if let (element, fallback) = resolvedNow {
                 found = true
@@ -1331,9 +1340,12 @@ extension StepExecutor {
                 needsCeiling = true
                 snapshot = try await retakenAtElementLimitCeiling(snapshot, phase: &phase)
             }
+            var resolvedHere = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
+            if resolvedHere == nil, let scoped = await resolveScopedViaXCUITestTree(step: step, snapshot: &snapshot, phase: &phase) {
+                resolvedHere = (scoped.element, scoped.usedFallback)
+            }
             lastSnapshot = snapshot
-            if let (element, fallback) = LocatorResolver.resolve(step: step, in: snapshot,
-                                                      strictForAssert: true) {
+            if let (element, fallback) = resolvedHere {
                 found = true
                 if element.enabled == wantEnabled {
                     resolvedElementThisStep = element
@@ -1470,9 +1482,12 @@ extension StepExecutor {
                 needsCeiling = true
                 snapshot = try await retakenAtElementLimitCeiling(snapshot, phase: &phase)
             }
+            var resolvedHere = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
+            if resolvedHere == nil, let scoped = await resolveScopedViaXCUITestTree(step: step, snapshot: &snapshot, phase: &phase) {
+                resolvedHere = (scoped.element, scoped.usedFallback)
+            }
             lastSnapshot = snapshot
-            if let (element, fallback) = LocatorResolver.resolve(step: step, in: snapshot,
-                                                      strictForAssert: true) {
+            if let (element, fallback) = resolvedHere {
                 found = true
                 let accessibilityState = checkState(of: element, step: step)
                 var state = accessibilityState

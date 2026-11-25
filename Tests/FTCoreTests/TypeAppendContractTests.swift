@@ -17,6 +17,18 @@ final class TypeAppendContractTests: XCTestCase {
         XCTAssertFalse(bridge.contains("if refocused { FTMoveCursorToEndInFirstResponder() }"))
     }
 
+    /// clear の deleteBackward 経路は caret より前しか消さない: ループの前にキャレットを末尾へ畳む
+    func testClearCollapsesCaretBeforeDeleteBackwardLoop() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let m = try String(contentsOf: root.appendingPathComponent("InAppBridge/Sources/InAppInput.m"), encoding: .utf8)
+        let clear = try XCTUnwrap(m.range(of: "BOOL FTClearTextInFirstResponder(void) {"))
+        let body = String(m[clear.upperBound...])
+        let move = try XCTUnwrap(body.range(of: "ftMoveCursorToEnd(responder);"))
+        let loop = try XCTUnwrap(body.range(of: "[ki deleteBackward];"))
+        XCTAssertLessThan(move.lowerBound, loop.lowerBound)
+    }
+
     func testReplacedPriorValueVerdict() {
         XCTAssertTrue(TypedInputVerdict.replacedPriorValue(priorCount: 2, typedOnly: "cd", actual: "cd"))
         XCTAssertFalse(TypedInputVerdict.replacedPriorValue(priorCount: 2, typedOnly: "cd", actual: "abcd"))

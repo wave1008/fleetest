@@ -1,4 +1,4 @@
-// OI-390: スコープ(`>>`)の容器が in-app の木で子を持たない形(CMP の ScrollableTabRow・PullToRefreshBox)で、
+// DR-199: スコープ(`>>`)の容器が in-app の木で子を持たない形(CMP の ScrollableTabRow・PullToRefreshBox)で、
 // notExist / waitForClose が居る要素を「無い」と結論して緑になる誤りを、XCUITest の木の照会で塞ぐ
 import XCTest
 @testable import FTCore

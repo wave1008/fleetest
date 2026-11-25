@@ -199,6 +199,15 @@
         "S0010": { "expect": "red", "timedOut": true, "errorLogsContains": ["produced no output for", "and was killed"] },
         "S0020": { "expect": "green" }
       }
+    },
+    {
+      "project": "E2E-iOS", "file": "99_キーボードの下の文中リンク.swift", "profile": "ios-inapp-boost", "os": "ios",
+      "class": "キーボードの下の文中リンク",
+      "guards": "tap(要素, linkText:) で決めた点がソフトキーボードの枠の中なら撃たずに断る(linkTextPointCoverRefusal)。MCP の replay では外側のキーボードの門が先に断ってここへ届かない",
+      "watches": ["Sources/FTCore/StepExecutor+LinkText.swift", "Sources/FTCore/LinkTextLocator.swift", "Sources/FTCore/CoordinateGuards.swift", "E2EAppIOS/Sources/UIKitViews/KeyboardCoverScroll.swift"],
+      "scenarios": {
+        "S0010": { "expect": "red", "command": "tap", "detailContains": ["under the software keyboard"] }
+      }
     }
   ],
   "photosAlertCleanup": {

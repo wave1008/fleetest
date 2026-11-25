@@ -699,6 +699,15 @@ extension StepExecutor {
             (resolved, snapshot, actingDriver, switchedToFallbackDriver) = ((c.element, c.usedFallback), c.snapshot, c.driver, true)
         }
 
+        // select は掴むだけ(撃たない)ので、スコープの容器が in-app の木で空の形だけ XCUITest の木の要素を掴む(DR-199。ref は撃たないので使わない)
+        if resolved == nil, action == "select",
+           let tree = await scopedPresenceTree(step: step, snapshot: snapshot, phase: &phase),
+           let found = LocatorResolver.resolve(step: step, in: tree) {
+            resolved = found
+            snapshot = tree
+            noteCodesThisStep.insert(.scopeResolvedViaXCUITestTree)
+        }
+
         var status: StepResult.Status = .passed
         var healedStep: FlowStep?
         var healedByFingerprint = false

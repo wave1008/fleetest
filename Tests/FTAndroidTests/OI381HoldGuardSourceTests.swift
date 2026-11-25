@@ -1,4 +1,4 @@
-// OI-381 ⑤: Android ブリッジは /hold の指が下りている間、他の指の注入(/tap・/swipe・/doubletap・/pinch・/gesture・/press・
+// Android ブリッジは /hold の指が下りている間、他の指の注入(/tap・/swipe・/doubletap・/pinch・/gesture・/press・
 // ref 付きの /type・/clear)を 409 で断る。/swipe の durationMs は 1〜60000ms だけ受ける。
 // Java はデバイス上でしか動かないのでソース走査で固定する(実機での確認はデバイス実行)。
 

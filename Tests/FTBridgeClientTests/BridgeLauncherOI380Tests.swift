@@ -2,7 +2,7 @@ import FTCore
 import XCTest
 @testable import FTBridgeClient
 
-/// OI-380 ②③: UDID 照合はポート専用の xctestrun 名まで見る・isAlive は HTTP で答えた失敗(401 等)を「居ない」と畳まない
+/// UDID 照合はポート専用の xctestrun 名まで見る・isAlive は HTTP で答えた失敗(401 等)を「居ない」と畳まない
 final class BridgeLauncherOI380Tests: XCTestCase {
     private let udid = "B422AB58-6C79-45BC-92F0-BEF88061C8E1"
 

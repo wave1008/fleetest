@@ -159,6 +159,11 @@ extension StepExecutor {
                 needsCeiling = true
                 snapshot = try await retakenAtElementLimitCeiling(snapshot, phase: &phase)
             }
+            // スコープの容器が in-app の木で空の形(CMP の ScrollableTabRow 等)は in-app の件数が当てにならない = XCUITest の木で数える(DR-199)
+            if let tree = await scopedPresenceTree(step: step, snapshot: snapshot, phase: &phase) {
+                snapshot = tree
+                noteCodesThisStep.insert(.scopeResolvedViaXCUITestTree)
+            }
             lastSnapshot = snapshot
             breakdown = LocatorResolver.unionByClause(chain, elements: snapshot.elements)
             actual = breakdown.reduce(0) { $0 + $1.elements.count }

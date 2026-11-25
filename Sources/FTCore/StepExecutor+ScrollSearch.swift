@@ -1268,10 +1268,19 @@ extension StepExecutor {
             }
             // スクロール探索でも type+index フォールバックは誤検知のもとなので使わない
             var traced = LocatorResolver.resolve(step: step, in: snapshot, strictForAssert: true)
+            let resolvedInAppBeforeNarrowing = traced
             // **明示した scrollFrame の部分木の外の一致は、その一覧の行として扱わない**(`matchInsideScrollFrame`)
             if let (element, _) = traced, let narrowed = Self.matchInsideScrollFrame(step, matched: element, in: snapshot) {
                 traced = narrowed.match
                 if narrowed.match == nil { noteSearchTraceEntry(attempt: attempt, outside: element) }
+            }
+            // スコープの容器が in-app の木で空の形(CMP の ScrollableTabRow 等)は、探索の各周の解決を XCUITest の木で補う(DR-199)。
+            // 撃つ操作の ref は後段(executeAction の解決)が引き直すので、ここは「見つかったか・どこか」だけに使う
+            if traced == nil, resolvedInAppBeforeNarrowing == nil,
+               let tree = await scopedPresenceTree(step: step, snapshot: snapshot, phase: &phase),
+               let found = LocatorResolver.resolve(step: step, in: tree, strictForAssert: true) {
+                traced = found
+                noteCodesThisStep.insert(.scopeResolvedViaXCUITestTree)
             }
             // 待ちの読み直し(払わずに同じ回を読み直す)は1つにまとめる(長い waitSeconds: で記録が膨らみ、前の回の理由が押し出されないように)。
             // **間に払いがあった回はまとめない** —— 動かなかった払いは同じ回の番号で払い直す(`ScrollSearchBudget`)= 払った本数と記録の数を揃える
