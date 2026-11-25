@@ -345,7 +345,7 @@ final class WebViewDOMVisibilityTests: XCTestCase {
     };
 
     var window = {
-      visualViewport: { offsetLeft: 0, offsetTop: 0, scale: 1, width: 402, height: 650 },
+      visualViewport: { offsetLeft: 0, offsetTop: 0, scale: 1, width: 402, height: 650, pageLeft: 0, pageTop: 0 },
       getComputedStyle: function (el) { return el._style; }
     };
     """#

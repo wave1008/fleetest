@@ -17,7 +17,7 @@ public enum SimulatorDiagnosticsCapture {
     /// 長すぎると `log show` が遅くなる(背景で走るので回復は待たせない)
     static let logLookbackMinutes = 10
 
-    /// `log show` の時間上限(秒)。根拠: 起動中の Simulator で 10 分ぶんが約 2 秒(2026-11-25 実測)。負荷の下の何十倍かの遅れまで待ち、
+    /// `log show` の時間上限(秒)。根拠: 起動中の Simulator で 10 分ぶんが約 2 秒(実測)。負荷の下の何十倍かの遅れまで待ち、
     /// 背景のスレッドなので回復は待たせない。尽きたら子ごと止め、ファイルに時間切れと書く(採れた分は無い)
     public static let logShowTimeoutSeconds: Double = 90
 
@@ -62,7 +62,7 @@ public enum SimulatorDiagnosticsCapture {
     }
 
     /// 外観の部品(SpringBoard の `UserInterfaceStyleArbiter`)が変更を受けた行だけを長く遡る絞り込み。
-    /// 根拠(OI-347・2026-11-25 夜): 外観が届かない SpringBoard は、起動の瞬間の1回(`forReason:0`)の後に1度も動いていなかった
+    /// 根拠(OI-347): 外観が届かない SpringBoard は、起動の瞬間の1回(`forReason:0`)の後に1度も動いていなかった
     /// (起動から4時間40分)。届く SpringBoard は変更のたびに動く = 壊れた状態は起動の時点で決まり、`logLookbackMinutes` の窓では
     /// 起動まで届かない。1日ぶんでも数十行(行数は `logTailLines` で切らない)・所要は 6 時間ぶんで約 1.8 秒(実測)
     static let arbiterLookbackHours = 24
@@ -130,9 +130,14 @@ public enum SimulatorDiagnosticsCapture {
         pruneOldest(in: dir)
         let work: @Sendable () -> Void = {
             let section = logSection(command: command, commands: commands)
+            let arbiterHeader = "\n== appearance arbiter (SpringBoard UserInterfaceStyleArbiter, last \(arbiterLookbackHours)h) ==\n"
+            // 統合ログの節を先に書く: 外観の部品の 24 時間ぶんは `exitWaitSeconds` の後まで掛かりうるので、その間にプロセスが終わっても
+            // 統合ログは仮の行のまま残らない
+            try? (head + "\n== unified log ==\n" + section + arbiterHeader
+                  + "not captured yet (`log show` is still running; if this line remains, the process ended before it finished)\n")
+                .write(to: url, atomically: true, encoding: .utf8)
             let arbiter = arbiterSection(command: arbiterCommand, commands: commands)
-            try? (head + "\n== unified log ==\n" + section
-                  + "\n== appearance arbiter (SpringBoard UserInterfaceStyleArbiter, last \(arbiterLookbackHours)h) ==\n" + arbiter)
+            try? (head + "\n== unified log ==\n" + section + arbiterHeader + arbiter)
                 .write(to: url, atomically: true, encoding: .utf8)
             completion?()
         }
@@ -145,7 +150,7 @@ public enum SimulatorDiagnosticsCapture {
     }
 
     /// `captureOffCooperativePool` が**その採取の**統合ログを書き終えるのを待つ上限(秒)。根拠: `log show` は 10 分ぶんで約 2 秒
-    /// (2026-11-25 実測)の 5 倍。尽きたら待たずに進む(ファイルは仮の行のまま = 止まった端末で回復・失敗の報告を延ばさない)。
+    /// (実測)の 5 倍(外観の部品の 24 時間ぶんは含めない = 統合ログの節は先に書く)。尽きたら待たずに進む(ファイルは仮の行のまま = 止まった端末で回復・失敗の報告を延ばさない)。
     /// 待つ理由: 呼び手のプロセスはこの後すぐ終わりうる(起動の時間切れで投げる `bridge up`・回復の直後に終わる run)。
     /// 待たずに終わると背景のスレッドごと消え、ファイルは「log not captured yet」のまま残る
     public static let exitWaitSeconds: TimeInterval = 10

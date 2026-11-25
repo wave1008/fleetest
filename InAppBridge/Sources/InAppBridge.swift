@@ -681,6 +681,8 @@ final class FTInAppBridge {
             if let hit {
                 switch self.activateSnapshotNode(containing: p, ifReachableFrom: hit.view) {
                 case .activated: return
+                case .opensMenuAsPrimaryAction:
+                    throw InAppError(501, Self.primaryActionMenuMessage)
                 case .notActivated(let clipped):
                     clippedNote.text = clipped.map {
                         "\($0) contains this point but is clipped by its scroll container here (not drawn),"
@@ -700,6 +702,8 @@ final class FTInAppBridge {
 
     private enum CoordinateActivation {
         case activated
+        /// 押すとメニューが出る部品(ref のタップと同じ判定)。activate も合成タッチもメニューを開かないので撃たない
+        case opensMenuAsPrimaryAction
         /// clipped = 点を frame に含むが容器で切れていたため候補から外した要素のうち最小のもの(名指し用)
         case notActivated(clipped: String?)
     }
@@ -864,10 +868,8 @@ final class FTInAppBridge {
             // メニューは出ず、座標の合成タッチでも出ない(カレンダーの表示切り替え `#toggle-day-list-view` = `_UIButtonBarButton`。
             // XCUITest のタップなら出る。同じ画面の普通のボタン・長押しだけのメニューを持つボタンは false)。
             // 501 でホストに XCUITest の座標タップへ回させる(SwiftUI の不発と同じ回し方)
-            if (node as? UIControl)?.showsMenuAsPrimaryAction == true {
-                thrown = InAppError(501, "this control opens a menu as its primary action; accessibilityActivate reports"
-                    + " success without opening it and a synthetic touch does not open it either."
-                    + " inapp-boost mode hands it to the XCUITest bridge")
+            if Self.opensMenuAsPrimaryAction(node) {
+                thrown = InAppError(501, Self.primaryActionMenuMessage)
                 sem.signal()
                 return
             }
@@ -963,8 +965,19 @@ final class FTInAppBridge {
         guard let ref = choice.ref,
               let node = nodes.object(forKey: NSNumber(value: ref)) as? NSObject,
               Self.isReachable(hitView, forNode: node) else { return .notActivated(clipped: clippedName) }
+        if Self.opensMenuAsPrimaryAction(node) { return .opensMenuAsPrimaryAction }
         return node.accessibilityActivate() ? .activated : .notActivated(clipped: clippedName)
     }
+
+    /// 押すとメニューが出る部品か(`UIControl.showsMenuAsPrimaryAction`)。activate は true を返すのにメニューは出ず、座標の合成タッチでも
+    /// 出ない(カレンダーの表示切り替え `_UIButtonBarButton`。XCUITest のタップなら出る)。ref・座標の両方のタップが共有する
+    static func opensMenuAsPrimaryAction(_ node: NSObject) -> Bool {
+        (node as? UIControl)?.showsMenuAsPrimaryAction == true
+    }
+
+    static let primaryActionMenuMessage = "this control opens a menu as its primary action; accessibilityActivate reports"
+        + " success without opening it and a synthetic touch does not open it either."
+        + " inapp-boost mode hands it to the XCUITest bridge"
 
     /// point(スクリーン座標)で実際にタッチを受ける view と、それが載る window。
     /// キーボード(TextEffects)/RemoteKeyboard の窓も除外せずに探すが、**キーボードはこれでは

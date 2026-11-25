@@ -265,7 +265,7 @@ extension StepExecutor {
         }
         let clock = ContinuousClock()
         let start = clock.now
-        if await coverReadOnScreen(e) != nil { noteCodesThisStep.insert(.coveredByFrontElementReadOnScreen) }
+        if await coverReadOnScreen(e, phase: &phase) != nil { noteCodesThisStep.insert(.coveredByFrontElementReadOnScreen) }
         phase.ocrMs += Self.ms(clock.now - start)
         return .next
     }
@@ -273,10 +273,10 @@ extension StepExecutor {
     /// 対象の中心に、ラベルを持つ別の要素が重なっている(祖先・子孫 = 枠が他方を丸ごと含む形は除く)とき、対象の枠を OCR で1回読み、
     /// 対象の文字は読めず重なる要素のラベルが読めたら、その要素を返す(= 画面ではその要素が手前に描かれている)。
     /// 塗り順の分からない木(Android の Flutter 等 = `PaintOrder.isReal` が偽)で、木では手前が決まらない重なりを画素で決める。
-    /// 実測(2026-11-25・E2EY-Flutter の Android・半分のシート): 覆われた `#row_main_10`(本文 10)の枠は「キュー02」と読め、覆われていない
+    /// 実測(E2EY-Flutter の Android・半分のシート): 覆われた `#row_main_10`(本文 10)の枠は「キュー02」と読め、覆われていない
     /// `#row_main_06` の枠は「本文 06」と読めた。どちらのラベルも読めない(アイコン等)なら nil = 何も言わない。OCR の段が無効なら撃たない。
     /// 費用: 重なりがある回だけスクリーンショット1枚 + OCR 1回
-    func coverReadOnScreen(_ e: VisibilityEvidence) async -> ElementInfo? {
+    func coverReadOnScreen(_ e: VisibilityEvidence, phase: inout PhaseAccumulator) async -> ElementInfo? {
         guard occlusionOCRMode != .off, !e.expectedText.isEmpty else { return nil }
         let target = e.element
         let centre = (x: target.frame.x + target.frame.width / 2, y: target.frame.y + target.frame.height / 2)
@@ -287,11 +287,16 @@ extension StepExecutor {
                   other.frame.containsClosed(x: centre.x, y: centre.y) else { return false }
             return !Self.frame(other.frame, contains: target.frame) && !Self.frame(target.frame, contains: other.frame)
         }
-        guard !candidates.isEmpty, let shot = try? await driver.screenshot(),
-              let reading = await RegionText.read(
-                pngData: shot, frame: target.frame, screen: e.screen,
-                languages: RegionText.languages(forAny: [e.expectedText] + candidates.compactMap(\.label))) else { return nil }
-        guard !RegionText.readable(expected: e.expectedText, lines: reading.lines) else { return nil }
+        // V15(コンパイル待ち)より前の段なので、近道と同じ門(ready・詰まった読みが無い)と予算を通す。素の read はコンパイル中・
+        // ANE の詰まりの後ろで上限なしに待ち、締め切りからも差し引かれない
+        guard !candidates.isEmpty,
+              RegionText.shouldTakeShortcut(mode: occlusionOCRMode, ready: RegionText.isModelReady,
+                                            abandonedInFlight: RegionText.abandonedInFlight),
+              let shot = try? await judgmentScreenshot(keyboardShown: e.keyboardShown, phase: &phase),
+              case .read(let ownTextReadable, let reading) = await RegionText.resolveWithinBudget(
+                expected: e.expectedText, pngData: shot, frame: target.frame, screen: e.screen,
+                languages: RegionText.languages(forAny: [e.expectedText] + candidates.compactMap(\.label))),
+              !ownTextReadable else { return nil }
         return candidates.first { RegionText.readable(expected: $0.label ?? "", lines: reading.lines) }
     }
 

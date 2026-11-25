@@ -118,7 +118,7 @@ final class InputInjector {
                       long durationMs, boolean syntheticUpTime, boolean liftImmediately) {
         long downTime = SystemClock.uptimeMillis();
         int steps = Math.max(1, (int) (durationMs / 16));
-        SwipeTrace trace = new SwipeTrace(steps + 2);
+        SwipeTrace trace = new SwipeTrace("swipe", steps + 2);
         injectTraced(ua, event(downTime, downTime, MotionEvent.ACTION_DOWN, fromX, fromY), trace);
         for (int i = 1; i <= steps; i++) {
             double t = (double) i / steps;
@@ -142,20 +142,26 @@ final class InputInjector {
      * uptimeMillis・accepted = injectInputEvent の戻り値。**払いは1スレッドで撃つので同期しない**(呼び手が1本ごとに作る)
      */
     static final class SwipeTrace {
+        /** 要約の頭の語(払い = "swipe"・指の経路の再生 = "gesture") */
+        final String kind;
+        final int[] actions;
         final long[] planned;
         final long[] actual;
         final boolean[] accepted;
         int n = 0;
         int refused = 0;
 
-        SwipeTrace(int capacity) {
+        SwipeTrace(String kind, int capacity) {
+            this.kind = kind;
+            actions = new int[capacity];
             planned = new long[capacity];
             actual = new long[capacity];
             accepted = new boolean[capacity];
         }
 
-        void record(long plannedMs, long actualMs, boolean ok) {
+        void record(int actionMasked, long plannedMs, long actualMs, boolean ok) {
             if (n < planned.length) {
+                actions[n] = actionMasked;
                 planned[n] = plannedMs;
                 actual[n] = actualMs;
                 accepted[n] = ok;
@@ -164,13 +170,21 @@ final class InputInjector {
             if (!ok) refused++;
         }
 
+        /** 最初の MOVE の添字(2本目の指の POINTER_DOWN 等は飛ばす)。無ければ -1 */
+        private int firstMoveIndex() {
+            for (int i = 1; i < n; i++) if (actions[i] == MotionEvent.ACTION_MOVE) return i;
+            return -1;
+        }
+
         /** 最初の MOVE を注入し始めた時刻 - DOWN を注入し始めた時刻。MOVE が無ければ -1 */
         long firstMoveGapActualMs() {
-            return n >= 2 ? actual[1] - actual[0] : -1;
+            int i = firstMoveIndex();
+            return i > 0 ? actual[i] - actual[0] : -1;
         }
 
         long firstMoveGapPlannedMs() {
-            return n >= 2 ? planned[1] - planned[0] : -1;
+            int i = firstMoveIndex();
+            return i > 0 ? planned[i] - planned[0] : -1;
         }
 
         /** 予定の eventTime(DOWN 起点で換算)に対する、注入を呼んだ時点の遅れの最大 */
@@ -184,31 +198,32 @@ final class InputInjector {
         }
 
         String summary() {
-            return summarize(n, firstMoveGapPlannedMs(), firstMoveGapActualMs(), maxLatenessMs(), refused);
+            return summarize(kind, n, firstMoveGapPlannedMs(), firstMoveGapActualMs(), maxLatenessMs(), refused);
         }
     }
 
     /** 失敗文に載せる要約(英語・一次情報だけ)。単体で確かめられるよう純粋な関数にしてある */
-    static String summarize(int events, long firstMovePlannedMs, long firstMoveActualMs, long maxLatenessMs, int refused) {
-        return "swipe injection trace: events=" + events
+    static String summarize(String kind, int events, long firstMovePlannedMs, long firstMoveActualMs, long maxLatenessMs, int refused) {
+        return kind + " injection trace: events=" + events
                 + ", down-to-first-move planned=" + firstMovePlannedMs + "ms actual=" + firstMoveActualMs + "ms"
                 + ", max lateness=" + maxLatenessMs + "ms, refused=" + refused;
     }
 
     private static void injectTraced(UiAutomation ua, MotionEvent e, SwipeTrace trace) {
         long planned = e.getEventTime(); // recycle 後は読めないので注入の前に取る
+        int action = e.getActionMasked();
         long actual = SystemClock.uptimeMillis();
         try {
             inject(ua, e);
         } catch (BridgeRouter.BridgeException ex) {
             // 500(拒否)だけ要約を添える。503(口が死んでいる)は文言を変えない
             if (ex.status == 500) {
-                trace.record(planned, actual, false);
+                trace.record(action, planned, actual, false);
                 throw new BridgeRouter.BridgeException(500, ex.getMessage() + " (" + trace.summary() + ")", ex.reason);
             }
             throw ex;
         }
-        trace.record(planned, actual, true);
+        trace.record(action, planned, actual, true);
     }
 
     /**
@@ -1230,7 +1245,8 @@ final class InputInjector {
         }
 
         // 拒否(500)の失敗文の events= が何番目のイベントで拒否されたかを言う(tapAppIcon のドロワーを開く払いはこの経路)
-        SwipeTrace trace = new SwipeTrace(checkpoints.size() + n);
+        // 1つのチェックポイントで複数の指が押す・離すと複数のイベントになる = 上限はチェックポイント + 指ごとの押す・離す
+        SwipeTrace trace = new SwipeTrace("gesture", checkpoints.size() + 2 * n);
         long base = SystemClock.uptimeMillis();
         long downTime = base + globalStart;
         boolean[] active = new boolean[n];

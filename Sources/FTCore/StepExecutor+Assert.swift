@@ -941,9 +941,10 @@ extension StepExecutor {
         // ラベルが XCUITest と違う形(マップの見出しの id = in-app `PlaceHeaderView` / XCUITest `PlaceHeaderTitle`)で、
         // 作成時(MCP = XCUITest)に書いた textIs が本番(inapp-boost)でだけ not found になった。値が期待に合い、見えていると
         // 確かめられたときだけ緑(見つかっただけ・値が違うだけでは結論を変えない = 失敗の文言は従来どおり)
-        if !found, let consulted = try await appXCUITestTreeMatch(step: step, phase: &phase, matchedText: { element, tree in
-            let value = assert == "idEquals" ? element.identifier
-                : (assert.hasPrefix("value") ? TypeReadback.assertedValue(of: element, in: tree.elements) : element.label)
+        // idIs は照会しない: id は画面に描かれず可視性検証を切っている(DSL が occlusionGuard: false)ので採れないうえ、
+        // 照会すると「可視性検証が無効なので照会しなかった」(xcuitest-tree-not-consulted)という誤った注記が付く
+        if !found, assert != "idEquals", let consulted = try await appXCUITestTreeMatch(step: step, phase: &phase, matchedText: { element, tree in
+            let value = assert.hasPrefix("value") ? TypeReadback.assertedValue(of: element, in: tree.elements) : element.label
             return LocatorResolver.matchedText(value, expected: expected, assert: assert,
                                                normalization: Self.textNormalization(for: step))
         }) {

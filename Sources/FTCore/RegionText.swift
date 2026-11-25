@@ -546,14 +546,16 @@ public enum RegionText {
             // 読めた)。ここで止めるのが効くのは、覆いが消えるのを待つ poll 周回 —— 毎周 3 回撃つと
             // 待ちの間じゅう払い続けることになる
             if reading.lines.isEmpty {
-                // 等倍で0行のときだけ、文字の在りかから切り直して1回読む(`readTextRegion` の doc)。領域が無ければ従来どおり諦める
+                // 等倍で0行のときだけ、文字の在りかから切り直して1回読む(`readTextRegion` の doc)。**採るのは期待が読めた回だけ** ——
+                // 読めなかった行(誤読・別の文字)を返すと、0行ならインク量で「判定不能」だった OCR だけの判定(`OCROnlyVisibility.judge`)や
+                // 行の確かめを新しく赤へ倒す。領域が無い・読めなければ従来どおり0行で諦める
                 guard index == 0,
                       let regional = await readTextRegion(pngData: pngData, frame: frame, screen: screen,
-                                                          cropPadding: cropPadding, languages: languages)
+                                                          cropPadding: cropPadding, languages: languages),
+                      readable(expected: expected, lines: regional.lines)
                 else { return (false, accumulated) }
-                return (readable(expected: expected, lines: regional.lines),
-                        Reading(lines: regional.lines, elapsedMs: accumulated.elapsedMs + regional.elapsedMs,
-                                attempts: index + 2, pixels: regional.pixels))
+                return (true, Reading(lines: regional.lines, elapsedMs: accumulated.elapsedMs + regional.elapsedMs,
+                                      attempts: index + 2, pixels: regional.pixels))
             }
             last = accumulated
         }

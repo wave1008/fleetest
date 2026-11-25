@@ -78,6 +78,7 @@ final class CoveredByFrontElementNoteTests: XCTestCase {
 final class CoverReadOnScreenNoteTests: XCTestCase {
     override func tearDown() {
         RegionText.readRecognizeOverrideForTesting = nil
+        RegionText.modelReadyOverrideForTesting = nil
         super.tearDown()
     }
 
@@ -88,6 +89,8 @@ final class CoverReadOnScreenNoteTests: XCTestCase {
 
     private func exist(read: [String], ocr: RegionTextGateMode = .on, tree: [ElementInfo]? = nil) async -> StepOutcome {
         RegionText.readRecognizeOverrideForTesting = { _ in read }
+        // 読みは近道と同じ門(コンパイル済み)を通る
+        RegionText.modelReadyOverrideForTesting = true
         let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [tree ?? [row, sheetRow]],
                                    screenshots: [StepExecutorTests.inkedPNG])
         let executor = StepExecutor(driver: driver, occlusionOCRMode: ocr, isAndroid: true, tunables: RunTunables(),

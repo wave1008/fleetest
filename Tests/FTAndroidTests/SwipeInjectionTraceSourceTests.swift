@@ -20,7 +20,7 @@ final class SwipeInjectionTraceSourceTests: XCTestCase {
 
     func testSummaryFormatIsPinned() throws {
         let source = try injector
-        for fragment in ["\"swipe injection trace: events=\"", "\", down-to-first-move planned=\"", "\"ms actual=\"",
+        for fragment in ["kind + \" injection trace: events=\"", "new SwipeTrace(\"swipe\", ", "new SwipeTrace(\"gesture\", ", "\", down-to-first-move planned=\"", "\"ms actual=\"",
                          "\", max lateness=\"", "\"ms, refused=\""] {
             XCTAssertTrue(source.contains(fragment), "要約の形が変わった: \(fragment)")
         }
