@@ -129,7 +129,7 @@ public enum EmulatorGrpcSession {
     /// 2点間ドラッグ(`input swipe` の代替)。down → ~16ms 刻みの補間 move → up を
     /// 1接続内で送る(pressure 0 の up を必ず送らないと identifier が残留する。proto 契約)。
     /// 座標は screencap と同じ物理ピクセル
-    /// `onTiming` = 撃ち終えたときの (実際の所要 ms, 送りと送りの最大の間隔 ms)。測る口(OI-218: 遅いドラッグが一度に流れた回に、
+    /// `onTiming` = 撃ち終えたときの (実際の所要 ms, 送りと送りの最大の間隔 ms)。測る口(遅いドラッグが一度に流れた回に、
     /// 送りが詰まったか・間が空いたかを後から読む)で、撃ち方は変えない
     public static func drag(endpoint: EmulatorEndpoint,
                             fromX: Int32, fromY: Int32, toX: Int32, toY: Int32,

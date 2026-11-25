@@ -64,6 +64,14 @@ final class RegexAssertionValidationTests: XCTestCase {
         XCTAssertTrue(isFailed(steps[0]), "\(steps[0].status)")
     }
 
+    /// 不正なパターンの赤は理由(不正な正規表現であること)を言う(「did not hold」だけで終わらせない)
+    func testInvalidPatternFailureSaysWhy() {
+        for steps in [run { "abc".thisMatches("[") }, run { "abc".thisMatchesNot("[") }] {
+            guard case .failed(let message) = steps[0].status else { return XCTFail("\(steps[0].status)") }
+            XCTAssertTrue(message.contains("is not a valid regular expression"), message)
+        }
+    }
+
     func testThisMatchesPassesOnValidPattern() {
         let steps = run { "abc".thisMatches("^a") }
         XCTAssertEqual(steps.count, 1)

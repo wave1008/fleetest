@@ -30,9 +30,9 @@
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 15 | OI-329・OI-345・OI-347・OI-358・OI-366・OI-376・OI-377・OI-378・OI-386・OI-388・OI-395・OI-396・OI-398・OI-399・OI-400 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-251・OI-279・OI-327・OI-387・OI-394 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 45 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-345・OI-346・OI-358・OI-359・OI-366・OI-378・OI-385・OI-386・OI-396・OI-398 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 44 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-345・OI-346・OI-358・OI-359・OI-366・OI-378・OI-385・OI-386・OI-396・OI-398 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 12 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347・OI-358・OI-385 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 48 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370・OI-379・OI-385 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 47 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370・OI-379・OI-385 |
 
 ## 着手可
 
@@ -287,7 +287,8 @@
 
 出典: 60周目 im4 F4(M4Max・xcuitest 4/4)。`tap("#nav_hide_bars", scroll: .down)` → `scrollDown()` → `tap("#btn_top_action")` が 0.37 秒で ✅ → `textIs("hide=top_action")` が "hide=none" で赤。XCUITest の木は隠れたバーのボタンを画面内の枠のまま残し、行 `#row_h_12` の枠がボタンの中心を含む
 - 木に材料なし: 事後の添え書き(「its point was inside #row_h_12, which is in front of the target」)の「手前」は木の順(preorder で後ろ)からの推定で、XCUITest の木に塗り順は無い。撃つ前の断りに使うと塗り順の無い木で手前を補うことになる(fm-occlusion.md)。OI-211・OI-216 と同じ形
-- 次の一手: XCUITest ブリッジが当たり判定を申告できるようになったら撃つ前に確かめる
+- 測った(2026-11-25・手元 Sim -01・xcuitest モード・3/3 で再現): 隠れた後の XCUITest の木はバー `#bar_top_hiding (0,0 402x163)` と `#btn_top_action (322,127 64x20)` を元の位置に残し、一覧の容器は `scrollView (0,163 402x711)` = ボタンの上に描かれている行 `#row_h_12 (0,108 402x48)` は容器の上端の外(送り残し)と読まれて覆いの候補(`otherLayerCoverCandidates`)から外れる → `isHittable` を聞かずに撃つ。**`GET /hittable` は `#btn_top_action` に false と答えた(正しい)** = 材料はある。足りないのは「聞く」きっかけ: 候補の行が送り残しと読まれる形(対象の中心に容器の外へ出た行が重なる)でも聞くかは、撃つ前の照会の費用と DR-145(true は誤る)の範囲の判断が要る
+- 次の一手: 「対象の中心に、容器の窓の外へ出た押せる行が重なるときも `isHittable` を聞き、false なら断る」を、既存の SUT(隠れるバー・貼り付く見出し・縮むヘッダの xcuitest モード)で反例と照会の回数を数えてから入れる
 
 ### OI-238 Flutter の iOS で、back() の縁の払いが戻らないのに、注記付きの ✅ を返す(どの画面でも。inapp-boost 42/42・xcuitest 12/12)
 - 状態: 再現済み
@@ -371,7 +372,8 @@
 - 運用: ①要注意 — ✅ でも何も押していない。後続の検証で赤になる(覆いは名指さない) ③再実行で吸収 — M1Ultra の負荷の下でだけ出ている
 - 優先度: 中 — ①✅ でも何も押していない(後続で赤になるが覆いを名指さない)
 
-出典: `_work/explore-20261105b/findings-*.md`(14周目・11/5)。①E2EY-RN の Android の A9 で、半分のシートの見出しの帯の下の行への `tap` が ✅ を返すが何も押していない(amax F1・16/16。送りの形「scrolled the container to bring the target out from under #queue_row_00」が 4・送り無しで注記も無い形が 12)。後続の赤は「may have been swallowed」だけで覆いを名指さない。キューの行が覆いのときは撃たずに断る(8/8)。撃った中心を覆うノードは木に無く、シートの面(見出しの帯)が木に載っていない = **木に材料なし**(面が木に無い理由は材料不足)③SwiftUI の iOS で、開いた直後に見えている FAB への素の `tap("#fab_hiding")` を容器の外と扱って一覧を送り、バーと FAB を隠して何も押さずに赤(iultra F2・12回中6回。CMP・Flutter は 6/6 緑)。FAB をどの容器の子と数えたか・台で分かれた理由は材料不足(手元の8台×2周では 16/16 緑 = M1Ultra の負荷の下でだけ出ている)。候補の仕組み: E2EX-iOS の FAB の画面で、開いた直後の `tap("#fab_add")` が push の遷移の途中で滑っている前の画面の一覧 `(-121,0 402x874)` を容器に選んで「容器の外」と読み、救済の遅いドラッグを1本撃つ形を観測(緑・1/1)。外側の一覧の判定(`clippedByOuterScroller`)は画面からはみ出た枠を除くが、容器の外の判定(`isOutsideContainer`)は除かない。赤の回が同じ仕組みかは、M1Ultra で出たときの救済の記録(`[rescue: …]` に容器の枠が出る)で確かめる(直すなら容器推定を触るので 5 SUT のフル E2E と xcuitest)。11/8 の HEAD では M1Ultra の6台×2周で 0/12(救済の経路にも入らない)= 低頻度
+出典: `_work/explore-20261105b/findings-*.md`(14周目・11/5)。①E2EY-RN の Android の A9 で、半分のシートの見出しの帯の下の行への `tap` が ✅ を返すが何も押していない(amax F1・16/16。送りの形「scrolled the container to bring the target out from under #queue_row_00」が 4・送り無しで注記も無い形が 12)。後続の赤は「may have been swallowed」だけで覆いを名指さない。キューの行が覆いのときは撃たずに断る(8/8)。撃った中心を覆うノードは木に無く、シートの面(見出しの帯)が木に載っていない = **木に材料なし**(面が木に無い理由は材料不足)③SwiftUI の iOS で、開いた直後に見えている FAB への素の `tap("#fab_hiding")` を容器の外と扱って一覧を送り、バーと FAB を隠して何も押さずに赤(iultra F2・12回中6回。CMP・Flutter は 6/6 緑)。FAB をどの容器の子と数えたか・台で分かれた理由は材料不足(手元の8台×2周では 16/16 緑 = M1Ultra の負荷の下でだけ出ている)。候補の仕組み: E2EX-iOS の FAB の画面で、開いた直後の `tap("#fab_add")` が push の遷移の途中で滑っている前の画面の一覧 `(-121,0 402x874)` を容器に選んで「容器の外」と読み、救済の遅いドラッグを1本撃つ形を観測(緑・1/1)。外側の一覧の判定(`clippedByOuterScroller`)は画面からはみ出た枠を除くが、容器の外の判定(`isOutsideContainer`)は除かない。赤の回が同じ仕組みかは、M1Ultra で出たときの救済の記録(`[rescue: …]` に容器の枠が出る)で確かめる(直すなら容器推定を触るので 5 SUT のフル E2E と xcuitest)。
+- 2026-11-25(③の再確認): M1Ultra の6台へ開いた直後の `tap("#fab_hiding")` → `textIs("hide=fab")` を 3 周(負荷の無い時間)= 18/18 緑。負荷の下でだけ出る形なので消えたとは言えない(11/18 の keptDepth の門 c516bddf6 で容器の外と読まなくなった見込み = 推測)。回帰の負荷の下で出たら救済の記録を見る11/8 の HEAD では M1Ultra の6台×2周で 0/12(救済の経路にも入らない)= 低頻度
 
 ### OI-174 入れ子の横の棚の画面外の項目の失敗文が、CMP と Flutter の iOS(inapp-boost)では横の棚を案内しない
 - 状態: 再現済み
@@ -1001,20 +1003,6 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 測った(11/16): M1Max の Pixel 10 Pro 4台へ過去に落ちた 4 クラス 10 シナリオを 8 run broadcast(launch 320 回)で 320/320 緑。前回の 260 回と合わせて 580 回で 0 件 = 原因を測る材料が採れないので据え置く
 - 次の一手: 次にこの赤が出たら括弧の中(前面に居たもの・所要)を見て、前面待ちが期限に負けたのか、別のものが前面に居たのかを分ける
 
-### OI-218 RN の Android で上向きの探索が上に行が残るのに「端に着いた」で赤(手元の 6 台で 60 回中 1 回)
-- 状態: 据え置き
-- 確認: 80c658e07(2026-11-15)
-- 属性: 据え置き・低頻度
-- 運用: 再実行で吸収(赤は 1〜6% = 11/15 の手元の周回で 48 回中 3 回・60 回中 1 回)
-- 優先度: 低 — 赤になる(誤った緑ではない)
-
-出典: `_work/explore-20261111a/findings-amax.md`(51周目・11/11)。E2E-RN の Android で、行27 が見えている位置から撃った `tap("#row_21", scroll: .up)` が「the scroll area reached its end — the content stopped moving」で赤。失敗時の画面は一覧の下端
-- **11/15 に測った**: 探索の記録に中身の向きを足した(`(moved N of M, content went up|down)`・`StepExecutor.measuredContentDirection`)。再現では round 1〜3 が `moved 0` = 払いが中身を動かさなかった。SUT の E2EAppRN(Android)の一覧に、タッチ列ごとのスクロール位置を `#list_rows` のラベルと logcat(`ReactNativeJS` の `OI218 …`)へ出す測る口を足し、手元の 6 台へ 10 周(`_work/oi218d`・毎周の logcat つき)。**60 回すべてで、行27 の位置(contentOffset 588dp)からの最初の上向きの払いが一覧を先頭(0)まで流し、行21 を飛び越した**(一覧の窓は約 446dp)。先頭では払いが動かないので「端に着いた」になり、そこからの逆向きの遅いドラッグが 0→245→472→699 と戻して行21 を見つけるのが緑の回。**赤の 1 回は、逆向きの最初の遅いドラッグが 0→1880 と一度に下端まで流れた**(同じ入力が緑では 245 だけ動いた)
-- 飛び越しそのものは既定経路(scrollFrame 無し)の払いの移動量が窓を超える既知の形で、刻みをホスト側で縮める直しは 2 度撤回済み(PT-3.19・`StepExecutor+ScrollSearch.swift` の移動量の doc)。ここでは変えない
-- **流れた理由(11/15 に観測)**: SUT の記録に離した瞬間の速度(`onScrollEndDrag` の velocity)を、ホストの gRPC のドラッグに所要と送りの最大の間隔(`EmulatorControl.dragTimingNote`。普段の幅を超えたときだけ1行)を足し、手元の 6 台へ 20 周(`_work/oi218e`)。逆向きの遅いドラッグ 320 本のうち流れた(1000dp 以上動いた)5 本は、ネイティブの ScrollView が報告した離した瞬間の速度が -111〜-861(流れなかった 315 本は中央値 0.06・1 本は 0.00 で流れた)。ホストの送りの間隔が大きかった 5 本とは 1 本しか重ならない = 送りは予定どおりで、速度はゲストの側で大きく計算された(なぜ大きくなったかは未測定)
-- 判断(据え置き): 直すなら「遅いドラッグは離す前に同じ点で止まる」(速度の計算に使う直近の移動を 0 にする)だが、ドラッグの口(`AppDriver.drag`)に引数を足してドライバ 13 個と偽のドライバを通す必要があり、救えるのは 60 回に 1 回の赤(既知の飛び越しの後始末の経路)だけ
-- 見直す条件: 逆走査以外の遅いドラッグ(寄せ・端の確かめ)でも流れる赤が出たら
-
 ### OI-225 実機の iOS(inapp-boost)で、合成タッチに、表示が変わったのに「the screen looked the same when it settled」と注記する(WebView の DOM 要素・UIKit の入力欄・SwiftUI の行)
 - 状態: 再現済み
 - 確認: 4563640be(2026-11-13)
@@ -1036,15 +1024,16 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 出典: `_work/explore-20261113c/findings-im4.md`(54周目 im4 F1)。launchApp の直後(既にホーム)に `tap("#tab_home")` → ダイアログを開いて OK → `back()`(自前の戻るの画面なので効かない・注記は事実どおり)→ `exist("#nav_dialog")` の赤に「earlier, the screen was also unchanged between tap id=tab_home and the tap after it — that interaction may have been swallowed」(RN・SwiftUI・CMP の iOS で 6/6)。原因は観測済み: `StepExecutor.earlierTapsHint` は「直前のタップが画面を変えないのが正常な操作でも、その前のタップが効いていなかった事実は消さない」設計で、後の操作で画面が変わっても外さない。**据え置きの理由**: 名指す事実(そのタップの後に画面が変わらなかった)は正しく、文はぼかしてある。後の操作が効いたことで外すと、空振りした保存の後に戻って赤になった形(sut-ec-mobile)で名指せなくなる。効かなかった `back()` は別の注記が既に言っている
 
-### OI-219 推測の容器でも、Android の経路カードが直前の横カルーセルの外と読まれる(覆う側から外れる)・その画面の他の検知の件数は未検分
-- 状態: 再現済み
-- 確認: 作業ツリー(2026-11-12)
+### OI-219 Google マップ Android の経路一覧のコーパスで、採取時の検知(overlay 3・misses 1・sliver 2・clippedByContainer 1)を1件ずつ確かめていない
+- 状態: 推測
+- 確認: 2026-11-25
 - 属性: 据え置き
-- 運用: 合否に響かない(警告が出ないだけで、誤った警告も赤も出ない)
+- 運用: 合否に響かない(コーパスの基準値の中身の確認だけ)
 - 優先度: 低 — 観測した害は無い
 
-出典: Google マップ Android の公共交通の経路一覧(コーパス `and-maps_transit_results`・11/12)。申告された容器の判定(`TapTargetGeometry.outsideDeclaredScroller`)と覆いの切り取り(`OcclusionGeometry.occluder`)は `isOffTheRowAxis` で直したが、**推測の容器(`ContainerGeometry.clippingContainer`)は同じ取り違えのまま** —— カード本体 d23 と時刻の行 d25 の容器が横カルーセル `#query_options_filter_carousel` (0,1690 1280x144) と推測され、`isOutsideContainer` が true(カード2枚・時刻2行)。害は覆う側の候補から外れることだけで、`ghost`(覆われた残像)はコーパスで 0。②同じ画面の他の検知(overlay 3・misses 1・sliver 2・clippedByContainer 1)は採取時の値を基準値にしただけで、1件ずつ真陽性かを確かめていない
-- 次の一手: ①この取り違えで覆いを見逃した・誤った名指しをした観測が出たら、`clippingContainer` に同じ門を入れる(容器推定なので 5 SUT のフル E2E + xcuitest)②`and-maps_transit_results` を Emulator で開き、overlay 3 件の覆いをスクリーンショットで確かめる
+出典: Google マップ Android の公共交通の経路一覧(コーパス `and-maps_transit_results`・11/12)。採取時の値を基準値にしただけで、1件ずつ真陽性かを確かめていない
+- 解消した部分(2026-11-25 に確認): 経路カードを直前の横カルーセルの外と読む取り違え。今のブリッジ(keptDepth あり)で同じ画面(東京駅 → 新宿駅の経路)を撮ると、カルーセル `#query_options_filter_carousel` は depth 22・keptDepth 4、経路カード(clickable「14 分」)は depth 23・keptDepth 3 = カルーセルの部分木に居ない → `isOutsideContainer` は keptDepth の門(11/18 c516bddf6)で送り残しと読まない。コーパスの木は keptDepth を持たない古い採取なので、コーパスの上ではまだ取り違える
+- 次の一手: この画面を今のブリッジで撮り直してコーパスを差し替え、overlay 3 件の覆いをスクリーンショットで確かめる(差し替えは `SweepHarnessTests` の基準値の変化を1件ずつ見てから)
 
 ### OI-216 xcuitest モードで、貼り付く見出しのリストの行への tap が何も起こさないまま ✅(E2EX の Flutter・RN・iOS)
 - 状態: 再現済み
@@ -1075,6 +1064,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/9(45周目の材料採り・phys): ①のずれは **OS の a11y の木にすでにある**(ブリッジの `ft_snapshot` と `uiautomator dump` の枠が画素単位で一致・描画は約 600px 下・Flutter の窓は動かない。`SnapshotBuilder.java:571` は `getBoundsInScreen` をそのまま使う)= ブリッジの写像の誤りではない・木だけからは正しい位置が分からない。ずれの量は状態で 222〜718px(候補の祖先の Overlay の層の枠が a11y で上端 0 に固定されている関係)。CMP は候補が別の窓で枠と描画が一致。Flutter 側か Android 側かは材料不足
 - 11/10(①の時間の推移): 手元の Emulator(Pixel 10 Pro -01・Android 17)で `type("#field_auto", "Ja")` → `hideKeyboard()` の後 20 秒置き、`fleetest snapshot` を 0.5 秒ごとに撮って枠を記録。**候補の枠は時間で直らない**(閉じた後の 40 秒間 `#auto_opt_japan` = y 1677・h 168 のまま)。欄 `#field_auto`(y 1752〜1920)は描画と一致し、候補の描画(スクリーンショット)は約 1931px から = 木は約 254px 上・木の候補の中心(約 1761)は欄の中 = tap は欄に届いて候補を選ばない。閉じる前も木 1296・描画約 1709 = 約 413px 上で、ずれはキーボードを閉じた後だけの事象ではない。待っても木は正しくならないので、観測できる事象を待つ直しは成り立たない。**木の外の材料(画素)が要る**: 撃つ前にその枠の画素にラベルの文字があるかを OCR で確かめる案(テキストの可視性検証を tap の前にも掛ける = 費用と適用範囲はユーザーの判断)。Flutter 側の既知の不具合は検索で見つからなかった
 - 11/10(①の扱い・ユーザー決定): ツールでは吸収せず、制約として文書に書いた(ui_component_patterns の「現時点の制約」と FD-5.1 の表: 候補を押した後は選んだ値を echo で確かめる)。撃つ前の OCR の確かめは費用(全 tap)に見合わないので入れない
+- 2026-11-25(⑤の再確認・手元の Emulator・E2EX-CMP のメニュー画面・1/1): 開いたままの `type("#field_fruit", "x")` の失敗文は「the app's own dialog window is in front of the screen (ポップアップウィンドウ) … close the dialog first — waiting will not bring back what is behind it」= アプリ自身のポップアップを名指して閉じるよう言う(11/13 の c9fdc9f54 で解消)。waitSeconds は勧めない
 - 11/10(⑦ は据え置き): ⑦ は書き方で空白の扱いが割れる形(フィルタの値は項の端の空白を落とす = `#a && text=b` の書き方を許すため・ワイルドカードは項の中の空白を残す)で、どちらへ揃えてもセレクタの一致が変わる。11/9 のユーザー決定「セレクタの空白は今のまま」の範囲なので、決定が無い限り直さない
 
 ### OI-202 iOS の CMP 検索バーの value の説明文を中身と読む注記・Duo の形・MCP の文言・SE3 の in-app ブリッジが供給から落ちるほか
@@ -1086,6 +1076,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
 - 11/17(回帰): ③の形が E2EX-CMP の「検索バーで検索できること」S0030・S0040 を **M4Max でだけ**赤にする(`clearInput "#field_search"` が「12 character(s) still there」・`type(replace)` が「value remained: 検索候補は次のとおりです」)。M4Max の2台で一斉に回し直して 4/8 赤・手元の8台で 32/32 緑。11/9 の回帰でも M4Max でだけ同じ2本が赤。M4Max で欄の値が説明文になる理由(Simulator の設定か SUT のビルドの違いか)は未測定
+- 測った(2026-11-25): M4Max では今も S0030・S0040 が赤(`clearInput` が「12 character(s) still there」・`type(replace)`)。**M4Max でビルドした SUT(FTE2EX.app)を手元の 8 台へ入れて回すと 4/4 緑** = SUT のビルドの違いではない。Simulator の言語(`ja-JP, en-JP`・`ja_JP`)とランタイム(iOS 27.2 24B8117)も手元と同じ。測った中で違うのはホストの macOS(M4Max 26.7.3・手元 27.2.1)だけ = 原因の候補(確かめていない。M4Max の macOS を上げたら回し直す)
 
 ### OI-211 xcuitest モードで、SwiftUI の隠れるバーを送って戻した後の FAB への tap が「行が手前」と断られる
 - 状態: 再現済み
@@ -1115,6 +1106,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 優先度: 低 — 誤った赤・文言・MCP だけ
 
 出典: `_work/explore-20261109i/findings-*.md`(48周目・11/9)。①`this*` だけのシナリオが 28ms でステップ0件・失敗文なしの赤(ilocal F1 4回中1回。結果 JSON は passed:false・steps 0・workerAnomalies なし・クラッシュ報告なし。回し直すと緑)②値に改行を含む `this*` のステップの説明と失敗文が2行に割れる(ilocal F2 2/2)③MCP の `ft_batch` で単一行の欄へ type した直後に、上 39pt が見えている複数行の欄への type / clearInput / doubleTap を「中心がキーボードの下」と断る・対処文の ft_hide_keyboard ではこの画面のキーボードを閉じられない(duo F2 7/7)④「a b」の複数行の欄への type(replace) が「could not empty the field」で赤になり値が「 b」に壊れた(duo F3 1回の連鎖だけ・新しい状態からは 0/5)⑤ft_scroll_to が上端から一部はみ出た要素に2回払って何も動かなかったのに「scrolled to」と返す(duo F1 5/5)。ほかに、絵文字の扱いが部分一致(書記素の単位)と正規表現(UTF-16 の単位)で割れる(値 "👍🏽" に `textContains("👍")` は赤・`textMatches("👍")` は緑 = im4 の参考)
+- 2026-11-25(③の再確認・手元の iPhone Duo(iOS 27.2)-01・新しい fleetest-mcp を stdin で起こして): `ft_batch` の `type '#field_single' 'abc'` → `type '#field_multiline' 'x'` の2行目が「the target's centre (191, 375) is under the soft keyboard and the keyboard could not be closed without side effects (tapping (378, 344) above the keyboard did not close it) — nothing was typed」で断られる(キーボード (0,374 466x304) = 中心が上端の 1pt 下)。`ft_batch` は DSL と同じ StepExecutor を通るので、③は MCP だけの形ではない(DSL の type も同じ判定)。材料はある(キーボードの枠の申告と欄の枠 = 欄の上側は見えている)。直すなら「中心がキーボードの下でも、欄の見えている部分を押して焦点を立ててから打つ」で、入力の経路を触るので inapp-boost と xcuitest の両方で確かめる
 - 据え置きの理由: ①④原因は材料不足 ②⑤文言・表示 ③MCP だけの判定。正規表現の照合は UTF-16 の単位(書記素の途中に一致の範囲が落ちても見つける)で、部分一致は書記素の単位のまま
 
 ### OI-208 正規表現の値の中の `&&` で切れる・キーボードの下と言い切る失敗文
@@ -1147,6 +1139,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 出典: `_work/explore-20261109f/findings-*.md`(45周目・11/9)。①Android の E2EX-CMP のホームで、一覧の上に固定の題 `#txt_screen_title` を「容器の外の残り」と読み、`select` が毎回約 5.7 秒の再解決・`tap` は払いを撃って一覧の位置を戻す(alocal F3 DSL 6/6・MCP 5/5。他の SUT のホームでは起きない)②数値比較の `this*` は正規化前の値を `Double()` で読み、"5"+ZWSP・" 5"・全角の "１０"・"1,200" を赤にする・失敗文が数値に読めなかったことを言わない(amax F2 4/4)③Flutter で起動直後の最初の `type('#field_auto >> .textField')` が、欄に入っているのに「read back ""」の 500 で赤(phys F1 9回中7回。同じ画面で clearInput → type は 4/4 ok)④→ OI-196 ⑤
 - 11/9(46周目の回し直し): ①は直っていない(alocal DSL 6/6・select のたびに 7 回の再解決の注記)②は直っていない(amax 4/4)③は直っていない(phys 実機 6 回中 3 回・赤の回も欄に "Ja" が入っている)・47周目も直っていない(phys 4 回中 4 回)
 - 据え置きの理由: ①原因は材料不足(固定の題をなぜ容器の外と読むか)②数値の読み方を広げるのは書式の解釈の決定が要る ③原因は材料不足
+- 2026-11-25(①の再確認・手元の Emulator・E2EX-CMP のホーム): `select("#txt_screen_title")` を3回続けて 0.36〜0.61 秒・再解決の注記なし(11/9 は毎回約 5.7 秒・7 回の再解決)= 解消(11/18 の keptDepth の門 c516bddf6 と同じ形の見込み。この画面の木の keptDepth は確かめていない)。残りは②③
 
 ### OI-192 端に着いて動かなかった探索の失敗文が、従っても赤になる scrollFrame を勧める
 - 状態: 再現済み
@@ -1246,6 +1239,8 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 優先度: 低 — 案内どおりの回避
 
 出典: `_work/explore-20261106g/findings-*.md`(23周目・11/6)。①iPhone SE3(375x667)でタブバーの下に潜った `#btn_under_footer` を、容器を送って外さずに「#tab_controls が上にある・自分でスクロールしろ」と断る(phys F2・3/3。inapp-boost・xcuitest とも。iPhone 13 では緑)。原因(11/7): iOS の木に z が無いので覆いを外す送りは入らない(塗り順の無い木では手前を推測しない決定 = OI-170)。SE3 は対象が全部タブの下で `/hittable` が false なので断る・iPhone 13 は 10pt がタブの外にある
+
+- 測った(2026-11-25・SE3 の実機・inapp-boost・E2E-iOS の覆い画面・3/3): in-app の当たり判定(`/touchlands`)は `#btn_under_footer` の中心への本物のタッチが**対象と `#tab_controls` の両方に届く**と答えた(タッチを受ける view は両者に共通の SwiftUI の入れ物)。半分のシートの裏の行(OI-170)と違い「対象に届かず覆いに届く」と言い切れないので、当たり判定を送りの根拠にできない(試した直しは取り下げた)= 据え置きのまま
 
 ### OI-186 iOS の `back()` が自前の「戻る」を押さず、戻らないまま緑になる
 - 状態: 再現済み

@@ -46,7 +46,7 @@ final class ScrollSearchTravelTraceTests: XCTestCase {
                         message)
     }
 
-    /// 向きは中身が動いた向き(行が上へ動いた = 一覧は先へ送られた)。上向きの探索なのに `up` と出れば、払いが逆へ効いた(OI-218)
+    /// 向きは中身が動いた向き(行が上へ動いた = 一覧は先へ送られた)。上向きの探索なのに `up` と出れば、払いが逆へ効いた
     func testContentDirectionFollowsTheSignOfTheTravel() {
         func snap(_ y: Double) -> SnapshotResponse {
             SnapshotResponse(sessionBundleID: nil, screen: FTRect(x: 0, y: 0, width: 400, height: 800), elements: [

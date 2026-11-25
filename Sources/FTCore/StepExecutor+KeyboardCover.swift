@@ -200,7 +200,10 @@ extension StepExecutor {
             }
             // **iOS: 容器の下端で見切れた対象**(覆いは無いが中心が描かれていない。bottomEdgeClipLift の doc)。
             // 指は見切れた行より上に当てる(行そのものを覆いとして避ける)
-            if jump == nil, !isAndroid,
+            // Android は見切れた行も見えている部分を押せるので送らない。ただし見えている部分が文字を描けない細さ(DR-231 の床)なら送る
+            // = 探索が対象を縁の細い帯で止めると、押せても続く exist / textIs がその要素を「無い」と読む
+            if jump == nil,
+               !isAndroid || OcclusionEligibility.unreadableSliver(current, scale: driver.pointScale) != nil,
                let lift = TapTargetGeometry.bottomEdgeClipLift(current, in: currentSnapshot.elements) {
                 jump = lift
                 coverName = coverName ?? "the bottom edge of its scroll container"

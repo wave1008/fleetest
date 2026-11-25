@@ -127,7 +127,7 @@ extension StepExecutor {
     }
 
     /// 中身が動いた向き(`up` / `down` / `left` / `right`)。共通の id の要素のうち 1 より動いたものの符号つきの中央値。
-    /// 動いた要素が無ければ nil。探索の記録に添える測る口(OI-218: 上向きの探索が実際に上へ動いたかを後から読む)で、判定には使わない
+    /// 動いた要素が無ければ nil。探索の記録に添える測る口(上向きの探索が実際に上へ動いたかを後から読む)で、判定には使わない
     static func measuredContentDirection(before: SnapshotResponse, after: SnapshotResponse, vertical: Bool) -> String? {
         let index = Dictionary(before.elements.compactMap { element -> (String, ElementInfo)? in
             guard let id = element.identifier, !id.isEmpty else { return nil }

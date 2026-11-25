@@ -9,7 +9,8 @@ extension Optional where Wrapped == Any {
     /// 検証を1ステップとして記録する共通経路。**表示は実際の値**(nil は "nil")。
     /// 失敗後のスキップと dry-run の扱いは DSL コマンド(performCustom)と同じにする
     /// — ここだけ素通りすると、失敗後に検証だけが走り、dry-run のステップ列挙に ❌ が出る
-    fileprivate func record(_ verb: String, _ detail: String, _ passed: Bool,
+    /// `failureReason`: 不成立の理由を言える呼び手(不正な正規表現)だけが渡す。nil なら「did not hold」
+    fileprivate func record(_ verb: String, _ detail: String, _ passed: Bool, failureReason: String? = nil,
                             file: StaticString, line: UInt) {
         let core = FTRuntime.requireCore(command: verb)
         let description = "\(verb) \(detail)"
@@ -27,10 +28,11 @@ extension Optional where Wrapped == Any {
                             file: "\(file)", line: Int(line), notes: passed ? [] : [.dryRunNotCompared], command: verb)
             return
         }
+        let reason = failureReason.map { "\(description) did not hold — \($0)" } ?? "\(description) did not hold"
         core.recordStep(description: description,
-                        status: passed ? .passed : .failed("\(description) did not hold"),
+                        status: passed ? .passed : .failed(reason),
                         file: "\(file)", line: Int(line), command: verb)
-        if !passed { core.handleFailure(stepDescription: description, reason: "\(description) did not hold") }
+        if !passed { core.handleFailure(stepDescription: description, reason: reason) }
     }
 
     /// 比べる前の値(画面の文字・期待値と同じ規則 = 見えない書式文字・制御文字を除外。`thisIs` の既定と同じ `TextNormalization.text`)
@@ -167,18 +169,18 @@ public extension Optional where Wrapped == Any {
 
     func thisMatches(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
         if rejectEmptyExpectation("thisMatches", pattern, file: file, line: line) { return }
-        let isValid = RegexValidation.error(for: pattern) == nil
+        let invalid = RegexValidation.error(for: pattern)
         record("thisMatches", "\"\(stringValue ?? "nil")\" ~ \"\(pattern)\"",
-               isValid && TextNormalization.regexMatch(stringValue ?? "", pattern: pattern, under: .text) != nil,
-               file: file, line: line)
+               invalid == nil && TextNormalization.regexMatch(stringValue ?? "", pattern: pattern, under: .text) != nil,
+               failureReason: invalid, file: file, line: line)
     }
 
     func thisMatchesNot(_ pattern: String, file: StaticString = #filePath, line: UInt = #line) {
         if rejectEmptyExpectation("thisMatchesNot", pattern, file: file, line: line) { return }
-        let isValid = RegexValidation.error(for: pattern) == nil
+        let invalid = RegexValidation.error(for: pattern)
         record("thisMatchesNot", "\"\(stringValue ?? "nil")\" !~ \"\(pattern)\"",
-               isValid && TextNormalization.regexMatch(stringValue ?? "", pattern: pattern, under: .text) == nil,
-               file: file, line: line)
+               invalid == nil && TextNormalization.regexMatch(stringValue ?? "", pattern: pattern, under: .text) == nil,
+               failureReason: invalid, file: file, line: line)
     }
 
     /// 日付書式(`yyyy/MM/dd` 等)に一致するか。書式は DateFormatter の記法
