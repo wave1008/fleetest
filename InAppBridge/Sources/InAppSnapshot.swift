@@ -282,25 +282,15 @@ enum InAppSnapshot {
     private static func isLeavingBackButton(_ node: NSObject) -> Bool {
         guard axIdentifier(node) == "BackButton" else { return false }   // 木と同じ読み方(as? では取れない部品がある)
         var view: UIView? = (node as? UIView) ?? ((node as? UIAccessibilityElement)?.accessibilityContainer as? UIView)
-        var steps = 0   // 祖先を辿る回数の上限(輪を作る階層への安全網。実測は 0 段 = 入れ物がバー自身)
+        var steps = 0   // 祖先を辿る回数の上限(輪を作る階層への安全網。実測は 0 段(戻るボタンの要素)と 11 段(SwiftUI の入れ物))
         while let current = view, !(current is UINavigationBar), steps < 40 {
             view = current.superview
             steps += 1
         }
-        if let bar = view as? UINavigationBar, let nav = bar.delegate as? UINavigationController {
-            return nav.viewControllers.count <= 1
-        }
-        // SwiftUI(iOS 27)のバーの戻るボタンの入れ物(`other id=BackButton`)は UINavigationBar の下に無い。レスポンダの連鎖で
-        // ナビゲーションへ辿る(実測: 連鎖の先の UIViewController が UIKitNavigationController 自身)
-        var responder: UIResponder? = (node as? UIView) ?? ((node as? UIAccessibilityElement)?.accessibilityContainer as? UIView)
-        steps = 0
-        while let current = responder, steps < 60 {   // 上限は輪への安全網(ビューの階層の深さ + コントローラ数段)
-            if let nav = current as? UINavigationController { return nav.viewControllers.count <= 1 }
-            if let nav = (current as? UIViewController)?.navigationController { return nav.viewControllers.count <= 1 }
-            responder = current.next
-            steps += 1
-        }
-        return false
+        // 対象はナビゲーションバーの中の戻るボタンだけ(本文に置いた自前の `BackButton` は祖先にバーを持たないので当たらない)。
+        // SwiftUI(iOS 27)の居残る入れ物(`other id=BackButton` = _UIButtonBarButton)も祖先を辿るとバーに着く(実測 11 段)
+        guard let bar = view as? UINavigationBar, let nav = bar.delegate as? UINavigationController else { return false }
+        return nav.viewControllers.count <= 1
     }
 
     /// 兄弟に可視の `accessibilityViewIsModal` な view があれば、その view と手前の兄弟だけを残す(XCUITest / VoiceOver と同じ。

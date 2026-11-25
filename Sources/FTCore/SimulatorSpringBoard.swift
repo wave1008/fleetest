@@ -1,7 +1,8 @@
 // シミュレータの SpringBoard を起こし直す。**前面のアプリと XCUITest ランナーも一緒に落ちる**(実測: マップのプロセスが消え、
 // ランナーの /status が答えなくなった)ので、呼び手はランナーを作り直し、アプリを起動し直す時点でだけ撃つ。
-// 呼び手は2つ: 残ったシステムアラートの3段目(`ProfileWorkerFactory.respringAndRebuild`)と、劣化したランナーの回復
-// (`BridgeProvisioner.restartRunner`)。SpringBoard の劣化(`/systemalert` の1問が 3.5s 前後)はランナーの起動し直しでは
+// 呼び手は3つ: 残ったシステムアラートの3段目(`ProfileWorkerFactory.respringAndRebuild`)・劣化したランナーの回復
+// (`BridgeProvisioner.restartRunner`)・外観を届けない SpringBoard の供給での起こし直し(`SimulatorAppearanceArbiter`。ランナーの起動前・
+// 同じ台の in-app ブリッジの台帳が無いときだけ)。SpringBoard の劣化(`/systemalert` の1問が 3.5s 前後)はランナーの起動し直しでは
 // 直らず、SpringBoard の起こし直しで 0.11〜0.18s に戻った(実測・起こし直し約 8s)
 
 import Foundation

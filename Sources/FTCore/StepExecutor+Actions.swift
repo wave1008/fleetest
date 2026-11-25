@@ -807,13 +807,13 @@ extension StepExecutor {
                 if let closedNote = closedNoteForClause, !scopeHint.isEmpty {
                     keyboardClause = " (the soft keyboard was up: \(closedNote))"
                 }
-                let sheetHint = scopeHint.isEmpty ? await springBoardSheetHint(hintSnapshot) : nil
-                let reasonHint = await leftForegroundHint()
+                var reasonHint = await leftForegroundHint()
                     ?? (scopeHint.isEmpty ? nil : scopeHint)
                     ?? (Self.scopeIsTheModalHint(step, hintSnapshot) ?? Self.modalScopeHint(hintSnapshot))
                         .map { $0 + Self.scrollOffHint(step, in: hintSnapshot) }
                     ?? ownDialogHint()
-                    ?? sheetHint
+                // SpringBoard の読みは他の案内が無いときだけ撃つ(失敗の文に載る案内は1つ)
+                if reasonHint == nil { reasonHint = await springBoardSheetHint(hintSnapshot) }
                 return StepOutcome(status: failed(
                     .notFound,
                     "cannot resolve the locator: \(step.locatorSummary)" + (hint.map { ". \($0)" } ?? "")

@@ -723,8 +723,10 @@ extension StepExecutor {
         // アプリ自身のダイアログの窓が手前なら名指す(操作側と同じ `ownDialogHint`。窓は木に載らず、裏の要素は待っても出ない)
         // スコープが原因なら自分のダイアログは名指さない(閉じても直らない。理由は notFoundCoverOrScopeHint が言う = 58周目 amax F3)
         let scopeIsTheReason = !Self.scopeReasonHint(step, lastSnapshot?.elements, isAndroid: isAndroid).isEmpty
-        let sheetHint = scopeIsTheReason ? nil : await springBoardSheetHint(lastSnapshot)
-        let leftHint = await leftForegroundHint() ?? (scopeIsTheReason ? nil : ownDialogHint()) ?? sheetHint ?? ""
+        var reason = await leftForegroundHint() ?? (scopeIsTheReason ? nil : ownDialogHint())
+        // SpringBoard の読みは他の案内が無いときだけ撃つ(失敗の文に載る案内は1つ)
+        if reason == nil, !scopeIsTheReason { reason = await springBoardSheetHint(lastSnapshot) }
+        let leftHint = reason ?? ""
         return failed(.notFound, "element not found: \(step.locatorSummary) (timeout \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s)"
                        + leftHint
                        + notFoundCoverOrScopeHint(step, lastSnapshot)

@@ -146,6 +146,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 読めなかった(`StepExecutor.coverReadOnScreen`)。合否は変えない(**新しい検知なので警告から**)。E2EY-Flutter の Android の
     /// 半分のシートの裏の行への exist / textIs が注記なしの ✅ だった(tap の側は `unnamedCoverCaution`)
     case coveredByFrontElementReadOnScreen = "covered-by-front-element-read-on-screen"
+    /// 上の確かめ(重なる要素の文字が描かれているか)の OCR が予算を越え、この回は確かめていない(合否は変えない)
+    case coverReadBudgetExhausted = "cover-read-budget-exhausted"
     /// 否定の検証(notExist・count 0)が、手前のダイアログが裏を木から隠している木で通った(iOS の in-app の `modalScope`・
     /// `coveredByFrontWindow`・Android のアプリ自身のダイアログの窓)。合否は変えない(木に無ければ緑)。裏の要素を確かめるならダイアログを閉じてから(39周目 iultra F2・amax F1)
     case absenceBehindModal = "absence-behind-modal"
@@ -661,6 +663,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .absenceBehindModal:
             return "a dialog or window in front of the screen keeps what is behind it out of the tree, so this absence may only mean"
                 + " the element is behind it; close the dialog first to check what is behind it"
+        case .coverReadBudgetExhausted:
+            return "whether an overlapping element is drawn in front was not checked: the OCR read ran out of its time budget"
         case .coveredByFrontElementReadOnScreen:
             return "the element is in the tree, but the text drawn where it is belongs to another element that overlaps it"
                 + " (its own text was not read there), so that element is drawn in front of it and it may not be visible to a person"

@@ -43,6 +43,16 @@ public enum InAppBridgeState {
         return recorded.udid.caseInsensitiveCompare(udid) == .orderedSame
     }
 
+    /// このデバイスの in-app ブリッジの台帳が(どのポートにでも)1つでもあるか。古い台帳も数える = 「使い回されうる」側に倒す
+    /// (供給が SpringBoard を起こし直してよいかの判断 = `SimulatorAppearanceArbiter`。起こし直すと注入したアプリも落ちる)
+    public static func hasRecord(stateDir: URL, udid: String) -> Bool {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: stateDir.path) else { return false }
+        return names.contains { name in
+            name.hasPrefix("bridge-") && name.hasSuffix(".inapp")
+                && read(at: stateDir.appendingPathComponent(name))?.udid.caseInsensitiveCompare(udid) == .orderedSame
+        }
+    }
+
     /// このポートの台帳の udid(無い・読めないは nil)
     public static func recordedUDID(stateDir: URL, port: UInt16) -> String? {
         read(at: url(stateDir: stateDir, port: port))?.udid

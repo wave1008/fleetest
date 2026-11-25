@@ -1044,6 +1044,11 @@ extension MCPServer {
                     guard first?.present == false else { return first }
                     try? await Task.sleep(nanoseconds: UInt64(max(0, self.settleWaitSeconds) * 1_000_000_000))
                     return await batchDriver.systemAlert().value ?? first
+                },
+                readSheet: { app in
+                    guard case .measured(let top) = app.safeAreaTop,
+                          let tree = await batchDriver.systemUITree().value else { return nil }
+                    return SystemUIGate.springBoardSheet(in: tree, statusBandBottom: top)
                 }) {
                 try await self.rereadAfterGrace(batchDriver, args: args)
             }
@@ -1241,9 +1246,18 @@ extension MCPServer {
     /// MCPServer+Snapshot.swift 参照) —— 空の木は必ず「変化なし」に一致するため
     /// `bridge` は iOS のシステムダイアログの案内を出すかの判定にだけ使う
     /// (`systemDialogHint` 参照。既定 nil = bridge 不明として出す側)。`probeSystemAlert` は詰まったときだけ呼ぶ
+    /// アラートが「無い」と答えたときだけ SpringBoard のシートを読む(`systemDialogHint(bridge:driver:app:)` と同じ順序)
+    static func batchSystemDialogHint(bridge: String?, probe: SystemAlertProbeResponse?,
+                                      readSheet: (SnapshotResponse) async -> SystemUIGate.SpringBoardSheet?,
+                                      app: SnapshotResponse) async -> String {
+        let sheet = probe?.present == false ? await readSheet(app) : nil
+        return systemDialogHint(bridge: bridge, probe: probe, sheet: sheet)
+    }
+
     static func batchUnchangedNote(beforeBatch: SnapshotResponse?, final: SnapshotResponse,
                                    stepCount: Int, bridge: String? = nil,
                                    probeSystemAlert: () async -> SystemAlertProbeResponse? = { nil },
+                                   readSheet: (SnapshotResponse) async -> SystemUIGate.SpringBoardSheet? = { _ in nil },
                                    reread: () async throws -> SnapshotResponse) async rethrows
         -> (note: String, snapshot: SnapshotResponse) {
         guard let beforeBatch, Self.looksUnchanged(beforeBatch, final) else { return ("", final) }
@@ -1255,7 +1269,8 @@ extension MCPServer {
                 + " also be legitimate: the screen was already at the target state, or the steps"
                 + " went somewhere and came back."
                 + Self.unrepresentedScreenCaveat(rereadSnapshot)
-                + (await Self.systemDialogHint(bridge: bridge, probe: probeSystemAlert(), sheet: nil)) + "\n", rereadSnapshot)
+                + (await Self.batchSystemDialogHint(bridge: bridge, probe: probeSystemAlert(), readSheet: readSheet,
+                                                    app: rereadSnapshot)) + "\n", rereadSnapshot)
         }
         return ("note: the tree looked unchanged right after the last step, so it was re-read once"
             + " after a short wait — the tree below is the re-read, not the tree right after the"

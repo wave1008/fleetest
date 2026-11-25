@@ -551,9 +551,13 @@ public enum RegionText {
                 // 行の確かめを新しく赤へ倒す。領域が無い・読めなければ従来どおり0行で諦める
                 guard index == 0,
                       let regional = await readTextRegion(pngData: pngData, frame: frame, screen: screen,
-                                                          cropPadding: cropPadding, languages: languages),
-                      readable(expected: expected, lines: regional.lines)
+                                                          cropPadding: cropPadding, languages: languages)
                 else { return (false, accumulated) }
+                guard readable(expected: expected, lines: regional.lines) else {
+                    // 読めなかった行は返さない(0行のまま)が、撃った読みの所要と回数は記録に残す(統計・遅れて戻った読みの記録)
+                    return (false, Reading(lines: accumulated.lines, elapsedMs: accumulated.elapsedMs + regional.elapsedMs,
+                                           attempts: index + 2, pixels: accumulated.pixels))
+                }
                 return (true, Reading(lines: regional.lines, elapsedMs: accumulated.elapsedMs + regional.elapsedMs,
                                       attempts: index + 2, pixels: regional.pixels))
             }

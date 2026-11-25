@@ -275,7 +275,8 @@ extension StepExecutor {
     /// 塗り順の分からない木(Android の Flutter 等 = `PaintOrder.isReal` が偽)で、木では手前が決まらない重なりを画素で決める。
     /// 実測(E2EY-Flutter の Android・半分のシート): 覆われた `#row_main_10`(本文 10)の枠は「キュー02」と読め、覆われていない
     /// `#row_main_06` の枠は「本文 06」と読めた。どちらのラベルも読めない(アイコン等)なら nil = 何も言わない。OCR の段が無効なら撃たない。
-    /// 費用: 重なりがある回だけスクリーンショット1枚 + OCR 1回
+    /// 費用: 重なりがある回だけ、判定用のスクリーンショット1枚(キーボード・アラートの確かめを含みうる)+ OCR の読み
+    /// (拡大の段 ×1〜×3 と、等倍で0行のときの領域からの読み直し。上限は `RegionText.occlusionBudget`)
     func coverReadOnScreen(_ e: VisibilityEvidence, phase: inout PhaseAccumulator) async -> ElementInfo? {
         guard occlusionOCRMode != .off, !e.expectedText.isEmpty else { return nil }
         let target = e.element
@@ -292,12 +293,21 @@ extension StepExecutor {
         guard !candidates.isEmpty,
               RegionText.shouldTakeShortcut(mode: occlusionOCRMode, ready: RegionText.isModelReady,
                                             abandonedInFlight: RegionText.abandonedInFlight),
-              let shot = try? await judgmentScreenshot(keyboardShown: e.keyboardShown, phase: &phase),
-              case .read(let ownTextReadable, let reading) = await RegionText.resolveWithinBudget(
-                expected: e.expectedText, pngData: shot, frame: target.frame, screen: e.screen,
-                languages: RegionText.languages(forAny: [e.expectedText] + candidates.compactMap(\.label))),
-              !ownTextReadable else { return nil }
-        return candidates.first { RegionText.readable(expected: $0.label ?? "", lines: reading.lines) }
+              let shot = try? await judgmentScreenshot(keyboardShown: e.keyboardShown, phase: &phase) else { return nil }
+        let outcome = await RegionText.resolveWithinBudget(
+            expected: e.expectedText, pngData: shot, frame: target.frame, screen: e.screen,
+            languages: RegionText.languages(forAny: [e.expectedText] + candidates.compactMap(\.label)))
+        switch outcome {
+        case .budgetExhausted:
+            // 予算を越えた = この回は覆いを確かめていない(黙らない。FM には訊かないので ocr-budget-exhausted とは別の注記)
+            noteCodesThisStep.insert(.coverReadBudgetExhausted)
+            return nil
+        case .unreadable:
+            return nil
+        case .read(let ownTextReadable, let reading):
+            guard !ownTextReadable else { return nil }
+            return candidates.first { RegionText.readable(expected: $0.label ?? "", lines: reading.lines) }
+        }
     }
 
     private static func frame(_ outer: FTRect, contains inner: FTRect) -> Bool {

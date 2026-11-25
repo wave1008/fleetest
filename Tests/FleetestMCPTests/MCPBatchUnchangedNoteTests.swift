@@ -102,6 +102,28 @@ final class MCPBatchUnchangedNoteTests: XCTestCase {
         XCTAssertTrue(note.contains("no element in the tree at all"), note)
     }
 
+    /// アラートは無いが SpringBoard のシートが覆っているなら、ft_batch の注記もシートを名指す(snapshot の経路と同じ)。
+    /// アラートが出ているときはシートを読まない
+    func testBatchNoteNamesASpringBoardSheet() async throws {
+        let dense = batchSnapshot([ElementInfo(ref: 1, type: "staticText", identifier: "row", label: "label", value: nil,
+                                               placeholder: nil, enabled: true,
+                                               frame: FTRect(x: 0, y: 0, width: 390, height: 844), depth: 1)], marker: 0)
+        let sheet = SystemUIGate.SpringBoardSheet(texts: ["どのように連絡先を共有しますか?"], buttons: ["連絡先を選択"])
+        let (note, _) = await MCPServer.batchUnchangedNote(
+            beforeBatch: dense, final: dense, stepCount: 1,
+            probeSystemAlert: { SystemAlertProbeResponse(present: false) },
+            readSheet: { _ in sheet }) { dense }
+        XCTAssertTrue(note.contains("A SpringBoard sheet"), note)
+        XCTAssertFalse(note.contains("No system alert is in front"), note)
+        var readWhileAlertUp = false
+        let (alertNote, _) = await MCPServer.batchUnchangedNote(
+            beforeBatch: dense, final: dense, stepCount: 1,
+            probeSystemAlert: { SystemAlertProbeResponse(present: true, title: "Allow?") },
+            readSheet: { _ in readWhileAlertUp = true; return sheet }) { dense }
+        XCTAssertFalse(readWhileAlertUp, "アラートが出ているのにシートを読んだ")
+        XCTAssertFalse(alertNote.contains("A SpringBoard sheet"), alertNote)
+    }
+
     /// (6) 逆向き: 画面が要素で埋まっていれば但し書きは出ない(常に付く実装との差を見る)
     func testCaveatIsAbsentWhenTheScreenIsWellRepresented() async throws {
         let covering = ElementInfo(ref: 1, type: "staticText", identifier: "row", label: "label",
