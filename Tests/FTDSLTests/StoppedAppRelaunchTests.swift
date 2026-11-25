@@ -180,6 +180,31 @@ final class StoppedAppRelaunchTests: XCTestCase {
         XCTAssertNil(flagAtFailure { launchApp(); terminateApp(); home() })
         XCTAssertEqual(flagAtFailure { launchApp("com.apple.Preferences") }, false, "対象アプリを起こしていない")
     }
+    /// openURL の配送はアプリと話さずに成功するので、配送の後に起こしたアプリが居なければ openURL 自身を赤にする
+    /// (次の操作で初めて赤になっていた)。居れば緑のまま
+    func testOpenURLFailsWhenTheLaunchedAppIsGoneAfterDelivery() {
+        func openURLStep(evidence: [String]) -> ScenarioEvent? {
+            let (primary, xcui, springBoard) = (FakeDriver(), FakeDriver(), FakeDriver())
+            let events = LockedValue<[ScenarioEvent]>([])
+            let core = FTDriveCore(driver: primary, platform: "ios", app: Self.bundle,
+                                   scenarioID: "T.S0010", scenarioTitle: "t",
+                                   delegate: nil, healingEnabled: false, tunables: RunTunables(), dryRun: false,
+                                   fingerprintCacheURL: URL(fileURLWithPath: NSTemporaryDirectory())
+                                       .appendingPathComponent("ft-openurl-gone-test.json"),
+                                   fallbackDriver: springBoard, primaryCaptureOmitsSystemUI: true,
+                                   typeDriver: xcui, emit: { e in events.withLock { $0.append(e) } })
+            core.appProcessEvidence = { _ in evidence }
+            FTRuntime.bootstrap(core: core, dslThread: Thread.current)
+            defer { FTRuntime.tearDown() }
+            scenario { scene(1, "s") { action { launchApp(); openURL("app://x") } } }
+            return events.withLock { $0 }.first { $0.kind == "step" && $0.command == "openURL" }
+        }
+        let gone = openURLStep(evidence: ["process not running"])
+        XCTAssertEqual(gone?.status, "failed")
+        XCTAssertTrue((gone?.detail ?? "").contains("not running afterwards"), "\(String(describing: gone?.detail))")
+        XCTAssertEqual(openURLStep(evidence: [])?.status, "passed")
+    }
+
     /// 実機(生死の照会が無い)でも、止めたまま起こしうる操作が無ければ back は撃たない(31周目 phys F1)
     func testBackAfterTerminateIsRefusedWhenTheAppCannotBeProbed() {
         let (primary, xcui, springBoard, probe) = (FakeDriver(), FakeDriver(), FakeDriver(), ProbeLog())

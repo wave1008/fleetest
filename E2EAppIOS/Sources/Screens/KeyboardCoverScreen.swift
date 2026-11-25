@@ -14,6 +14,18 @@ struct KeyboardCoverScreen: View {
     @State private var under = ""
 
     var body: some View {
+        // **外側ごとキーボードを避けない・枠は下端に寄せる**。固定の高さの枠だけに ignoresSafeArea を掛けると、親がキーボードぶん
+        // 縮めた領域の中で枠を置き直し、画面ごと持ち上がって下の欄がキーボードの上に出た(2026-11-25 iPhone 18 Pro: 題 y=98 → 46・
+        // 容器の下端 563 < キーボードの上端 573 = 潜らない)
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            keyboardCoverScroll
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+    }
+
+    private var keyboardCoverScroll: some View {
         KeyboardCoverScroll(above: $above, under: $under, rowCount: 6)
             // **キーボードぶん容器を縮めない**。縮むと対象は「容器の外」になり、既存の
             // 復帰(容器外の再解決)が働いて witness にならない。

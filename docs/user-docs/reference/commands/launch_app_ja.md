@@ -64,6 +64,8 @@ terminateApp()
   `open-url-session-not-restored` が付きます。注記が付くのは、この確認が走った配送の回だけです。
 - 未起動のアプリに `openURL` を送ると OS がアプリを起動して開きますが、想定用途ではありません。
   未起動から URL で開く挙動の検証には、`launchApp(url:)` を使ってください。
+- URL を届けた後にアプリが落ちていた(処理の途中で終了・クラッシュした)ときは、`openURL` のステップが
+  失敗します(Simulator と Android。iOS の実機はアプリの生死を確かめられないので、次の操作で失敗します)。
 
 ### Link
 - [index](../../index_ja.md)

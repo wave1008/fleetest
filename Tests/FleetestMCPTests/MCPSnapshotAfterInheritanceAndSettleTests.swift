@@ -286,3 +286,74 @@ final class MCPTypeSettleLiteInheritanceTests: XCTestCase {
         XCTAssertTrue(text.contains("id=candidate_row"), text)
     }
 }
+
+// MARK: - 操作でキーボードが出た回の詰め直し待ち
+
+/// キーボードの枠は先に申告され、中身の位置は遅れて追いつく(CMP の iOS の XCUITest の木の実測)。その間の読みを操作後の木として
+/// 返すと、キーボードの上にある行を「キーボードの下」と言う
+final class MCPSnapshotAfterKeyboardLayoutTests: XCTestCase {
+    private var driver: FakeDriver!
+    private var server: MCPServer!
+    private let keyboard = FTRect(x: 0, y: 538, width: 390, height: 306)
+
+    override func setUp() {
+        super.setUp()
+        driver = FakeDriver()
+        driver.foregroundBundleID = "com.example.app"
+        let fake = driver!
+        server = MCPServer(write: { _ in }, makeDriver: { _ in fake }, recordSnapshot: { _, _, _ in })
+        server.settleWaitSeconds = 0
+    }
+
+    private func tree(fieldY: Double, keyboardUp: Bool) -> SnapshotResponse {
+        SnapshotResponse(sessionBundleID: "com.example.app",
+                         screen: FTRect(x: 0, y: 0, width: 390, height: 844),
+                         elements: [settleElement(ref: 1, type: "textView", id: "field_chat", y: fieldY, h: 57)],
+                         truncatedCount: 0, keyboardShown: keyboardUp, keyboardFrame: keyboardUp ? keyboard : nil)
+    }
+
+    private func snapshotReadsDuringTap() async throws -> (reads: Int, text: String) {
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        let callsBefore = driver.calls.count
+        let text = bodyText(try await server.call(
+            tool: "ft_tap", args: ["x": 1.0, "y": 2.0, "snapshotAfter": true]))
+        return (driver.calls[callsBefore...].filter { $0 == "snapshot" }.count, text)
+    }
+
+    func testTheTreeIsReReadUntilTheLayoutStopsMovingForTheKeyboard() async throws {
+        driver.scriptedSnapshots = [tree(fieldY: 700, keyboardUp: false), tree(fieldY: 700, keyboardUp: true),
+                                    tree(fieldY: 438, keyboardUp: true), tree(fieldY: 438, keyboardUp: true)]
+        let (reads, text) = try await snapshotReadsDuringTap()
+        XCTAssertEqual(reads, 3, "\(driver.calls)")
+        XCTAssertTrue(text.contains("make room for it"), text)
+        XCTAssertTrue(text.contains("(10,438 "), text)
+        XCTAssertTrue(text.contains("nothing tappable is beneath it"), text)
+    }
+
+    func testAKeyboardThatCameUpAlreadySettledAddsOneReadAndNoNote() async throws {
+        driver.scriptedSnapshots = [tree(fieldY: 700, keyboardUp: false), tree(fieldY: 438, keyboardUp: true),
+                                    tree(fieldY: 438, keyboardUp: true)]
+        let (reads, text) = try await snapshotReadsDuringTap()
+        XCTAssertEqual(reads, 2, "\(driver.calls)")
+        XCTAssertFalse(text.contains("make room for it"), text)
+    }
+
+    /// ft_batch の最後の読みも同じ(最後の手が欄を叩いてキーボードを出した形)
+    func testTheBatchTreeIsReReadUntilTheLayoutStopsMovingForTheKeyboard() async throws {
+        let before = tree(fieldY: 700, keyboardUp: false)
+        driver.scriptedSnapshots = [before, before, before, tree(fieldY: 700, keyboardUp: true),
+                                    tree(fieldY: 438, keyboardUp: true), tree(fieldY: 438, keyboardUp: true)]
+        _ = try await server.call(tool: "ft_snapshot", args: [:])
+        let text = bodyText(try await server.call(tool: "ft_batch", args: ["steps": "tap '#field_chat'"]))
+        XCTAssertTrue(text.contains("make room for it"), text)
+        XCTAssertTrue(text.contains("(10,438 "), text)
+    }
+
+    func testAKeyboardThatWasAlreadyUpIsNotReRead() async throws {
+        driver.scriptedSnapshots = [tree(fieldY: 438, keyboardUp: true), tree(fieldY: 400, keyboardUp: true),
+                                    tree(fieldY: 380, keyboardUp: true)]
+        let (reads, text) = try await snapshotReadsDuringTap()
+        XCTAssertEqual(reads, 1, "\(driver.calls)")
+        XCTAssertFalse(text.contains("make room for it"), text)
+    }
+}

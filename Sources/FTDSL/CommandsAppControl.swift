@@ -94,6 +94,12 @@ public func openURL(_ url: String, file: StaticString = #filePath, line: UInt = 
                                ? .openURLSessionNotRestored : nil
                        }) {
         try await driver.openURL(url, bundleID: core.appBundleID)
+        // 配送(simctl openurl)はアプリと話さずに成功する = 配送の途中・直後にアプリが落ちても緑のまま返り、次の操作で初めて赤になった。
+        // 起こしたアプリが居ないことはプロセスの照会で言える(別のアプリを開く URL でも、対象アプリは背面で生きている)
+        if core.appUnderTestLife == .launched, let evidence = core.appProcessEvidence?(true), !evidence.isEmpty {
+            throw FTCommandError.message("the URL was delivered, but the app under test is not running afterwards"
+                + " (\(evidence.filter { !$0.isEmpty }.joined(separator: " / "))) — it exited or crashed while the URL was being handled")
+        }
     }
 }
 

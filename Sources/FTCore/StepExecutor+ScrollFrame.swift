@@ -315,13 +315,21 @@ extension StepExecutor {
                                                  in: snapshot.elements, screen: snapshot.screen).frame
         let viewport = ScrollGeometry.viewport(snapshot.screen, excludingKeyboard: keyboard)
         let cx = viewport.centerX, cy = viewport.centerY
-        return snapshot.elements
-            .filter { element in
-                element.scrollable == true
-                    && element.frame.containsClosed(x: cx, y: cy)
-                    && !ScrollActionsAxis.declaresOnlyOtherAxis(element.scrollActions, vertical: vertical)
-            }
-            .max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+        let onAxis = snapshot.elements.filter { element in
+            element.scrollable == true
+                && !ScrollActionsAxis.declaresOnlyOtherAxis(element.scrollActions, vertical: vertical)
+        }
+        if let centred = onAxis.filter({ $0.frame.containsClosed(x: cx, y: cy) })
+            .max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }) {
+            return centred
+        }
+        // 中心を含む容器が無い(一覧が画面の下寄せで、上半分が固定の帯)ときは、キーボードの上に見えている面積が最大の容器。
+        // 画面全体へ落とすと、探索が容器の上へはみ出した行を「見えている」と読んで1本も払わずに止まり、払っても始点が一覧の外で動かない
+        // (E2E-iOS のキーボードの覆い画面: 一覧 (0,380 402x460)・キーボード上端 573 = 中心 286 を含まない)
+        func visibleArea(_ element: ElementInfo) -> Double {
+            ScrollGeometry.intersection(element.frame, viewport).map { $0.width * $0.height } ?? 0
+        }
+        return onAxis.filter { visibleArea($0) > 0 }.max { visibleArea($0) < visibleArea($1) }
     }
 
     /// `scrollContainer` と同じ解決規則で、rect ではなく**この swipe が当たる要素そのもの**を返す

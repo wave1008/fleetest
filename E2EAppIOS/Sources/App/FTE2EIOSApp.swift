@@ -71,6 +71,9 @@ struct AppShell: View {
                 TaggedButton(tag: Tags.tabAbout, label: "情報", fillWidth: true) { switchTab(.about) }
             }
         }
+        // **キーボードの覆い画面だけ、シェルごとキーボードを避けない**(避けるとシェルが縮んで画面ごと持ち上がり、下の欄が
+        // キーボードの上に出て witness にならない = 2026-11-25 iPhone 18 Pro)。他の画面は従来どおり避ける
+        .ignoresSafeArea(.keyboard, edges: tab == .home && homeChild == .keyboardCover ? .bottom : [])
         .onOpenURL { handleDeepLink($0) }
     }
 

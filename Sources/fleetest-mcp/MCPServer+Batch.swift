@@ -1047,6 +1047,13 @@ extension MCPServer {
                 }) {
                 try await self.rereadAfterGrace(batchDriver, args: args)
             }
+            // 最後の手でキーボードが出た回は、画面がキーボードぶん詰め直すのを待つ(snapshotAfter と同じ判定)。
+            // 無変化の読み直しの後でも見る(読み直した木がキーボードの出始めのことがある)
+            if let beforeBatch,
+               let settled = try await rereadWhileLayoutFollowsKeyboard(before: beforeBatch, first: final,
+                                                                        driver: batchDriver, args: args) {
+                (unchangedNote, final) = (unchangedNote + settled.note, settled.snapshot)
+            }
             (unchangedNote, final) = try await Self.batchFinalSettle(unchangedNote: unchangedNote, final: final) {
                 try await self.rereadAfterGrace(batchDriver, args: args)
             }

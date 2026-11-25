@@ -122,6 +122,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [In a browser, `openURL` may not add the page to the history](../commands/launch_app.md#notes) — to check back and forward, move with a link or the address bar.
 - [First `openURL` on a Simulator](../commands/launch_app.md#notes) — a one-time "Open in …?" alert is dismissed automatically; if the session could not be re-pointed at the app, the step passes with `open-url-session-not-restored`.
 - [`openURL` while the app is not running](../commands/launch_app.md#notes) — the OS launches it, but that is not the command's purpose; use `launchApp(url:)`.
+- [`openURL` fails if the app is gone after delivery](../commands/launch_app.md#notes) — checked on Simulator and Android; on a physical iOS device the next step fails instead.
 
 ### home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge
 - [Bring the app back after leaving it](../commands/navigation.md#notes) — on iOS inapp-boost and Android, after `home()`, `appSwitcher()`, `tapAppIcon()`, `openURL()` and similar, steps fail (`app-in-background`) until `launchApp()` or `tapAppIcon()`.

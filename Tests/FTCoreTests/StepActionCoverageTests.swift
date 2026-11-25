@@ -123,4 +123,24 @@ final class StepActionCoverageTests: XCTestCase {
         XCTAssertNil(StepExecutor.keyboardScrollContainer(in: none, vertical: true),
                      "縦に払えない容器しか無ければ nil(画面全体のまま)")
     }
+
+    /// 一覧が下寄せで、キーボードの上の領域の中心を含まないときも、見えている部分のある一覧を容器にする
+    /// (E2E-iOS のキーボードの覆い画面の実測の枠。画面全体へ落とすと、容器の上へ送られた欄を見えていると読んで払わなかった)
+    func testKeyboardScrollContainerFallsBackToTheVisibleListBelowTheCentre() {
+        let screenRect = FTRect(x: 0, y: 0, width: 402, height: 874)
+        let keyboard = FTRect(x: 0, y: 573, width: 402, height: 301)
+        let list = ElementInfo(ref: 1, type: "scrollView", identifier: "list", label: nil, value: nil,
+                               placeholder: nil, enabled: true,
+                               frame: FTRect(x: 0, y: 380, width: 402, height: 460), depth: 2, scrollable: true)
+        let hidden = ElementInfo(ref: 2, type: "scrollView", identifier: "under_keyboard", label: nil, value: nil,
+                                 placeholder: nil, enabled: true,
+                                 frame: FTRect(x: 0, y: 600, width: 402, height: 200), depth: 2, scrollable: true)
+        let snapshot = SnapshotResponse(sessionBundleID: nil, screen: screenRect, elements: [hidden, list],
+                                        truncatedCount: 0, keyboardShown: true, keyboardFrame: keyboard)
+        XCTAssertEqual(StepExecutor.keyboardScrollContainer(in: snapshot, vertical: true)?.identifier, "list")
+        let onlyHidden = SnapshotResponse(sessionBundleID: nil, screen: screenRect, elements: [hidden],
+                                          truncatedCount: 0, keyboardShown: true, keyboardFrame: keyboard)
+        XCTAssertNil(StepExecutor.keyboardScrollContainer(in: onlyHidden, vertical: true),
+                     "キーボードの下に丸ごと隠れた容器は採らない(払う始点が置けない)")
+    }
 }

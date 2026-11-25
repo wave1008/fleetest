@@ -63,6 +63,9 @@ terminateApp()
   `open-url-session-not-restored`. The note appears only on a delivery where that check ran.
 - `openURL` against an app that is not running lets the OS launch it, but that is not what the
   command is for. To verify opening from a URL when the app is not running, use `launchApp(url:)`.
+- If the app is no longer running after the URL was delivered (it exited or crashed while handling it),
+  the `openURL` step fails (Simulator and Android; on a physical iOS device the app's process cannot be
+  checked, so the next step fails instead).
 
 ### Link
 - [index](../../index.md)

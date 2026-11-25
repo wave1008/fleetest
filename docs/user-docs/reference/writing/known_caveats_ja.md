@@ -122,6 +122,7 @@
 - [ブラウザでは openURL で開いたページが履歴に積まれないことがある](../commands/launch_app_ja.md#注意点) — 戻る・進むの検証はリンクかアドレスバーで移ります。
 - [初回の openURL で iOS Simulator の確認アラートが出ることがある](../commands/launch_app_ja.md#注意点) — 自動了承されます。向け直せなかった場合は注記 `open-url-session…` が付き、続く操作が届かないことがあります。
 - [未起動のアプリへの openURL は想定用途ではない](../commands/launch_app_ja.md#注意点) — 未起動から URL で開く検証には `launchApp(url:)` を使います。
+- [URL を届けた後にアプリが落ちていたら openURL が失敗する](../commands/launch_app_ja.md#注意点) — Simulator と Android で確かめます。iOS の実機は次の操作で失敗します。
 
 ### home, back, appSwitcher, tapAppIcon, rotateTo, setAppearance, setTextSize, fold, unfold, hinge
 - [home() 等の後はアプリを前面へ戻してから操作する](../commands/navigation_ja.md#注意点) — iOS の inapp-boost と Android で、アプリが前面にない間は `select` や `notExist` などが断られます。

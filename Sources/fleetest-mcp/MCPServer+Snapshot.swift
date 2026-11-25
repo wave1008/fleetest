@@ -781,6 +781,10 @@ extension MCPServer {
                         + " was re-read once after a short wait — the tree below is the re-read.\n"
                 }
                 snapshot = reread
+            } else if let beforeAction, let settled = try await rereadWhileLayoutFollowsKeyboard(
+                before: beforeAction, first: snapshot, driver: snapshotDriver, args: args) {
+                settleNote = settled.note
+                snapshot = settled.snapshot
             } else if let settled = try await Self.rereadIfEmptyOrBlank(snapshot, reread: {
                 try await self.rereadAfterGrace(snapshotDriver, args: args)
             }) {
@@ -1516,6 +1520,30 @@ extension MCPServer {
 }
 
 extension MCPServer {
+    /// 操作でキーボードが**新たに**出た回の操作後の木は、画面がキーボードぶん詰め直す途中のことがある: キーボードの枠は先に申告され、
+    /// 中身の位置は遅れて追いつく(CMP の iOS の XCUITest の木: タップから 0.73 秒の読みで枠は出ているのに行は元の位置、0.97 秒で
+    /// 追いつき以後不変 = E2EY-CMP の反転チャット)。その間に読むと、キーボードの上にある行を「キーボードの下」と言った。
+    /// 直前の読みと一致するまで読み直す(上限は waitForChange の安定確認と同じ `changeSettleRereads`。尽きたら最新の読みを返し注記する)。
+    /// キーボードが出なかった・前から出ていた回は nil(読みを足さない)
+    func rereadWhileLayoutFollowsKeyboard(before: SnapshotResponse, first: SnapshotResponse, driver: AppDriver,
+                                          args: [String: Any]) async throws -> (snapshot: SnapshotResponse, note: String)? {
+        guard !KeyboardWait.isShown(before), KeyboardWait.isShown(first) else { return nil }
+        var snapshot = first
+        var moved = false
+        for _ in 0..<Self.changeSettleRereads {
+            let reread = try await rereadAfterGrace(driver, args: args)
+            if Self.looksUnchanged(snapshot, reread) {
+                return moved ? (snapshot, "note: the keyboard came up with this action and the screen was still moving to"
+                    + " make room for it, so the tree was re-read until it stopped — the tree below is the re-read.\n") : nil
+            }
+            snapshot = reread
+            moved = true
+        }
+        return (snapshot, "note: the keyboard came up with this action and the screen was still moving after"
+            + " \(Self.changeSettleRereads) re-reads — positions below may still change; read the screen again before"
+            + " relying on what the keyboard covers.\n")
+    }
+
     /// settle-lite の1回の読み直し(`settleWaitSeconds` だけ待って撮る)
     func rereadAfterGrace(_ driver: AppDriver, args: [String: Any]) async throws -> SnapshotResponse {
         try await Task.sleep(nanoseconds: UInt64(max(0, settleWaitSeconds) * 1_000_000_000))
