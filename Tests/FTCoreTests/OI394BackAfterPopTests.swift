@@ -1,7 +1,7 @@
 import XCTest
 @testable import FTCore
 
-/// OI-394: 直前のステップが back() だったときだけ、次の back() は before を読む前に既存の整定を待つ
+/// 直前のステップが back() だったときだけ、次の back() は before を読む前に既存の整定を待つ
 /// (pop の名残の戻るボタンが木に残る間に before を読むと、after と要素数が違い「効いた」に見えて注記が欠ける)
 final class OI394BackAfterPopTests: XCTestCase {
 

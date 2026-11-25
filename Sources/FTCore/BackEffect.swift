@@ -23,7 +23,7 @@ public enum BackEffect {
     /// **直前のステップが back() だったときだけ**、before を読む前に木の整定を待つか(`afterBackAtStepCount` =
     /// `StepExecutor.backFiredAtStepCount`、`stepsRecorded` = 記録済みのステップ数)。
     /// pop した直後は約 0.7 秒、抜けた画面の戻るボタンが木に残り、before が after より1要素多いせいで
-    /// 「木が違う = 効いた」になり注記が欠ける(OI-394)。待ちは時間ではなく既存の整定(`settleBeforeBackObservation`)で、
+    /// 「木が違う = 効いた」になり注記が欠ける。待ちは時間ではなく既存の整定(`settleBeforeBackObservation`)で、
     /// それ以外の back() には払わせない
     public static func shouldSettleBeforeRead(afterBackAtStepCount: Int?, stepsRecorded: Int) -> Bool {
         afterBackAtStepCount == stepsRecorded

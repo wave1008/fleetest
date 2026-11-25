@@ -222,6 +222,7 @@ enum InAppSnapshot {
         // 非表示サブツリーは丸ごと除外
         if let view = node as? UIView, view.isHidden || view.alpha < 0.01
             || view.accessibilityElementsHidden || hiddenByAncestor(view) { return }
+        if isLeavingBackButton(node) { return }
         let flutter = rescaleBelow(node, inherited: inherited)
         let rescale = flutter?.rescale
 
@@ -271,6 +272,35 @@ enum InAppSnapshot {
                 childParent = before
             }
         }
+    }
+
+    /// 去り際の戻るボタン: ナビゲーションバーの戻るボタン(id `BackButton`)で、そのバーのナビゲーションがもうルート(画面 1 枚)にいる。
+    /// ルートへ pop した後も約 0.2〜0.7 秒、pop した画面の戻るボタンが透明度 1・操作可のまま残り(画面の数は pop の約 0.18 秒後に 1 になる)、
+    /// 直後の `back()` の前後の木が1要素違って「効かなかった」の注記が欠けた。ルートのナビゲーションバーにシステムの戻るボタンは出ない。
+    /// 入れ物は `UINavigationBar` 自身(戻るボタンの要素の accessibilityContainer)で、その delegate のナビゲーションの画面の数を読む。
+    /// ツールバーの戻る(Safari)・自前の戻るはナビゲーションバーの中に無いので当たらない
+    private static func isLeavingBackButton(_ node: NSObject) -> Bool {
+        guard axIdentifier(node) == "BackButton" else { return false }   // 木と同じ読み方(as? では取れない部品がある)
+        var view: UIView? = (node as? UIView) ?? ((node as? UIAccessibilityElement)?.accessibilityContainer as? UIView)
+        var steps = 0   // 祖先を辿る回数の上限(輪を作る階層への安全網。実測は 0 段 = 入れ物がバー自身)
+        while let current = view, !(current is UINavigationBar), steps < 40 {
+            view = current.superview
+            steps += 1
+        }
+        if let bar = view as? UINavigationBar, let nav = bar.delegate as? UINavigationController {
+            return nav.viewControllers.count <= 1
+        }
+        // SwiftUI(iOS 27)のバーの戻るボタンの入れ物(`other id=BackButton`)は UINavigationBar の下に無い。レスポンダの連鎖で
+        // ナビゲーションへ辿る(実測: 連鎖の先の UIViewController が UIKitNavigationController 自身)
+        var responder: UIResponder? = (node as? UIView) ?? ((node as? UIAccessibilityElement)?.accessibilityContainer as? UIView)
+        steps = 0
+        while let current = responder, steps < 60 {   // 上限は輪への安全網(ビューの階層の深さ + コントローラ数段)
+            if let nav = current as? UINavigationController { return nav.viewControllers.count <= 1 }
+            if let nav = (current as? UIViewController)?.navigationController { return nav.viewControllers.count <= 1 }
+            responder = current.next
+            steps += 1
+        }
+        return false
     }
 
     /// 兄弟に可視の `accessibilityViewIsModal` な view があれば、その view と手前の兄弟だけを残す(XCUITest / VoiceOver と同じ。
