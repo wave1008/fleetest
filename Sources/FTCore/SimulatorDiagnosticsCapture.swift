@@ -107,16 +107,14 @@ public enum SimulatorDiagnosticsCapture {
             log("Simulator diagnostics not saved: could not write \(url.path)")
             return nil
         }
-        log("Simulator diagnostics saved: \(url.path) (the unified log is still being collected in the background)")
+        log("Simulator diagnostics saved: \(url.path) (the unified log follows)")
 
         let command = logShowCommand(udid: udid)
         // 古いものを消すのは背景の書き直しを始める前(書き直しの一時ファイルを消さない)
         pruneOldest(in: dir)
-        pendingLogs.enter()
         let work: @Sendable () -> Void = {
             let section = logSection(command: command, commands: commands)
             try? (head + "\n== unified log ==\n" + section).write(to: url, atomically: true, encoding: .utf8)
-            pendingLogs.leave()
             completion?()
         }
         // `log show` の子は中断のリレーに載せない: 読む範囲が決まった読み取りだけの子で、親が先に終わっても
@@ -127,20 +125,11 @@ public enum SimulatorDiagnosticsCapture {
         return url
     }
 
-    /// 背景で集めている統合ログ。**すぐ終わるプロセス**(起動の時間切れで投げる `bridge up`・終わる run)が待つ口 ——
-    /// 待たずに終わると、ファイルは「log not captured yet」のまま残る
-    private static let pendingLogs = DispatchGroup()
-
-    /// 背景の統合ログの採取が終わるまで待つ(上限 `logShowTimeoutSeconds` + 余裕 5 秒。尽きたら待たずに戻り、ファイルは仮の行のまま)。
-    /// 採取が無ければすぐ戻る。協調スレッドの上では呼ばない(同期で待つ)
-    /// すぐ終わる呼び手(起動の時間切れ・run の終わり)が統合ログを待つ上限(秒)。根拠: `log show` は 10 分ぶんで約 2 秒
-    /// (2026-11-25 実測)の 5 倍。尽きたら待たずに進む(ファイルは仮の行のまま = 止まった端末で終わりを延ばさない)
+    /// `captureOffCooperativePool` が**その採取の**統合ログを書き終えるのを待つ上限(秒)。根拠: `log show` は 10 分ぶんで約 2 秒
+    /// (2026-11-25 実測)の 5 倍。尽きたら待たずに進む(ファイルは仮の行のまま = 止まった端末で回復・失敗の報告を延ばさない)。
+    /// 待つ理由: 呼び手のプロセスはこの後すぐ終わりうる(起動の時間切れで投げる `bridge up`・回復の直後に終わる run)。
+    /// 待たずに終わると背景のスレッドごと消え、ファイルは「log not captured yet」のまま残る
     public static let exitWaitSeconds: TimeInterval = 10
-
-    @discardableResult
-    public static func waitForPendingLogs(timeout: TimeInterval = logShowTimeoutSeconds + 5) -> Bool {
-        pendingLogs.wait(timeout: .now() + timeout) == .success
-    }
 
     // MARK: - 節の組み立て
 
@@ -181,7 +170,8 @@ public enum SimulatorDiagnosticsCapture {
             guard let output = result.outputIfSucceeded else {
                 return "not captured: log show exited with status \(result.status): \(result.tail)\n"
             }
-            let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            // 末尾の改行で空の1行を数えない(見出しの行数と中身を揃える)
+            let lines = output.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
             let tail = lines.suffix(logTailLines)
             let header = "last \(logLookbackMinutes)m, predicate: \(logPredicate)\n"
                 + "showing the last \(tail.count) of \(lines.count) lines\n"
@@ -244,17 +234,20 @@ public enum SimulatorDiagnosticsCapture {
     /// `capture` を協調スレッドの外で走らせて待つ(async の回復の経路から呼ぶ口)。launchctl の照会は同期で最大 5 秒 + 子の終了猶予
     /// かかるので、協調スレッドを塞がない。起こし直す前の状態を採る順序は保つ(呼び手は待ってから起こし直す)。
     /// 文言は呼び手のスレッドで出す(`log` を別スレッドへ渡さない)
-    /// `waitForLog`: この採取の統合ログを書き終えるまで最大 `exitWaitSeconds` 待つ(呼び手がこの後すぐ投げて終わりうる経路 = 起動の時間切れ)
+    /// **その採取の**統合ログを書き終えるまで最大 `exitWaitSeconds` 待ってから戻る(他の端末の採取は待たない。失敗・回復の経路だけで、
+    /// 通常 2 秒前後延びる)。プロセス全体を待つ口は置かない(run の終わりで協調スレッドを塞ぐ・他の採取まで待つ)
     public static func captureOffCooperativePool(udid: String, reason: String, fallbackDirectory: URL?,
-                                                 waitForLog: Bool = false) async
+                                                 directory: URL? = nil, reportsDirectory: URL? = nil,
+                                                 commands: @escaping CommandRunner = { try Shell.run($0, timeout: $1) }) async
         -> (url: URL?, messages: [String]) {
         await withCheckedContinuation { continuation in
             let thread = Thread {
                 let messages = LockedValue<[String]>([])
-                let done = DispatchSemaphore(value: 0)  // **この採取の**書き終わり(他の端末の採取は待たない)
-                let url = capture(udid: udid, reason: reason, fallbackDirectory: fallbackDirectory,
-                                  log: { line in messages.withLock { $0.append(line) } }, completion: { done.signal() })
-                if waitForLog, url != nil { _ = done.wait(timeout: .now() + exitWaitSeconds) }
+                let done = DispatchSemaphore(value: 0)
+                let url = capture(udid: udid, reason: reason, directory: directory, fallbackDirectory: fallbackDirectory,
+                                  log: { line in messages.withLock { $0.append(line) } },
+                                  reportsDirectory: reportsDirectory, commands: commands, completion: { done.signal() })
+                if url != nil { _ = done.wait(timeout: .now() + exitWaitSeconds) }
                 continuation.resume(returning: (url, messages.value))
             }
             thread.name = "fleetest-simulator-diagnostics-head"

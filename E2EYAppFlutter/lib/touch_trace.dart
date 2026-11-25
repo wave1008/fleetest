@@ -17,7 +17,12 @@ class TouchTrace extends StatefulWidget {
 }
 
 class _TouchTraceState extends State<TouchTrace> {
-  final _active = <int>{};
+  /// 押している指の id → 押した時刻。終わりの事象がこの Listener に届かなかった指(遷移・バックグラウンドで取り消しが来ない)は
+  /// 残り続けて以後の列を記録しなくなるので、押してから `_staleAfter` を過ぎた指は次の押しで捨てる
+  final _active = <int, Duration>{};
+
+  /// 根拠: シナリオの最長の押し(hold 6 秒)の5倍。これより長く押し続ける操作は無い
+  static const _staleAfter = Duration(seconds: 30);
   int? _primary;
   Duration _downAt = Duration.zero;
   Offset _down = Offset.zero;
@@ -58,10 +63,11 @@ class _TouchTraceState extends State<TouchTrace> {
   static const double _edgeWidth = 20;
 
   void _onDown(PointerDownEvent e) {
+    _active.removeWhere((_, at) => e.timeStamp - at > _staleAfter);
     if (_active.isEmpty) _resample?.cancel(); // 前の列の再サンプルが新しい列の戻るのジェスチャを拾わないように
     if (_active.isEmpty && e.position.dx > _edgeWidth) {
       _primary = null;
-      _active.add(e.pointer);
+      _active[e.pointer] = e.timeStamp;
       return;
     }
     if (_active.isEmpty) {
@@ -76,7 +82,7 @@ class _TouchTraceState extends State<TouchTrace> {
       _gesture = false;
       _sampleGesture();
     }
-    _active.add(e.pointer);
+    _active[e.pointer] = e.timeStamp;
   }
 
   void _onMove(PointerMoveEvent e) {

@@ -1229,8 +1229,7 @@ public struct BridgeLauncher: Sendable {
     private func captureStartupDiagnostics(log: (String) -> Void) async {
         guard !physical, UUID(uuidString: device) != nil else { return }
         let captured = await SimulatorDiagnosticsCapture.captureOffCooperativePool(
-            udid: device, reason: "bridge-startup-timeout", fallbackDirectory: stateDir,
-            waitForLog: true)  // この後すぐ投げる = `bridge up` はそのまま終わる
+            udid: device, reason: "bridge-startup-timeout", fallbackDirectory: stateDir)
         captured.messages.forEach(log)
     }
 

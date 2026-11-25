@@ -54,6 +54,7 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
         XCTAssertTrue(result.url?.lastPathComponent.hasSuffix("-display-not-applied.txt") == true)
         XCTAssertTrue(result.text.contains("-\t-5\tcom.apple.SpringBoard"))
         XCTAssertTrue(result.text.contains("line2"))
+        XCTAssertTrue(result.text.contains("showing the last 2 of 2 lines"))  // 末尾の改行を1行に数えない
         XCTAssertFalse(result.text.contains("log not captured"))
     }
 
@@ -115,18 +116,17 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
         XCTAssertEqual(SimulatorDiagnosticsCapture.exitWaitSeconds, 10)
     }
 
-    func testWaitForPendingLogsReturnsOnceTheBackgroundLogIsWritten() throws {
-        let gate = DispatchSemaphore(value: 0)
-        let url = SimulatorDiagnosticsCapture.capture(
-            udid: udid, reason: "wait", directory: root, reportsDirectory: noReports,
+    func testOffPoolCaptureReturnsAfterItsOwnLogIsWritten() async throws {
+        let captured = await SimulatorDiagnosticsCapture.captureOffCooperativePool(
+            udid: udid, reason: "wait", fallbackDirectory: nil, directory: root, reportsDirectory: noReports,
             commands: { args, _ in
-                if args.contains("show") { gate.wait() }
-                return Shell.Result(status: 0, output: "LOGLINE")
+                if args.contains("show") { Thread.sleep(forTimeInterval: 0.3) }  // 背景の log show が遅い回
+                return Shell.Result(status: 0, output: "LOGLINE\n")
             })
-        XCTAssertFalse(SimulatorDiagnosticsCapture.waitForPendingLogs(timeout: 0.2))  // 書き終えるまで待っている
-        gate.signal()
-        XCTAssertTrue(SimulatorDiagnosticsCapture.waitForPendingLogs(timeout: 5))
-        XCTAssertTrue(try String(contentsOf: try XCTUnwrap(url), encoding: .utf8).contains("LOGLINE"))
+        // 戻った時点で統合ログが書き終わっている(呼び手のプロセスがすぐ終わっても仮の行のまま残らない)
+        let text = try String(contentsOf: try XCTUnwrap(captured.url), encoding: .utf8)
+        XCTAssertTrue(text.contains("LOGLINE"))
+        XCTAssertFalse(text.contains("log not captured yet"))
     }
 
     func testFileNameTimeIsUTC() {

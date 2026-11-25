@@ -399,9 +399,6 @@ public final class RunRecorder: @unchecked Sendable {
             workerModes: modes.isEmpty ? nil : modes,
             variants: declaredVariants.isEmpty ? nil : declaredVariants)
         RunResultsStore.writeMeta(meta, runDir: runDir)
-        // run.json を書いた**後で**、この run の中で採った統合ログを書き終えるのを短く待つ(run が終わるとプロセスも終わり、
-        // ファイルが仮の行のまま残る)。採取が無ければすぐ戻る。中断した run は待たない
-        if !interrupted { SimulatorDiagnosticsCapture.waitForPendingLogs(timeout: SimulatorDiagnosticsCapture.exitWaitSeconds) }
         return slowFindings
     }
 

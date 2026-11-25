@@ -28,7 +28,8 @@ class _TooltipScreenState extends State<TooltipScreen> {
   final _clock = Stopwatch()..start();
   int? _s, _w, _r, _u, _h;
   int? _pressAt, _releaseAt;
-  bool _pointerDown = false;
+  // 押している指の id。押しは 空 → 1本目 で始まり、空に戻った時点で離したとみなす(2本目の指の離しで押しを終えない)
+  final _pointers = <int>{};
   int _generation = 0; // 前の押しの hidden の時計が次の押しの状態・h を書かないように
 
   int _now() => _clock.elapsedMilliseconds;
@@ -38,8 +39,9 @@ class _TooltipScreenState extends State<TooltipScreen> {
       ? 'trace=-'
       : 'trace=s$_s w${_ms(_w)} r${_ms(_r)} u${_ms(_u)} h${_ms(_h)}';
 
-  void _released() {
-    _pointerDown = false;
+  void _released(int pointer) {
+    _pointers.remove(pointer);
+    if (_pointers.isNotEmpty) return;
     _releaseAt = _now();
     // 出た押しの離しだけ載せる(画面はツールチップで既に変わっている)
     if (_s != null && _s == _pressAt) {
@@ -87,17 +89,19 @@ class _TooltipScreenState extends State<TooltipScreen> {
               });
               // 押している指がこの Listener に無い(出る前に離した・この Listener を通らない押しや読み上げの操作で出た)なら、
               // 離しを待たずにここから数える(待つと hidden に戻らない)
-              if (!_pointerDown) _scheduleHide();
+              if (_pointers.isEmpty) _scheduleHide();
             },
             child: Listener(
               behavior: HitTestBehavior.translucent,
-              onPointerDown: (_) {
-                _pointerDown = true;
-                _pressAt = _now();
-                _releaseAt = null;
+              onPointerDown: (e) {
+                if (_pointers.isEmpty) {
+                  _pressAt = _now();
+                  _releaseAt = null;
+                }
+                _pointers.add(e.pointer);
               },
-              onPointerUp: (_) => _released(),
-              onPointerCancel: (_) => _released(),
+              onPointerUp: (e) => _released(e.pointer),
+              onPointerCancel: (e) => _released(e.pointer),
               child: tagged(
                 Tags.btnTooltipAnchor,
                 IconButton(icon: const Icon(Icons.info_outline), onPressed: () {}),
