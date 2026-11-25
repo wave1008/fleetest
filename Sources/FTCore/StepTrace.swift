@@ -85,8 +85,11 @@ public enum StepTraceFormat {
         return "\(number(rect.x)),\(number(rect.y)) \(number(rect.width))x\(number(rect.height))"
     }
 
+    /// 非有限・Int に収まらない値は `Int()` が落ちるので書かない(枠はブリッジの申告のまま来る)
     public static func number(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
+        guard value.isFinite else { return "?" }
+        if let exact = Int(exactly: value) { return String(exact) }
+        return String(format: "%.1f", value)
     }
 
     public static func bool(_ value: Bool) -> String { value ? "true" : "false" }

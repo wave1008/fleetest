@@ -139,6 +139,7 @@ extension StepExecutor {
             guard await slowDrag(jump: jump, container: container, vertical: vertical,
                                  phase: &phase) else { return nil }
             reverseSweepDragsSent += 1
+            scrollTraceLastSend = "reverse-sweep-drag"
             let snapshot = try await freshSnapshot(.afterOwnMove)
             let crossed = start.map { Self.reverseSweepCrossing(start: $0.elements, now: snapshot.elements,
                                                                  region: container, finger: back) } ?? 0

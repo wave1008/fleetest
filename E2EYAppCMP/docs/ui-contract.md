@@ -286,8 +286,8 @@ Android の `CoordinatorLayout` + `AppBarLayout` + `ViewPager2`。
 
 ## Flutter だけの測る口(`#txt_touch_trace`)
 
-**E2EYAppFlutter だけ**(OI-238 の測る口。他の SUT には無い)。アプリ全体を `Listener`(translucent)で包み、直近1本のポインタ列を
-全画面で木に出す。シナリオは検証しない(赤の回の失敗時の要素一覧に残すだけ)。各画面の要素・寸法・ジェスチャは変えない。
+**E2EYAppFlutter だけ**(OI-238 の測る口。他の SUT には無い)。アプリ全体を `Listener`(translucent)で包み、**左端 20 論理 px の帯で始まった**直近1本のポインタ列を
+全画面で木に出す(帯の外のタップ・払いでは文字を変えない = 木の比較・画素の指紋で「画面が変わらなかった」を見る判定をこの SUT で殺さない)。シナリオは検証しない(赤の回の失敗時の要素一覧に残すだけ)。各画面の要素・寸法・ジェスチャは変えない。
 
 - `#txt_touch_trace` = `trace=d<x>,<y> m<n> f<ms> l<x>,<y> u<ms>|c<ms> g<0/1>`(初期 `trace=-`。座標は論理 px)
   - `d` = DOWN の位置・`m` = MOVE の数・`f` = 最初の MOVE までの ms(無ければ `-`)・`l` = 最後の位置

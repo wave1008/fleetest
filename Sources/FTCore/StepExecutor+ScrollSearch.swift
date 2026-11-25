@@ -1018,15 +1018,19 @@ extension StepExecutor {
         // 足跡(判定には使わない)。止まった理由は結果の印から順に読む(複数立つときは先に挙げたもの)。
         // 1本も送らずに見つかった回は残さない(`tap(…, scroll:)` の大半 = 材料にならず量だけ増える)
         if result.found, result.swipes == 0, result.hintJumps == 0, result.reverseSweepDrags == 0 { return result }
-        let reason: String
+        // 言えないときは reason を省く(「その他」に丸めない)。appGone / scrollFrameMissing は途中の回でも立つので
+        // 「送る前に断った」と言えるのは1本も送っていない回だけ
+        let reason: String?
         if result.found { reason = "found" }
-        else if result.immediateRefusal != nil || result.appGone != nil || result.scrollFrameMissing { reason = "refused-before-send" }
+        else if result.appGone != nil { reason = "app-gone" }
+        else if result.scrollFrameMissing { reason = "scroll-frame-missing" }
+        else if result.immediateRefusal != nil { reason = result.swipes == 0 ? "refused-before-send" : "refused" }
         else if result.stoppedUnmoving { reason = "content-unmoving" }
         else if result.exhaustedWhileMoving { reason = "max-swipes" }
         else if result.screenResized { reason = "screen-resized" }
-        else { reason = "other" }
-        trace(.scrollSearchEnd, facts: [
-            "reason": reason, "swipes": String(result.swipes),
+        else { reason = nil }
+        var facts: [String: String] = [
+            "swipes": String(result.swipes),
             "lastSend": scrollTraceLastSend, "hintJumps": String(result.hintJumps),
             "reverseSweepDrags": String(result.reverseSweepDrags),
             "contentEverMoved": StepTraceFormat.bool(result.contentEverMoved),
@@ -1034,7 +1038,9 @@ extension StepExecutor {
             "elementFrame": StepTraceFormat.frame(result.element?.frame),
             "element": result.element.map(TapTargetGeometry.describe) ?? "none",
             "container": StepTraceFormat.frame(scrollTraceContainer),
-        ])
+        ]
+        if let reason { facts["reason"] = reason }
+        trace(.scrollSearchEnd, facts: facts)
         return result
     }
 

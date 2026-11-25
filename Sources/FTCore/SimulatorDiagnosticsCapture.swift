@@ -17,13 +17,15 @@ public enum SimulatorDiagnosticsCapture {
     /// 長すぎると `log show` が遅くなる(背景で走るので回復は待たせない)
     static let logLookbackMinutes = 10
 
-    /// `log show` の時間上限(秒)。尽きたら子ごと止め、ファイルに時間切れと書く(採れた分は無い)
+    /// `log show` の時間上限(秒)。根拠: 起動中の Simulator で 10 分ぶんが約 2 秒(2026-11-25 実測)。負荷の下の何十倍かの遅れまで待ち、
+    /// 背景のスレッドなので回復は待たせない。尽きたら子ごと止め、ファイルに時間切れと書く(採れた分は無い)
     static let logShowTimeoutSeconds: Double = 90
 
     /// 書き出す統合ログの末尾の行数。根拠: 1行約 200 バイトで 1 ファイル約 160 KB に収まる
     static let logTailLines = 800
 
-    /// クラッシュレポートを数える窓(秒)と、載せる名前の上限
+    /// クラッシュレポートを数える窓(秒)。根拠: OI-196 で SpringBoard の最後の .ips が起動の失敗の約 16 分前だった = 統合ログの
+    /// 10 分より前の落ちも名前で拾える長さ。名前の上限は、落ち続ける回でもファイルが一覧で埋まらない数(超えた分は件数だけ書く)
     static let reportWindowSeconds: TimeInterval = 3600
     static let reportListLimit = 20
 
@@ -43,10 +45,12 @@ public enum SimulatorDiagnosticsCapture {
     /// 1プロセス1 run の前提(同じプロセスで run を重ねるときは後勝ち)
     public static let currentRunDirectory = LockedValue<URL?>(nil)
 
-    private static let taken = LockedValue<Set<String>>([])
+    /// 置き場・udid・理由ごとの最後の採取の時刻。同じ鍵は統合ログを遡る窓(`logLookbackMinutes`)が過ぎるまで採らない
+    /// (窓の中で採り直しても同じ行の重なり。過ぎれば新しい窓 = 常駐プロセスでも2回目の起き方を採れる)
+    private static let taken = LockedValue<[String: Date]>([:])
 
     /// テスト用: 重複抑止の控えを捨てる
-    static func resetForTesting() { taken.withLock { $0 = [] } }
+    static func resetForTesting() { taken.withLock { $0 = [:] } }
 
     // MARK: - コマンドの形(テストが固定する)
 
@@ -65,7 +69,8 @@ public enum SimulatorDiagnosticsCapture {
     /// - `directory`: 書き先(`diagnostics/` を含まない親)。nil なら `currentRunDirectory`、それも無ければ `fallbackDirectory`
     /// - launchctl とクラッシュレポートは同期で採り(速い)、統合ログは背景で採ってファイルを書き直す。
     ///   背景が終わる前にプロセスが終わると、ファイルには「log not captured」が残る(黙って欠けない)
-    /// - 同じ置き場・同じ udid・同じ理由は1回だけ
+    /// - 同じ置き場・同じ udid・同じ理由は `logLookbackMinutes` の間に1回だけ
+    /// - launchctl の照会は同期(起こし直す前の状態を採るため)。止まった Simulator では時間上限(5 秒 + 子の終了猶予)まで呼び手を待たせうる
     @discardableResult
     public static func capture(
         udid: String, reason: String, directory: URL? = nil, fallbackDirectory: URL? = nil,
@@ -76,7 +81,12 @@ public enum SimulatorDiagnosticsCapture {
         guard let parent = directory ?? currentRunDirectory.value ?? fallbackDirectory else { return nil }
         let dir = parent.appendingPathComponent(directoryName)
         let key = dir.path + "|" + udid + "|" + reason
-        let isNew = taken.withLock { $0.insert(key).inserted }
+        let window = TimeInterval(logLookbackMinutes * 60)
+        let isNew = taken.withLock { map -> Bool in
+            if let last = map[key], now.timeIntervalSince(last) < window { return false }
+            map[key] = now
+            return true
+        }
         guard isNew else { return nil }
 
         let fileName = "\(udid.prefix(8))-\(timestamp(now))-\(reason).txt"

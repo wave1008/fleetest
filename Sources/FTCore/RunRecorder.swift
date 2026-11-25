@@ -333,6 +333,8 @@ public final class RunRecorder: @unchecked Sendable {
                        // 正しい事実になる)
                        interrupted: Bool = false,
                        abortReason: String? = nil) -> [SlowWorkerFinding] {
+        // run が終わったら診断の置き場をこの run から外す(同じプロセスで後から採った分が終わった run のフォルダへ入らないように)
+        SimulatorDiagnosticsCapture.currentRunDirectory.withLock { if $0 == runDir { $0 = nil } }
         hostMetrics?.stop()
         // ジョブの行を中止にする印(中断した run も終了コードは 0 / 1 = 成功・失敗に見える)。結果を書く3経路が必ずここを通る
         if interrupted { JobMembership.noteInterrupted() }

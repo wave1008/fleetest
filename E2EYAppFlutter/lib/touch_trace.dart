@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'tags.dart';
 import 'widgets.dart';
 
-/// OI-238 の測る口(E2EY-Flutter だけ)。アプリ全体を `Listener`(translucent)で包み、直近1本の
+/// OI-238 の測る口(E2EY-Flutter だけ)。アプリ全体を `Listener`(translucent)で包み、左端の帯で始まった直近1本の
 /// ポインタ列を `#txt_touch_trace` の1行にする。ヒットテストと既存のジェスチャは変えない。
 /// 書式は E2EYAppCMP/docs/ui-contract.md「Flutter だけの測る口」。シナリオは検証しない。
 /// MOVE ごとには文字を更新しない(再構築を避ける)。更新は DOWN・最初の MOVE・UP/CANCEL・戻るの再サンプル。
@@ -50,7 +50,17 @@ class _TouchTraceState extends State<TouchTrace> {
         'l${_xy(_last)} $end g${_gesture ? 1 : 0}';
   }
 
+  /// 記録する列の始点の左端からの幅(論理 px)。back() の縁の払いは左端 +1pt から始まり、Flutter の
+  /// Cupertino の戻るの払いが拾う縁も 20。**この帯の外で始まった列は記録しない** —— 全部のタップで文字が
+  /// 変わると、木の比較・画素の指紋で「画面が変わらなかった」を見る判定がこの SUT で働かなくなる
+  static const double _edgeWidth = 20;
+
   void _onDown(PointerDownEvent e) {
+    if (_active.isEmpty && e.position.dx > _edgeWidth) {
+      _primary = null;
+      _active.add(e.pointer);
+      return;
+    }
     if (_active.isEmpty) {
       _resample?.cancel();
       _primary = e.pointer;
@@ -89,6 +99,7 @@ class _TouchTraceState extends State<TouchTrace> {
     _publish();
     // 戻るの払いは指を離した後に確定・巻き戻しが走るので、少し後にもう一度見る。
     _resample?.cancel();
+    // 400ms = 戻るの払いの確定・巻き戻しのアニメ(Cupertino の遷移 約 350ms)が終わる頃
     _resample = Timer(const Duration(milliseconds: 400), () {
       _sampleGesture();
       _publish();

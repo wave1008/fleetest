@@ -60,6 +60,9 @@ final class StepTraceTests: XCTestCase {
         XCTAssertEqual(StepTraceFormat.frame(FTRect(x: 0, y: 174, width: 402, height: 700)), "0,174 402x700")
         XCTAssertEqual(StepTraceFormat.frame(FTRect(x: 1.5, y: 2, width: 3, height: 4.5)), "1.5,2 3x4.5")
         XCTAssertEqual(StepTraceFormat.frame(nil), "none")
+        // ブリッジの申告のまま来る枠: 非有限・Int に収まらない値で落ちない
+        XCTAssertEqual(StepTraceFormat.frame(FTRect(x: .infinity, y: -.infinity, width: .nan, height: 4)), "?,? ?x4")
+        XCTAssertFalse(StepTraceFormat.number(1e300).isEmpty)  // Int の範囲外でも落ちない
     }
 
     // MARK: - 運搬(ScenarioEvent → StepResult → 結果 JSON)

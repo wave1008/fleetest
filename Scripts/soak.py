@@ -27,6 +27,8 @@ FLEETEST = os.environ.get("FLEETEST") or os.path.join(ROOT, ".build", "debug", "
 # 秒。1回の fleetest run の上限。尽きたら SIGINT → KILL_GRACE 秒後に SIGKILL して「timeout」として台帳へ書く
 # (根拠: 1シナリオの run は供給込みで通常 1〜5 分。ディスパッチの待機列 --wait-lock の上限は別に持つ)
 RUN_TIMEOUT = 2700
+# 秒。SIGINT の後に子が後始末(ブリッジの返却・結果の書き出し・リモートのロックの解放)を終えるのを待つ上限。尽きたら SIGKILL
+# (根拠: 中断の後始末は通常 10 秒台。リモートの ssh 越しの片付けの遅れを見込んだ余裕)
 KILL_GRACE = 60
 # 秒。--wait-lock の既定。1マシン1 run の不変条件(DR-97)で他人の run を待つ上限。尽きたら run は断られ「no-record」になる
 WAIT_LOCK = 1800
@@ -171,7 +173,11 @@ def gather(target, since):
     runs = os.path.join(ROOT, "TestProjects", target["project"], "results", "runs")
     wanted = scenarios_of(target)
     for meta_path in glob.glob(os.path.join(runs, "*", "*", "run.json")):
-        if os.path.getmtime(meta_path) < since:
+        try:
+            # 保持容量の掃除(run の後の背景の掃除)が glob と読む間に run のフォルダを消しうる
+            if os.path.getmtime(meta_path) < since:
+                continue
+        except OSError:
             continue
         try:
             with open(meta_path, encoding="utf-8") as f:
