@@ -105,6 +105,26 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
                                                             reportsDirectory: noReports, commands: ok))
     }
 
+    func testFileNameTimeIsUTC() {
+        // 2026-11-25T00:00:00Z
+        XCTAssertEqual(SimulatorDiagnosticsCapture.timestamp(Date(timeIntervalSince1970: 1_795_564_800)), "20261125T000000Z")
+    }
+
+    func testDirectoryKeepsOnlyTheNewestFiles() throws {
+        XCTAssertEqual(SimulatorDiagnosticsCapture.maxFilesPerDirectory, 50)
+        let dir = root.appendingPathComponent("prune")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let now = Date()
+        for i in 0..<5 {
+            let path = dir.appendingPathComponent("f\(i).txt").path
+            FileManager.default.createFile(atPath: path, contents: Data())
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(Double(i))], ofItemAtPath: path)
+        }
+        SimulatorDiagnosticsCapture.pruneOldest(in: dir, keep: 3)
+        let left = try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
+        XCTAssertEqual(left, ["f2.txt", "f3.txt", "f4.txt"])
+    }
+
     func testReportsListsOnlyRecentSpringBoardAndBackboarddFiles() throws {
         let reports = root.appendingPathComponent("reports")
         try FileManager.default.createDirectory(at: reports, withIntermediateDirectories: true)

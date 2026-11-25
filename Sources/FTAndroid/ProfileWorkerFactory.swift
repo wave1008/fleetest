@@ -300,9 +300,9 @@ public enum ProfileWorkerFactory {
                     label: worker.label, reason: "no device definition to rebuild the bridge from")
             }
             // 起こし直す前に状態とログを残す(OI-347 の測る口。起こし直すと直前の状態が消える)
-            SimulatorDiagnosticsCapture.capture(
-                udid: udid, reason: "display-not-applied", fallbackDirectory: repoRoot.appendingPathComponent(".fleetest"),
-                log: { ConsoleOut.err($0) })
+            let captured = await SimulatorDiagnosticsCapture.captureOffCooperativePool(
+                udid: udid, reason: "display-not-applied", fallbackDirectory: repoRoot.appendingPathComponent(".fleetest"))
+            captured.messages.forEach { ConsoleOut.err($0) }
             return await respringAndRebuild(
                 worker: worker, client: client, purpose: .displayNotApplied, udid: udid,
                 device: (device.name, device.spec), resolved: resolved, repoRoot: repoRoot)

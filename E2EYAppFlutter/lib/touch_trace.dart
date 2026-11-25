@@ -2,13 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'tags.dart';
-import 'widgets.dart';
-
 /// OI-238 の測る口(E2EY-Flutter だけ)。アプリ全体を `Listener`(translucent)で包み、左端の帯で始まった直近1本の
-/// ポインタ列を `#txt_touch_trace` の1行にする。ヒットテストと既存のジェスチャは変えない。
+/// ポインタ列を1行にして端末の統合ログへ出す(木には載せない)。ヒットテストと既存のジェスチャは変えない。
 /// 書式は E2EYAppCMP/docs/ui-contract.md「Flutter だけの測る口」。シナリオは検証しない。
-/// MOVE ごとには文字を更新しない(再構築を避ける)。更新は DOWN・最初の MOVE・UP/CANCEL・戻るの再サンプル。
+/// 書くのは UP/CANCEL と戻るの再サンプル(400ms 後)の2回。
 class TouchTrace extends StatefulWidget {
   const TouchTrace({required this.navigatorKey, required this.child, super.key});
 
@@ -20,7 +17,6 @@ class TouchTrace extends StatefulWidget {
 }
 
 class _TouchTraceState extends State<TouchTrace> {
-  final _text = ValueNotifier<String>('trace=-');
   final _active = <int>{};
   int? _primary;
   Duration _downAt = Duration.zero;
@@ -44,11 +40,18 @@ class _TouchTraceState extends State<TouchTrace> {
   static String _xy(Offset o) =>
       '${o.dx.toStringAsFixed(1)},${o.dy.toStringAsFixed(1)}';
 
+  /// 列の終わり(UP / CANCEL)と 400ms 後の再サンプルでだけ書く。**木には載せない** —— 木の文字を変えると、
+  /// back() が効いたかを木の比較で見る判定(`BackEffect.hadNoEffect`)がこの SUT で「効いた」に倒れる
   void _publish() {
-    final end = _endMs == null ? 'u-' : '${_cancelled ? 'c' : 'u'}$_endMs';
-    _text.value = 'trace=d${_xy(_down)} m$_moves f${_firstMoveMs ?? '-'} '
-        'l${_xy(_last)} $end g${_gesture ? 1 : 0}';
+    if (_endMs == null) return;
+    final end = '${_cancelled ? 'c' : 'u'}$_endMs';
+    // ignore: avoid_print
+    print('$_logTag trace=d${_xy(_down)} m$_moves f${_firstMoveMs ?? '-'} '
+        'l${_xy(_last)} $end g${_gesture ? 1 : 0}');
   }
+
+  /// 端末の統合ログで引く印(`xcrun simctl spawn <udid> log show --predicate 'eventMessage CONTAINS "ft-touch-trace"'`)
+  static const _logTag = 'ft-touch-trace:';
 
   /// 記録する列の始点の左端からの幅(論理 px)。back() の縁の払いは左端 +1pt から始まり、Flutter の
   /// Cupertino の戻るの払いが拾う縁も 20。**この帯の外で始まった列は記録しない** —— 全部のタップで文字が
@@ -109,7 +112,6 @@ class _TouchTraceState extends State<TouchTrace> {
   @override
   void dispose() {
     _resample?.cancel();
-    _text.dispose();
     super.dispose();
   }
 
@@ -120,41 +122,6 @@ class _TouchTraceState extends State<TouchTrace> {
     onPointerMove: _onMove,
     onPointerUp: (e) => _onEnd(e, cancelled: false),
     onPointerCancel: (e) => _onEnd(e, cancelled: true),
-    child: Stack(
-      children: [
-        Positioned.fill(child: widget.child),
-        // 右上の隅のステータスバーの帯の中の極小(48x8 論理 px)。最前面の木の要素なので、アプリの要素(下端のバー・FAB)と
-        // 重なる所に置くと覆いの判定に拾われる。左端(back の払いの始点)にも置かない。
-        Positioned(
-          right: 0,
-          top: 0,
-          child: IgnorePointer(
-            child: SizedBox(
-              width: 48,
-              height: 8,
-              child: ValueListenableBuilder<String>(
-                valueListenable: _text,
-                builder: (_, v, _) => tagged(
-                  Tags.touchTrace,
-                  Text(
-                    v,
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.clip,
-                    textDirection: TextDirection.ltr,
-                    style: const TextStyle(
-                      fontSize: 6,
-                      height: 1,
-                      color: Color(0x66000000),
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    ),
+    child: widget.child,
   );
 }

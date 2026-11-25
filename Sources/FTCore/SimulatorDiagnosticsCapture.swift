@@ -115,9 +115,12 @@ public enum SimulatorDiagnosticsCapture {
             try? (head + "\n== unified log ==\n" + section).write(to: url, atomically: true, encoding: .utf8)
             completion?()
         }
+        // `log show` の子は中断のリレーに載せない: 読む範囲が決まった読み取りだけの子で、親が先に終わっても
+        // 時間上限(`logShowTimeoutSeconds`)までに自分で終わる(端末の状態を変えない)
         let thread = Thread { work() }
         thread.name = "fleetest-simulator-diagnostics"
         thread.start()
+        pruneOldest(in: dir)
         return url
     }
 
@@ -193,11 +196,42 @@ public enum SimulatorDiagnosticsCapture {
 
     // MARK: - 書式
 
+    /// ファイル名の時刻は UTC(中の captured-at・クラッシュレポートの時刻と同じ。機械をまたいで突き合わせる)
     static func timestamp(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd'T'HHmmss"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
         return formatter.string(from: date)
+    }
+
+    /// 1つの置き場に残すファイルの上限。根拠: run の外の置き場(`.fleetest/diagnostics/`)は保持容量の掃除の対象外なので、
+    /// 1件約 160 KB × 50 = 約 8 MB で頭打ちにする。超えたら古いものから消す(run の結果フォルダは run ごと掃除される)
+    static let maxFilesPerDirectory = 50
+
+    static func pruneOldest(in dir: URL, keep: Int = maxFilesPerDirectory) {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]),
+              names.count > keep else { return }
+        let dated = names.map { ($0, (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) }
+        for (url, _) in dated.sorted(by: { $0.1 > $1.1 }).dropFirst(keep) { try? fm.removeItem(at: url) }
+    }
+
+    /// `capture` を協調スレッドの外で走らせて待つ(async の回復の経路から呼ぶ口)。launchctl の照会は同期で最大 5 秒 + 子の終了猶予
+    /// かかるので、協調スレッドを塞がない。起こし直す前の状態を採る順序は保つ(呼び手は待ってから起こし直す)。
+    /// 文言は呼び手のスレッドで出す(`log` を別スレッドへ渡さない)
+    public static func captureOffCooperativePool(udid: String, reason: String, fallbackDirectory: URL?) async
+        -> (url: URL?, messages: [String]) {
+        await withCheckedContinuation { continuation in
+            let thread = Thread {
+                let messages = LockedValue<[String]>([])
+                let url = capture(udid: udid, reason: reason, fallbackDirectory: fallbackDirectory,
+                                  log: { line in messages.withLock { $0.append(line) } })
+                continuation.resume(returning: (url, messages.value))
+            }
+            thread.name = "fleetest-simulator-diagnostics-head"
+            thread.start()
+        }
     }
 
     private static func iso(_ date: Date) -> String { ISO8601DateFormatter().string(from: date) }

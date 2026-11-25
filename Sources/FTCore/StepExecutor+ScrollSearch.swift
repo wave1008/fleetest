@@ -1025,8 +1025,8 @@ extension StepExecutor {
         else if result.appGone != nil { reason = "app-gone" }
         else if result.scrollFrameMissing { reason = "scroll-frame-missing" }
         else if result.immediateRefusal != nil {
-            // 引き返しのドラッグと見出しへの寄せは swipes に数えないので、全部 0 のときだけ「送る前」と言える
-            let sentNothing = result.swipes == 0 && result.reverseSweepDrags == 0 && result.hintJumps == 0
+            // 引き返しのドラッグは swipes に数えないので、両方 0 のときだけ「送る前」と言える(見出しへの寄せは swipes にも数える)
+            let sentNothing = result.swipes == 0 && result.reverseSweepDrags == 0
             reason = sentNothing ? "refused-before-send" : "refused"
         }
         else if result.stoppedUnmoving { reason = "content-unmoving" }

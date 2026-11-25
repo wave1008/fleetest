@@ -178,9 +178,9 @@ enum ProfileRunOrchestrator {
                 if !retired.connection.physical, let udid = retired.connection.udid,
                    let spec = resolved.iosDevices.first(where: { $0.name == name })?.spec {
                     // 蘇生の前に状態とログを残す(OI-347 / OI-196 / OI-269 の測る口。蘇生すると直前の状態が消える)
-                    SimulatorDiagnosticsCapture.capture(
-                        udid: udid, reason: "worker-revive",
-                        fallbackDirectory: repoRoot.appendingPathComponent(".fleetest"), log: { log($0) })
+                    let captured = await SimulatorDiagnosticsCapture.captureOffCooperativePool(
+                        udid: udid, reason: "worker-revive", fallbackDirectory: repoRoot.appendingPathComponent(".fleetest"))
+                    captured.messages.forEach { log($0) }
                     let watched = LockedValue(false)
                     let verdict = await SimulatorSpringBoard.probeCrashLoop(udid: udid, onWatch: { first in
                         watched.withLock { $0 = true }

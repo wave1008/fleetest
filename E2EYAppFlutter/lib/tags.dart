@@ -6,7 +6,6 @@ class Tags {
   // シェル
   static const screenTitle = 'txt_screen_title';
   static const back = 'btn_back';
-  static const touchTrace = 'txt_touch_trace';
 
   // ホーム
   static const navNested = 'nav_nested';
