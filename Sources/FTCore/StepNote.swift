@@ -146,6 +146,15 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 読めなかった(`StepExecutor.coverReadOnScreen`)。合否は変えない(**新しい検知なので警告から**)。E2EY-Flutter の Android の
     /// 半分のシートの裏の行への exist / textIs が注記なしの ✅ だった(tap の側は `unnamedCoverCaution`)
     case coveredByFrontElementReadOnScreen = "covered-by-front-element-read-on-screen"
+    /// 撃つ前の確かめで、座標で撃った tap の対象の枠に、重なる別の要素の文字が描かれていた(自分の文字は読めなかった)。
+    /// 中心への タッチはその要素に当たったかもしれない。合否は変えない(**新しい検知なので警告から**)。
+    /// Flutter の Android のオートコンプリートの候補は木の枠が描画より上にずれ、中心に欄が描かれて押すと欄に当たった(緑のまま選ばれない)
+    case tapTargetDrawnOver = "tap-target-drawn-over"
+
+    /// `tapTargetDrawnOver` を in-app の activate で押した回の文(要素には届いたが、画面では覆われている = 人には押せない)
+    public static let tapTargetDrawnOverActivatedText = "where the target's frame is, the screen shows another element's text"
+        + " and not the target's own, so it is covered on screen and a person could not tap it — the in-app bridge pressed it"
+        + " directly (activate)"
     /// 上の確かめ(重なる要素の文字が描かれているか)の OCR が予算を越え、この回は確かめていない(合否は変えない)
     case coverReadBudgetExhausted = "cover-read-budget-exhausted"
     /// 否定の検証(notExist・count 0)が、手前のダイアログが裏を木から隠している木で通った(iOS の in-app の `modalScope`・
@@ -663,6 +672,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .absenceBehindModal:
             return "a dialog or window in front of the screen keeps what is behind it out of the tree, so this absence may only mean"
                 + " the element is behind it; close the dialog first to check what is behind it"
+        case .tapTargetDrawnOver:
+            return "where the target's frame is, the screen shows another element's text and not the target's own,"
+                + " so the touch at its centre may have landed on that element"
         case .coverReadBudgetExhausted:
             return "whether an overlapping element is drawn in front was not checked: the OCR read ran out of its time budget"
         case .coveredByFrontElementReadOnScreen:

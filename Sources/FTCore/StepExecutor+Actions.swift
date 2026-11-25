@@ -1298,10 +1298,27 @@ extension StepExecutor {
                                                                            paintOrderIsReal: paintOrderIsReal(snapshot.elements)) {
                     centreCoverOnly = true
                 }
+                // 撃つ前の確かめ: 塗り順の分からない木で、中心に重なる要素の文字が対象の枠に描かれているか(画素 = OCR。合否は変えない)。
+                // 木の枠が描画とずれる形(Flutter の Android のオートコンプリートの候補 = 枠の中心に欄が描かれ、押すと欄に当たる)と、
+                // 覆われた要素を押す形(塗り順の無い iOS の木 = in-app の activate は覆いに依らず要素へ届く = 人には押せない物を押す)を言う
+                var drawnCover: (element: ElementInfo, text: String)?
+                if !paintOrderIsReal(snapshot.elements), let own = Self.drawnText(of: element) {
+                    drawnCover = await coverDrawnOver(element, ownText: own, elements: snapshot.elements, screen: snapshot.screen,
+                                                      keyboardShown: KeyboardWait.isShown(snapshot), phase: &phase)
+                }
                 do {
                     try await RefExpectationScope.firing(element) { try await actingDriver.tap(ref: element.ref) }
                     let pressedByActivate = actingDriver.lastTapDelivery == .activate
                     if !(centreCoverOnly && pressedByActivate) { adviseCentre() }
+                    if let drawnCover {
+                        let name = drawnCover.element.identifier.map { "#\($0)" } ?? "a \(drawnCover.element.type)"
+                        noteCodesThisStep.insert(.tapTargetDrawnOver)
+                        // 座標で撃った回 = そちらに当たったかもしれない / activate で押した回 = 要素には届いたが、人には押せない(覆われている)
+                        let fact = pressedByActivate
+                            ? StepNote.tapTargetDrawnOverActivatedText : StepNote.tapTargetDrawnOver.text
+                        driverFallback = Self.joinNotes(driverFallback, fact + " (\(name), which reads \"\(drawnCover.text)\")")
+                        if !pressedByActivate { noteCoverSuspect(name, for: element) }
+                    }
                     // 読むのは ref で撃った直後だけ(座標の経路は tap(ref:) を通らない = 前回の値が残る)
                     if let miss = actingDriver.lastTapHitAreaMiss {
                         let centre = "(\(Int(saturating: miss.x.rounded())), \(Int(saturating: miss.y.rounded())))"

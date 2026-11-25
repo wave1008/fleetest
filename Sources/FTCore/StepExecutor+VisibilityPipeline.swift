@@ -278,25 +278,40 @@ extension StepExecutor {
     /// 費用: 重なりがある回だけ、判定用のスクリーンショット1枚(キーボード・アラートの確かめを含みうる)+ OCR の読み
     /// (拡大の段 ×1〜×3 と、等倍で0行のときの領域からの読み直し。上限は `RegionText.occlusionBudget`)
     func coverReadOnScreen(_ e: VisibilityEvidence, phase: inout PhaseAccumulator) async -> ElementInfo? {
-        guard occlusionOCRMode != .off, !e.expectedText.isEmpty else { return nil }
-        let target = e.element
+        await coverDrawnOver(e.element, ownText: e.expectedText, elements: e.elements, screen: e.screen,
+                             keyboardShown: e.keyboardShown, phase: &phase)?.element
+    }
+
+    /// 重なる要素の文字(ラベル、無ければ値)。オートコンプリートの候補に重なる欄はラベルを持たず値だけを持つ(Flutter の Android)
+    static func drawnText(of element: ElementInfo) -> String? {
+        if let label = element.label, !label.isEmpty { return label }
+        if let value = element.value, !value.isEmpty { return value }
+        return nil
+    }
+
+    /// `coverReadOnScreen` の本体(検証の V3 と、撃つ前の確かめ = `StepExecutor+Actions` の tap が共有する)。返すのは手前と読めた要素と、読めたその文字
+    func coverDrawnOver(_ target: ElementInfo, ownText: String, elements: [ElementInfo], screen: FTRect,
+                        keyboardShown: Bool, phase: inout PhaseAccumulator) async -> (element: ElementInfo, text: String)? {
+        guard occlusionOCRMode != .off, !ownText.isEmpty else { return nil }
         let centre = (x: target.frame.x + target.frame.width / 2, y: target.frame.y + target.frame.height / 2)
-        let expected = TranscriptMatch.normalize(e.expectedText)
-        let candidates = e.elements.filter { other in
-            guard other.ref != target.ref, let label = other.label, !label.isEmpty,
-                  TranscriptMatch.normalize(label) != expected,
-                  other.frame.containsClosed(x: centre.x, y: centre.y) else { return false }
-            return !Self.frame(other.frame, contains: target.frame) && !Self.frame(target.frame, contains: other.frame)
+        let expected = TranscriptMatch.normalize(ownText)
+        let candidates: [(element: ElementInfo, text: String)] = elements.compactMap { other in
+            guard other.ref != target.ref, let text = Self.drawnText(of: other),
+                  TranscriptMatch.normalize(text) != expected,
+                  other.frame.containsClosed(x: centre.x, y: centre.y),
+                  !Self.frame(other.frame, contains: target.frame), !Self.frame(target.frame, contains: other.frame)
+            else { return nil }
+            return (other, text)
         }
         // V15(コンパイル待ち)より前の段なので、近道と同じ門(ready・詰まった読みが無い)と予算を通す。素の read はコンパイル中・
         // ANE の詰まりの後ろで上限なしに待ち、締め切りからも差し引かれない
         guard !candidates.isEmpty,
               RegionText.shouldTakeShortcut(mode: occlusionOCRMode, ready: RegionText.isModelReady,
                                             abandonedInFlight: RegionText.abandonedInFlight),
-              let shot = try? await judgmentScreenshot(keyboardShown: e.keyboardShown, phase: &phase) else { return nil }
+              let shot = try? await judgmentScreenshot(keyboardShown: keyboardShown, phase: &phase) else { return nil }
         let outcome = await RegionText.resolveWithinBudget(
-            expected: e.expectedText, pngData: shot, frame: target.frame, screen: e.screen,
-            languages: RegionText.languages(forAny: [e.expectedText] + candidates.compactMap(\.label)))
+            expected: ownText, pngData: shot, frame: target.frame, screen: screen,
+            languages: RegionText.languages(forAny: [ownText] + candidates.map(\.text)))
         switch outcome {
         case .budgetExhausted:
             // 予算を越えた = この回は覆いを確かめていない(黙らない。FM には訊かないので ocr-budget-exhausted とは別の注記)
@@ -306,7 +321,7 @@ extension StepExecutor {
             return nil
         case .read(let ownTextReadable, let reading):
             guard !ownTextReadable else { return nil }
-            return candidates.first { RegionText.readable(expected: $0.label ?? "", lines: reading.lines) }
+            return candidates.first { RegionText.readable(expected: $0.text, lines: reading.lines) }
         }
     }
 

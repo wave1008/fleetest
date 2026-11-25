@@ -131,3 +131,50 @@ final class CoverReadOnScreenNoteTests: XCTestCase {
         XCTAssertFalse(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
     }
 }
+
+/// 撃つ前の確かめ: 塗り順の分からない木で、座標で撃った tap の対象の枠に重なる要素の文字(ラベル、無ければ値)が描かれていたら注記。
+/// 実測の形: E2EX-Flutter の Android のオートコンプリートの候補 `#auto_opt_japan`(Japan)の木の中心に欄(値 "Ja")が描かれ、押すと欄に当たる
+final class TapTargetDrawnOverTests: XCTestCase {
+    override func tearDown() {
+        RegionText.readRecognizeOverrideForTesting = nil
+        RegionText.modelReadyOverrideForTesting = nil
+        super.tearDown()
+    }
+
+    private let option = ElementInfo(ref: 1, type: "button", identifier: "auto_opt_japan", label: "Japan", value: nil,
+                                     placeholder: nil, enabled: true, frame: FTRect(x: 10, y: 300, width: 200, height: 40), depth: 3)
+    private let field = ElementInfo(ref: 2, type: "textField", identifier: nil, label: nil, value: "Ja",
+                                    placeholder: nil, enabled: true, frame: FTRect(x: 10, y: 315, width: 300, height: 40), depth: 3)
+
+    private func tap(read: [String], delivery: TapDelivery? = nil, isAndroid: Bool = true,
+                     framework: AppUIFramework = .flutter) async -> StepOutcome {
+        RegionText.readRecognizeOverrideForTesting = { _ in read }
+        RegionText.modelReadyOverrideForTesting = true
+        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[option, field]],
+                                   screenshots: [StepExecutorTests.inkedPNG])
+        driver.tapDeliveryAnswer = delivery
+        let executor = StepExecutor(driver: driver, occlusionOCRMode: .on, isAndroid: isAndroid, tunables: RunTunables(),
+                                    uiFramework: framework)
+        return await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "auto_opt_japan"), timeout: 0))
+    }
+
+    func testFieldTextDrawnInTheOptionFrameIsNoted() async {
+        let outcome = await tap(read: ["Ja"])
+        guard case .passed = outcome.status else { return XCTFail("合否を変えた: \(outcome.status)") }
+        XCTAssertTrue(outcome.notes.contains(.tapTargetDrawnOver), "\(outcome.notes)")
+        XCTAssertTrue(outcome.driverFallback?.contains("(a textField, which reads \"Ja\")") == true, outcome.driverFallback ?? "nil")
+    }
+
+    func testOwnTextDrawnIsNotNoted() async {
+        let outcome = await tap(read: ["Japan"])
+        XCTAssertFalse(outcome.notes.contains(.tapTargetDrawnOver), "\(outcome.notes)")
+    }
+
+    /// in-app が activate で押した回は要素へ届くが、画面では覆われている = 「人には押せない物を押した」と言う(塗り順の無い iOS の木)
+    func testActivateDeliverySaysAPersonCouldNotTapIt() async {
+        let outcome = await tap(read: ["Ja"], delivery: .activate, isAndroid: false, framework: .swiftUI)
+        XCTAssertTrue(outcome.notes.contains(.tapTargetDrawnOver), "\(outcome.notes)")
+        XCTAssertTrue(outcome.driverFallback?.contains("a person could not tap it") == true, outcome.driverFallback ?? "nil")
+        XCTAssertFalse(outcome.driverFallback?.contains("may have landed on that element") == true, outcome.driverFallback ?? "nil")
+    }
+}
