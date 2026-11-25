@@ -473,7 +473,7 @@ enum BatchStepResolver {
     }
 
     // このバッチ辞書語彙で使われている全キーの型。4集合はどれとも重ならない
-    // (containerInference/requireVisible は未対応のため boolKeys に無い。scroll は `.down` 等の dotIdent)
+    // (scroll は `.down` 等の dotIdent)
     /// ビルダが宣言するキーは必ずこの4表のどれか1つに載る(載せ忘れると、その引数を書いた行が
     /// 「does not accept」で弾かれる。`BatchKeyTypeCoverageTests` が漏れを検出する)
     static let stringKeys: Set<String> = ["selector", "text", "linkText", "direction", "to", "scrollFrame",
@@ -488,8 +488,10 @@ enum BatchStepResolver {
         "startX", "startY", "endX", "endY",
         // setSliderValue の値(DSL では名前の無い Double。"value" は setPickerValue の文字列で使っているので別の名前)
         "number",
+        // scroll 系の余白の比率(DSL も値域で縛らない。幅が潰れたら実行時の注記で言う)
+        "startMarginRatio", "endMarginRatio",
     ]
-    static let boolKeys: Set<String> = ["replace", "settle", "throwsException"]
+    static let boolKeys: Set<String> = ["replace", "settle", "throwsException", "containerInference", "requireVisible"]
 
     private static func assign(_ raw: inout [String: Any], dictKey: String, value: BatchLineValue,
                                command: String, displayName: String) throws {

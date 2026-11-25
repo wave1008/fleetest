@@ -57,7 +57,7 @@ extension MCPServer {
     static let batchStepBuilders: [String: BatchStepBuilder] = [
         "tap": BatchStepBuilder(
             keys: ["selector", "holdSeconds", "maxGestureSeconds", "settle", "waitSeconds", "scroll", "maxSwipes",
-                   "x", "y", "linkText"]
+                   "x", "y", "linkText", "containerInference"]
         ) { raw in
             let hold = raw["holdSeconds"] as? Double ?? FlowStep.defaultTapHoldSeconds
             let duration = hold == FlowStep.defaultTapHoldSeconds ? nil : hold
@@ -92,15 +92,19 @@ extension MCPServer {
                                 timeout: raw["waitSeconds"] as? Double, maxSwipes: search.maxSwipes,
                                 duration: duration, maxGestureSeconds: maxGestureSeconds,
                                 settle: batchSettle(raw),
+                                // nil = 実行器の既定(プロファイルの containerInference)。DSL の明示 > 既定と同じ順
+                                containerInference: raw["containerInference"] as? Bool,
                                 linkText: raw["linkText"] as? String)
             return (step, "tap \"\(selector.text)\"")
         },
-        "select": BatchStepBuilder(keys: ["selector", "waitSeconds", "scroll", "maxSwipes"]) { raw in
+        "select": BatchStepBuilder(keys: ["selector", "requireVisible", "waitSeconds", "scroll", "maxSwipes"]) { raw in
             let selector = try requiredBatchSelector(raw, command: "select")
             let search = try batchSearch(raw, command: "select")
             let step = FlowStep(action: "select", locator: selector.primary,
                                 fallbacks: batchFallbacks(selector), direction: search.direction,
-                                timeout: raw["waitSeconds"] as? Double, maxSwipes: search.maxSwipes)
+                                timeout: raw["waitSeconds"] as? Double, maxSwipes: search.maxSwipes,
+                                // DSL の requireVisible: は occlusionGuard へ写す(nil = 実行器の既定)
+                                occlusionGuard: raw["requireVisible"] as? Bool)
             return (step, "select \"\(selector.text)\"")
         },
         "type": BatchStepBuilder(keys: ["selector", "text", "replace", "settle", "waitSeconds", "scroll", "maxSwipes"]) { raw in
@@ -288,7 +292,8 @@ extension MCPServer {
             return (step, selector.map { "waitForSettle \"\($0.text)\"" } ?? "waitForSettle")
         },
         "scrollTo": BatchStepBuilder(
-            keys: ["selector", "direction", "settle", "waitSeconds", "maxSwipes", "scrollFrame"]
+            keys: ["selector", "direction", "settle", "waitSeconds", "maxSwipes", "scrollFrame",
+                   "startMarginRatio", "endMarginRatio", "containerInference"]
         ) { raw in
             let selector = try requiredBatchSelector(raw, command: "scrollTo")
             guard let direction = FTScrollDirection(rawValue: raw["direction"] as? String ?? "down") else {
@@ -299,31 +304,34 @@ extension MCPServer {
                                 timeout: raw["waitSeconds"] as? Double,
                                 maxSwipes: raw["maxSwipes"] as? Int ?? FlowStep.defaultMaxSwipes,
                                 settle: batchSettle(raw),
-                                scrollFrame: try batchScrollFrame(raw))
+                                containerInference: raw["containerInference"] as? Bool,
+                                scrollFrame: try batchScrollFrame(raw),
+                                startMarginRatio: raw["startMarginRatio"] as? Double,
+                                endMarginRatio: raw["endMarginRatio"] as? Double)
             return (step, "scrollTo \"\(selector.text)\"")
         },
-        "scrollDown": BatchStepBuilder(keys: ["repeat", "settle", "scrollFrame"]) {
+        "scrollDown": BatchStepBuilder(keys: ["repeat", "settle", "scrollFrame", "startMarginRatio", "endMarginRatio"]) {
             try batchScrollStep(.down, raw: $0)
         },
-        "scrollUp": BatchStepBuilder(keys: ["repeat", "settle", "scrollFrame"]) {
+        "scrollUp": BatchStepBuilder(keys: ["repeat", "settle", "scrollFrame", "startMarginRatio", "endMarginRatio"]) {
             try batchScrollStep(.up, raw: $0)
         },
-        "scrollRight": BatchStepBuilder(keys: ["repeat", "settle", "scrollFrame"]) {
+        "scrollRight": BatchStepBuilder(keys: ["repeat", "settle", "scrollFrame", "startMarginRatio", "endMarginRatio"]) {
             try batchScrollStep(.right, raw: $0)
         },
-        "scrollLeft": BatchStepBuilder(keys: ["repeat", "settle", "scrollFrame"]) {
+        "scrollLeft": BatchStepBuilder(keys: ["repeat", "settle", "scrollFrame", "startMarginRatio", "endMarginRatio"]) {
             try batchScrollStep(.left, raw: $0)
         },
-        "scrollToBottom": BatchStepBuilder(keys: ["maxSwipes", "settle", "scrollFrame"]) {
+        "scrollToBottom": BatchStepBuilder(keys: ["maxSwipes", "settle", "scrollFrame", "startMarginRatio", "endMarginRatio"]) {
             try batchScrollEdgeStep(.down, name: "scrollToBottom", raw: $0)
         },
-        "scrollToTop": BatchStepBuilder(keys: ["maxSwipes", "settle", "scrollFrame"]) {
+        "scrollToTop": BatchStepBuilder(keys: ["maxSwipes", "settle", "scrollFrame", "startMarginRatio", "endMarginRatio"]) {
             try batchScrollEdgeStep(.up, name: "scrollToTop", raw: $0)
         },
-        "scrollToRightEdge": BatchStepBuilder(keys: ["maxSwipes", "settle", "scrollFrame"]) {
+        "scrollToRightEdge": BatchStepBuilder(keys: ["maxSwipes", "settle", "scrollFrame", "startMarginRatio", "endMarginRatio"]) {
             try batchScrollEdgeStep(.right, name: "scrollToRightEdge", raw: $0)
         },
-        "scrollToLeftEdge": BatchStepBuilder(keys: ["maxSwipes", "settle", "scrollFrame"]) {
+        "scrollToLeftEdge": BatchStepBuilder(keys: ["maxSwipes", "settle", "scrollFrame", "startMarginRatio", "endMarginRatio"]) {
             try batchScrollEdgeStep(.left, name: "scrollToLeftEdge", raw: $0)
         },
     ]
@@ -398,7 +406,9 @@ extension MCPServer {
         let times = raw["repeat"] as? Int ?? 1
         let step = FlowStep(action: "scroll", direction: direction.swipe.rawValue,
                             maxSwipes: max(1, times), settle: batchSettle(raw),
-                            scrollFrame: try batchScrollFrame(raw))
+                            scrollFrame: try batchScrollFrame(raw),
+                            startMarginRatio: raw["startMarginRatio"] as? Double,
+                            endMarginRatio: raw["endMarginRatio"] as? Double)
         let name = "scroll\(direction.rawValue.capitalized)"
         return (step, times > 1 ? "\(name) ×\(times)" : name)
     }
@@ -408,7 +418,9 @@ extension MCPServer {
         let step = FlowStep(action: "scrollToEdge", direction: direction.swipe.rawValue,
                             maxSwipes: raw["maxSwipes"] as? Int ?? FlowStep.defaultMaxEdgeSwipes,
                             settle: batchSettle(raw),
-                            scrollFrame: try batchScrollFrame(raw))
+                            scrollFrame: try batchScrollFrame(raw),
+                            startMarginRatio: raw["startMarginRatio"] as? Double,
+                            endMarginRatio: raw["endMarginRatio"] as? Double)
         return (step, name)
     }
 

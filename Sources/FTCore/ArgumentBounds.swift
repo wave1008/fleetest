@@ -85,6 +85,9 @@ public enum ArgumentBounds {
         "minRuns": Bound(min: 1),
         "ref": .unbounded,
         "fromRef": .unbounded,
+        // ft_batch の scroll 系の余白の比率。DSL が縛らないので同じく縛らない(縛ると写した行が batch だけで断られる)
+        "startMarginRatio": .unbounded,
+        "endMarginRatio": .unbounded,
         "x": .unbounded,
         "y": .unbounded,
         "dx": .unbounded,

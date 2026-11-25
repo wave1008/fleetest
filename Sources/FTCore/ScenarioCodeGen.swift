@@ -152,7 +152,9 @@ public enum ScenarioCodeGen {
         if let action = step.action {
             switch action {
             case "select":
-                return "select(\(literal(selector))\(timeoutArg(step))\(searchScrollArgs(step)))"
+                // 既定は可視性も確かめる(requireVisible: true)。外した行だけ書く(tap の containerInference と同じ)
+                let visible = step.occlusionGuard == false ? ", requireVisible: false" : ""
+                return "select(\(literal(selector))\(visible)\(timeoutArg(step))\(searchScrollArgs(step)))"
             case "tap":
                 let hold = step.duration.map { ", holdSeconds: \(FTSeconds.format($0))" } ?? ""
                 // **holdSeconds が無いのに maxGestureSeconds だけ出さない**(意味を持たない —
@@ -361,6 +363,7 @@ public enum ScenarioCodeGen {
                     args.append("direction: .\(scroll.rawValue)")
                 }
                 args += scrollFrameArgs(step)
+                if step.containerInference == false { args.append("containerInference: false") }
                 if step.skipsSettle { args.append("settle: false") }
                 if let timeout = step.timeout { args.append("waitSeconds: \(FTSeconds.format(timeout))") }
                 if let maxSwipes = step.maxSwipes, maxSwipes != FlowStep.defaultMaxSwipes {

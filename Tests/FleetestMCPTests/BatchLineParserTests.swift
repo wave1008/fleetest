@@ -119,18 +119,6 @@ final class BatchLineParserTests: XCTestCase {
     /// signature のラベル全体(waitSeconds 以外も)と keys の差。**ft_batch が意図して受けないラベルだけ**を表に置く
     private static let labelsNotAcceptedInBatch: [String: Set<String>] = [
         "irregularHandler": ["maxDismissals"],   // 既定のまま(FlowStep に欄を足さない)
-        // 以下は未対応(OI-402): DSL は実行環境の既定と合わせて解く(`effectiveContainerInference` 等)ので、ビルダへ写すには同じ解決が要る
-        "tap": ["containerInference"],
-        "scrollTo": ["containerInference", "startMarginRatio", "endMarginRatio"],
-        "select": ["requireVisible"],
-        "scrollUp": ["startMarginRatio", "endMarginRatio"],
-        "scrollDown": ["startMarginRatio", "endMarginRatio"],
-        "scrollLeft": ["startMarginRatio", "endMarginRatio"],
-        "scrollRight": ["startMarginRatio", "endMarginRatio"],
-        "scrollToTop": ["startMarginRatio", "endMarginRatio"],
-        "scrollToBottom": ["startMarginRatio", "endMarginRatio"],
-        "scrollToLeftEdge": ["startMarginRatio", "endMarginRatio"],
-        "scrollToRightEdge": ["startMarginRatio", "endMarginRatio"],
     ]
 
     func testSignatureLabelsMissingFromBuilderKeysAreExactlyTheKnownGaps() throws {
@@ -335,12 +323,12 @@ final class BatchLineParserTests: XCTestCase {
 
     func testUnsupportedLabelNamesItselfAndListsWhatIsSupported() {
         XCTAssertThrowsError(
-            try resolve(command: "tap", line: "tap '#a' containerInference: true")
+            try resolve(command: "irregularHandler", line: "irregularHandler '#a' dismiss: '#b' maxDismissals: 3")
         ) { error in
             let message = (error as? BatchStepResolver.ResolveError)?.message ?? "\(error)"
-            XCTAssertTrue(message.contains("\"containerInference:\""), message)
+            XCTAssertTrue(message.contains("\"maxDismissals:\""), message)
             XCTAssertTrue(message.contains("does not support"), message)
-            XCTAssertTrue(message.contains("selector, holdSeconds, maxGestureSeconds, settle, waitSeconds"), message)
+            XCTAssertTrue(message.contains("detect, dismiss"), message)
         }
     }
 
@@ -570,6 +558,13 @@ final class BatchLineParserTests: XCTestCase {
             FlowStep(action: "scrollToEdge", direction: "down"),
             FlowStep(action: "scrollToEdge", direction: "left"),
             FlowStep(action: "scrollToEdge", direction: "right"),
+            // DSL の既定を外す引数(省略 = 実行器の既定。外したときだけ行に出る)と余白の比率
+            FlowStep(action: "tap", locator: selA.primary, fallbacks: fallbacks(selA), containerInference: false),
+            FlowStep(action: "select", locator: selA.primary, fallbacks: fallbacks(selA), occlusionGuard: false),
+            FlowStep(action: "scrollTo", locator: selA.primary, fallbacks: fallbacks(selA), containerInference: false,
+                     scrollFrame: FTSelector.parse("#list").primary, startMarginRatio: 0.2, endMarginRatio: 0.3),
+            FlowStep(action: "scroll", direction: "up", startMarginRatio: 0.25),
+            FlowStep(action: "scrollToEdge", direction: "down", endMarginRatio: 0.1),
             FlowStep(action: "irregularHandler", locator: selA.primary, fallbacks: fallbacks(selA),
                      text: "OK||閉じる"),
             FlowStep(action: "waitForSettle"),
@@ -608,6 +603,38 @@ final class BatchLineParserTests: XCTestCase {
             let (rebuilt, _) = try builder.build(raw)
             let roundTripLine = ScenarioCodeGen.command(for: rebuilt)
             XCTAssertEqual(line, roundTripLine, "round trip mismatch for \(line)")
+        }
+    }
+
+    /// DSL の既定を外す引数と余白の比率は、書き戻した行に出て、組み直した手順に同じ値で戻る。
+    /// 往復の一致だけでは、書き戻しで消えた引数を両側から同じように落として緑のまま通る
+    func testOptOutLabelsAndMarginsSurviveTheWriteBack() throws {
+        let sel = FTSelector.parse("#a")
+        let cases: [(FlowStep, String, (FlowStep) -> Bool)] = [
+            (FlowStep(action: "tap", locator: sel.primary, containerInference: false),
+             "containerInference: false", { $0.containerInference == false }),
+            (FlowStep(action: "select", locator: sel.primary, occlusionGuard: false),
+             "requireVisible: false", { $0.occlusionGuard == false }),
+            (FlowStep(action: "scrollTo", locator: sel.primary, containerInference: false),
+             "containerInference: false", { $0.containerInference == false }),
+            (FlowStep(action: "scrollTo", locator: sel.primary, startMarginRatio: 0.2, endMarginRatio: 0.3),
+             "startMarginRatio: 0.2, endMarginRatio: 0.3", { $0.startMarginRatio == 0.2 && $0.endMarginRatio == 0.3 }),
+            (FlowStep(action: "scroll", direction: "up", startMarginRatio: 0.25),
+             "startMarginRatio: 0.25", { $0.startMarginRatio == 0.25 }),
+            (FlowStep(action: "scrollToEdge", direction: "down", endMarginRatio: 0.1),
+             "endMarginRatio: 0.1", { $0.endMarginRatio == 0.1 }),
+        ]
+        for (step, label, holds) in cases {
+            let line = try XCTUnwrap(ScenarioCodeGen.command(for: step), "\(step.action ?? "")")
+            XCTAssertTrue(line.contains(label),
+                          "\(line): \(label) が書き戻しで落ちた —— ScenarioCodeGen.command の該当コマンドの分岐に足す(通ったバッチはシナリオへ 1:1 で写せる契約)")
+            let parsed = try BatchLineParser.parse(minimalForm(of: line))
+            let info = try XCTUnwrap(DSLCommandIndex.all.first { $0.name == parsed.name })
+            let builder = try XCTUnwrap(MCPServer.batchStepBuilders[parsed.name])
+            let raw = try BatchStepResolver.resolve(command: parsed.name, signature: info.signature,
+                                                    args: parsed.args, declaredKeys: builder.keys)
+            XCTAssertTrue(holds(try builder.build(raw).step),
+                          "\(line): ft_batch のビルダが \(label) を手順へ載せていない —— MCPServer.batchStepBuilders[\"\(parsed.name)\"] で FlowStep へ渡す")
         }
     }
 

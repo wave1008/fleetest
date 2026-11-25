@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-402 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-345・OI-347・OI-358・OI-366・OI-378 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 16 | OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-279・OI-327・OI-386・OI-387 |
@@ -37,16 +37,6 @@
 低頻度の項目は、手順のシナリオが分かるものを `Scripts/soak.py` で空いた機械に回し続けて出た回を貯める(対象の表は `Scripts/soak-targets.json`・使い方は docs/verification/operations.md)。各ステップの判定の分かれ目は結果 JSON の `trace`(docs/results-json.md)に残る。
 
 ## 着手可
-
-### OI-402 ft_batch が DSL の一部の引数(`containerInference`・スクロールの余白の比率・`select` の `requireVisible`)を受けない
-- 状態: 経路確定
-- 確認: 2026-11-26(`BatchLineParserTests.testSignatureLabelsMissingFromBuilderKeysAreExactlyTheKnownGaps` の表 `labelsNotAcceptedInBatch`)
-- 属性: 着手可
-- 運用: 回避可 — ft_batch の行からその引数を外せば通る(断る文言が受ける引数を挙げる)。DSL のシナリオでは使える
-- 優先度: 低 — MCP だけ
-
-- 受けないもの: `tap` / `scrollTo` の `containerInference`、`scrollTo` とスクロール系8コマンドの `startMarginRatio` / `endMarginRatio`、`select` の `requireVisible`。索引の signature にあるので、シナリオから写した行が ft_batch で断られる
-- 直し方: DSL はこれらを実行環境の既定と合わせて解く(`core.effectiveContainerInference` 等)ので、`MCPServer.batchStepBuilders` に同じ解決を写して keys に足し、表から行を消す(表の行が残ると逆向きの検査が落ちる)
 
 ## 要測定
 
