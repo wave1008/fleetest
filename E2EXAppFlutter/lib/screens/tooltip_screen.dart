@@ -12,9 +12,10 @@ class TooltipScreen extends StatefulWidget {
 
 // Flutter の Tooltip は表示継続時間を明示できる(showDuration)が、非表示になった瞬間を
 // 通知する public API が無い(Compose の tooltipState.isVisible に相当するものが無い)。
-// onTriggered で「表示された」ことは分かるので、そこから showDuration と同じ長さだけ
-// 待ってから hidden に倒す近似値で txt_tooltip_state を出す(実際の非表示タイミングの
-// 直接観測ではない。docs/ui-contract.md に明記)。
+// 長押しで出たツールチップは**指を離してから** showDuration で消えるので、出た押しの離しから
+// 同じ長さだけ待って hidden に倒す近似値で txt_tooltip_state を出す(実際の非表示タイミングの
+// 直接観測ではない。docs/ui-contract.md に明記)。**出たときから数えない** —— 押している間に
+// 2 秒を過ぎると文言は見えたまま hidden に倒れた(OI-230。陽性対照で観測)。
 const _showDuration = Duration(seconds: 2);
 
 class _TooltipScreenState extends State<TooltipScreen> {
@@ -27,7 +28,7 @@ class _TooltipScreenState extends State<TooltipScreen> {
   final _clock = Stopwatch()..start();
   int? _s, _w, _r, _u, _h;
   int? _pressAt, _releaseAt;
-  int _generation = 0; // 前の押しの hidden の時計が次の押しの h を書かないように
+  int _generation = 0; // 前の押しの hidden の時計が次の押しの状態・h を書かないように
 
   int _now() => _clock.elapsedMilliseconds;
   int _rel(int t) => t - _s!;
@@ -39,7 +40,21 @@ class _TooltipScreenState extends State<TooltipScreen> {
   void _released() {
     _releaseAt = _now();
     // 出た押しの離しだけ載せる(画面はツールチップで既に変わっている)
-    if (_s != null && _s == _pressAt) setState(() => _u = _releaseAt);
+    if (_s != null && _s == _pressAt) {
+      setState(() => _u = _releaseAt);
+      _scheduleHide();
+    }
+  }
+
+  void _scheduleHide() {
+    final generation = _generation;
+    Future.delayed(_showDuration, () {
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _state = 'hidden';
+        _h = _now();
+      });
+    });
   }
 
   @override
@@ -58,7 +73,7 @@ class _TooltipScreenState extends State<TooltipScreen> {
             // (Tooltip 自身の message を semantics へ二重に出さない)。
             excludeFromSemantics: true,
             onTriggered: () {
-              final generation = ++_generation;
+              ++_generation; // 前の押しの hidden の時計を無効にする
               final triggeredAt = _now();
               setState(() {
                 _s = _pressAt;
@@ -68,13 +83,8 @@ class _TooltipScreenState extends State<TooltipScreen> {
                 _state = 'shown';
                 _r = _now();
               });
-              Future.delayed(_showDuration, () {
-                if (!mounted) return;
-                setState(() {
-                  _state = 'hidden';
-                  if (generation == _generation) _h = _now();
-                });
-              });
+              // 出る前に離していた(タップで出た)なら、ここから数える
+              if (_releaseAt != null) _scheduleHide();
             },
             child: Listener(
               behavior: HitTestBehavior.translucent,

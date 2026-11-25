@@ -301,6 +301,7 @@ extension StepExecutor {
         // 利用者が1つを選んでいるので替えない
         // **触れない形(覆いの下・外側の一覧に切り取られた。`TapTargetGeometry.touchBlock` = 探索・撃つ前の断りと同じ判定)の先頭の
         // 一致も同じく替える**(ヘッダの裏で人に見えない行を押して緑・見えているカードがあるのに断った。11周目の探索 ilocal F5・F9)
+        var swappedFrom: ElementInfo?  // 足跡用: 触れない先頭の一致を替えたときの元の一致
         func untouchable(_ candidate: ElementInfo) -> Bool {
             guard step.containerInference ?? true else { return false }
             return ContainerGeometry.isOutsideContainer(candidate, in: snapshot.elements, screen: snapshot.screen)
@@ -312,6 +313,7 @@ extension StepExecutor {
         if let first = resolved?.0, untouchable(first), let locator = step.locator, resolved?.1 == nil, locator.index == nil,
            locator.relative?.isEmpty ?? true,
            let inside = LocatorResolver.candidates(locator, elements: snapshot.elements)?.first(where: { !untouchable($0) }) {
+            swappedFrom = first
             resolved = (inside, nil)
         }
         // 足跡用(判定には使わない): 救済の前に容器の外と読んだか・そのときの枠
@@ -576,7 +578,7 @@ extension StepExecutor {
         var ghostNote: String?
         // 足跡: 容器の外の判定(外と読んだ回・救済した回だけ残す = 外れていない大多数のタップは何も足さない)
         let finallyOutside = grabbedGhost(resolved)
-        if initiallyOutside || finallyOutside || ghostRetries > 0 {
+        if initiallyOutside || finallyOutside || ghostRetries > 0 || swappedFrom != nil {
             let grabbed = resolved?.0
             let container = grabbed.flatMap {
                 ContainerGeometry.clippingContainer(of: $0, in: snapshot.elements, inferring: step.containerInference ?? true)
@@ -586,7 +588,7 @@ extension StepExecutor {
                 $0.x < screen.x || $0.y < screen.y
                     || $0.x + $0.width > screen.x + screen.width || $0.y + $0.height > screen.y + screen.height
             }
-            trace(.containerOutside, facts: [
+            var facts: [String: String] = [
                 "initiallyOutside": StepTraceFormat.bool(initiallyOutside),
                 "initialTargetFrame": StepTraceFormat.frame(initialTargetFrame),
                 "outside": StepTraceFormat.bool(finallyOutside),
@@ -596,7 +598,13 @@ extension StepExecutor {
                 "containerOffScreen": containerOffScreen.map(StepTraceFormat.bool) ?? "none",
                 "retries": String(ghostRetries), "swipes": String(ghostSwipes),
                 "didNotMove": StepTraceFormat.bool(ghostDidNotMove),
-            ])
+            ]
+            // 先頭の一致が容器の外・覆いの下だったので、触れる別の一致へ替えた(押した物はセレクタの先頭の一致ではない)
+            if let swappedFrom {
+                facts["swappedFrom"] = TapTargetGeometry.describe(swappedFrom)
+                facts["swappedFromFrame"] = StepTraceFormat.frame(swappedFrom.frame)
+            }
+            trace(.containerOutside, facts: facts)
         }
         if finallyOutside {
             // 掴むだけの手(select 等)は何も送らない = 「操作が飲まれたかも」と容器の外で撃った印を付けない

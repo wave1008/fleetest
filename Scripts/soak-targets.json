@@ -7,13 +7,6 @@
     "mode_note": "xcuitest モード(24 回中 2 回)",
     "watch": "scrollTo(#txt_shelf_7) の後の exist(#shelf_7) が「centre is outside the screen」。scrollTo の止まった位置(見出しの y)と最後の1本が払いか寄せかを見る"
   },
-  "OI-230": {
-    "project": "E2EX-Flutter",
-    "profile": "ios-inapp-boost",
-    "scenario": "ツールチップを出せること.S0010",
-    "mode_note": "inapp-boost モード(M1Max の Simulator 4台 25 周で 7/100)",
-    "watch": "textIs(#txt_tooltip_state) が tooltip=hidden の赤。直前の exist の所要・可視性検証の guardMs の内訳(OCR か FM か)・fm.gateWait* を見る(SUT は表示の 2 秒後に hidden へ倒す)"
-  },
   "OI-226": {
     "project": "E2EX-Flutter",
     "profile": "android",

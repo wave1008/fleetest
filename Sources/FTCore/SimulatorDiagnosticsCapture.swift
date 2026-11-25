@@ -68,7 +68,7 @@ public enum SimulatorDiagnosticsCapture {
     /// 1回の採取。書いたパスを返す(重複・書けないときは nil)。
     /// - `directory`: 書き先(`diagnostics/` を含まない親)。nil なら `currentRunDirectory`、それも無ければ `fallbackDirectory`
     /// - launchctl とクラッシュレポートは同期で採り(速い)、統合ログは背景で採ってファイルを書き直す。
-    ///   背景が終わる前にプロセスが終わると、ファイルには「log not captured」が残る(黙って欠けない)
+    ///   集め終えるまでの仮の行は「log not captured yet」で、背景が終わる前にプロセスが終わるとそのまま残る(黙って欠けない)
     /// - 同じ置き場・同じ udid・同じ理由は `logLookbackMinutes` の間に1回だけ
     /// - launchctl の照会は同期(起こし直す前の状態を採るため)。止まった Simulator では時間上限(5 秒 + 子の終了猶予)まで呼び手を待たせうる
     @discardableResult
@@ -101,7 +101,7 @@ public enum SimulatorDiagnosticsCapture {
 
         let head = headSection(udid: udid, reason: reason, now: now, reportsDirectory: reportsDirectory,
                                commands: commands)
-        let pending = head + "\n== unified log ==\nlog not captured (process exited before `log show` finished)\n"
+        let pending = head + "\n== unified log ==\nlog not captured yet (`log show` is still running; if this line remains, the process ended before it finished)\n"
         guard (try? pending.write(to: url, atomically: true, encoding: .utf8)) != nil else {
             release()
             log("Simulator diagnostics not saved: could not write \(url.path)")

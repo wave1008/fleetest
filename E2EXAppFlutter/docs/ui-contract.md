@@ -59,7 +59,8 @@
   指す前提とする
 - **`#txt_tooltip_state` は近似値**: Flutter の `Tooltip` には「今表示中か」を読む public API が
   無い(Compose の `tooltipState.isVisible` に相当するものが無い)。`onTriggered` で shown に、
-  そこから `showDuration`(2秒に固定)と同じ長さだけ待って hidden に倒す近似で出している。
+  **その押しの指を離してから** `showDuration`(2秒に固定)と同じ長さだけ待って hidden に倒す近似で出している
+  (長押しのツールチップは離してから消える。出たときから数えると、押している間に 2 秒を過ぎた検証が文言は見えたまま hidden を読んだ = OI-230)。
   実際の非表示アニメーション完了の直接観測ではない
 - **`#txt_anim_target` は非表示中もツリーに残る**: Compose の `AnimatedVisibility` は非表示化で
   composition から外すが、Flutter 側は `AnimatedOpacity` で透明度だけを 1500ms かけて動かし、

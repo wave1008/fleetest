@@ -77,7 +77,7 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
                 return Shell.Result(status: 0, output: "x\n")
             })
         let text = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
-        XCTAssertTrue(text.contains("log not captured (process exited"))
+        XCTAssertTrue(text.contains("log not captured yet"))
         gate.signal()
     }
 
