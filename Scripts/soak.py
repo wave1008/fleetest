@@ -167,18 +167,18 @@ def glob_escape(s):
     return glob.escape(s)
 
 
-def gather(target, since):
-    """since(epoch)以降に書かれた、この対象のシナリオ記録(run.json が profile 一致のものだけ)"""
-    found = []
+def run_meta_paths(target):
+    """今ある run.json のパスの集合。新しい run は「起こす前に無かったパス」で見分ける —— mtime の窓で見分けると、
+    直前の周の run.json が窓に入って同じ赤を二度数え、リモートの時計のずれ(rsync は向こうの mtime を保つ)で取りこぼす"""
     runs = os.path.join(ROOT, "TestProjects", target["project"], "results", "runs")
+    return set(glob.glob(os.path.join(runs, "*", "*", "run.json")))
+
+
+def gather(target, before):
+    """起こす前(before = run_meta_paths の控え)に無かった run の、この対象のシナリオ記録(run.json が profile 一致のものだけ)"""
+    found = []
     wanted = scenarios_of(target)
-    for meta_path in glob.glob(os.path.join(runs, "*", "*", "run.json")):
-        try:
-            # 保持容量の掃除(run の後の背景の掃除)が glob と読む間に run のフォルダを消しうる
-            if os.path.getmtime(meta_path) < since:
-                continue
-        except OSError:
-            continue
+    for meta_path in sorted(run_meta_paths(target) - before):
         try:
             with open(meta_path, encoding="utf-8") as f:
                 meta = json.load(f)
@@ -220,6 +220,7 @@ def play_target(oid, target, round_no, opts, out, stats):
     """1対象を1回回して台帳へ書く"""
     started = time.time()
     stamp = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(started))
+    before = run_meta_paths(target)
     log = os.path.join(out, "logs", f"r{round_no:04d}-{oid}.log")
     cmd = run_args(target, opts)
     print(f"[{stamp}] 周 {round_no} {oid} {target['project']}:{target['profile']} {' '.join(scenarios_of(target))}", flush=True)
@@ -229,7 +230,7 @@ def play_target(oid, target, round_no, opts, out, stats):
     if _interrupted:
         print(f"   ⛔ 中断(exit {code})。この回は数えません", flush=True)
         return False
-    records = gather(target, started - 2)
+    records = gather(target, before)
     rows = []
     for meta, rec, path in records:
         row = {**base, "runID": meta.get("runID"), "scenarioID": rec.get("scenarioID"), "worker": rec.get("worker"),

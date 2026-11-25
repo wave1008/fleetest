@@ -130,11 +130,11 @@ public struct OcclusionVerifier {
                 var facts: [String: String] = [
                     "expectedLength": String(expectedText.count),
                     "fmTranscript": fmTranscript, "fmObserved": observed,
-                    "nearMissFirst": nearFirst ? "true" : "false", "nearMissObserved": nearObserved ? "true" : "false",
+                    "nearMissFirst": StepTraceFormat.bool(nearFirst), "nearMissObserved": StepTraceFormat.bool(nearObserved),
                 ]
                 if case .read(let readable, let reading) = budgeted {
                     facts["ocr"] = "read"
-                    facts["ocrReadable"] = readable ? "true" : "false"
+                    facts["ocrReadable"] = StepTraceFormat.bool(readable)
                     facts["ocrText"] = reading.lines.joined(separator: " ")
                     facts["ocrAttempts"] = String(reading.attempts)
                     if readable {
@@ -146,7 +146,7 @@ public struct OcclusionVerifier {
                 } else {
                     facts["ocr"] = "budget-exhausted"
                 }
-                facts["rescued"] = verdict.visible ? "true" : "false"
+                facts["rescued"] = StepTraceFormat.bool(verdict.visible)
                 StepTraceSink.record(.ocrNearMiss, facts)
             }
         }

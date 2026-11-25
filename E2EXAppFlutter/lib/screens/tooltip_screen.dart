@@ -22,8 +22,12 @@ class _TooltipScreenState extends State<TooltipScreen> {
 
   // OI-230 の測る口(E2EX-Flutter だけ)。s = 画面を開いてからの押し始め(ms)、他は押し始めからの ms。
   // docs は E2EXAppCMP/docs/ui-contract.md のツールチップ。シナリオは検証しない。
+  // **文字を変えるのはツールチップが出た押しだけ**(出なかった押しで変えると、木の比較・画素の指紋で
+  // 「画面が変わらなかった」を見る判定がこの画面で働かない)。押し・離しの時刻は控えに置き、出たときに載せる。
   final _clock = Stopwatch()..start();
   int? _s, _w, _r, _u, _h;
+  int? _pressAt, _releaseAt;
+  int _generation = 0; // 前の押しの hidden の時計が次の押しの h を書かないように
 
   int _now() => _clock.elapsedMilliseconds;
   int _rel(int t) => t - _s!;
@@ -31,6 +35,12 @@ class _TooltipScreenState extends State<TooltipScreen> {
   String get _trace => _s == null
       ? 'trace=-'
       : 'trace=s$_s w${_ms(_w)} r${_ms(_r)} u${_ms(_u)} h${_ms(_h)}';
+
+  void _released() {
+    _releaseAt = _now();
+    // 出た押しの離しだけ載せる(画面はツールチップで既に変わっている)
+    if (_s != null && _s == _pressAt) setState(() => _u = _releaseAt);
+  }
 
   @override
   Widget build(BuildContext context) => FtScaffold(
@@ -48,8 +58,13 @@ class _TooltipScreenState extends State<TooltipScreen> {
             // (Tooltip 自身の message を semantics へ二重に出さない)。
             excludeFromSemantics: true,
             onTriggered: () {
-              _w = _now();
+              final generation = ++_generation;
+              final triggeredAt = _now();
               setState(() {
+                _s = _pressAt;
+                _w = triggeredAt;
+                _u = _releaseAt;
+                _h = null;
                 _state = 'shown';
                 _r = _now();
               });
@@ -57,18 +72,18 @@ class _TooltipScreenState extends State<TooltipScreen> {
                 if (!mounted) return;
                 setState(() {
                   _state = 'hidden';
-                  _h = _now();
+                  if (generation == _generation) _h = _now();
                 });
               });
             },
             child: Listener(
               behavior: HitTestBehavior.translucent,
-              onPointerDown: (_) => setState(() {
-                _s = _now();
-                _w = _r = _u = _h = null;
-              }),
-              onPointerUp: (_) => setState(() => _u = _now()),
-              onPointerCancel: (_) => setState(() => _u = _now()),
+              onPointerDown: (_) {
+                _pressAt = _now();
+                _releaseAt = null;
+              },
+              onPointerUp: (_) => _released(),
+              onPointerCancel: (_) => _released(),
               child: tagged(
                 Tags.btnTooltipAnchor,
                 IconButton(icon: const Icon(Icons.info_outline), onPressed: () {}),

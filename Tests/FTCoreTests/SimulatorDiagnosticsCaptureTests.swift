@@ -81,22 +81,28 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
         gate.signal()
     }
 
+    /// 本物の ~/Library/Logs/DiagnosticReports を読まない(共有資源。CLAUDE.md の SharedResource の規律)
+    private var noReports: URL { root.appendingPathComponent("none") }
+
     func testSameReasonIsCapturedOnlyOncePerDirectoryAndUdid() {
         XCTAssertNotNil(run { _, _ in Shell.Result(status: 0, output: "") }.url)
         XCTAssertNil(SimulatorDiagnosticsCapture.capture(
-            udid: udid, reason: "display-not-applied", directory: root, commands: { _, _ in Shell.Result(status: 0, output: "") }))
+            udid: udid, reason: "display-not-applied", directory: root, reportsDirectory: noReports, commands: { _, _ in Shell.Result(status: 0, output: "") }))
         XCTAssertNotNil(run(reason: "worker-revive") { _, _ in Shell.Result(status: 0, output: "") }.url)
     }
 
     func testSameReasonIsCapturedAgainOnceTheLookbackWindowHasPassed() {
         let t0 = Date()
         let ok: SimulatorDiagnosticsCapture.CommandRunner = { _, _ in Shell.Result(status: 0, output: "") }
-        XCTAssertNotNil(SimulatorDiagnosticsCapture.capture(udid: udid, reason: "bridge-startup-timeout", directory: root, now: t0, commands: ok))
+        XCTAssertNotNil(SimulatorDiagnosticsCapture.capture(udid: udid, reason: "bridge-startup-timeout", directory: root, now: t0,
+                                                            reportsDirectory: noReports, commands: ok))
         let window = TimeInterval(SimulatorDiagnosticsCapture.logLookbackMinutes * 60)
         XCTAssertNil(SimulatorDiagnosticsCapture.capture(udid: udid, reason: "bridge-startup-timeout", directory: root,
-                                                         now: t0.addingTimeInterval(window - 1), commands: ok))
+                                                         now: t0.addingTimeInterval(window - 1),
+                                                         reportsDirectory: noReports, commands: ok))
         XCTAssertNotNil(SimulatorDiagnosticsCapture.capture(udid: udid, reason: "bridge-startup-timeout", directory: root,
-                                                            now: t0.addingTimeInterval(window + 1), commands: ok))
+                                                            now: t0.addingTimeInterval(window + 1),
+                                                            reportsDirectory: noReports, commands: ok))
     }
 
     func testReportsListsOnlyRecentSpringBoardAndBackboarddFiles() throws {

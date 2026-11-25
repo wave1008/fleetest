@@ -91,7 +91,10 @@ public enum SimulatorDiagnosticsCapture {
 
         let fileName = "\(udid.prefix(8))-\(timestamp(now))-\(reason).txt"
         let url = dir.appendingPathComponent(fileName)
+        // 書けなかった回は控えを外す(残すと窓の間の次の起き方まで黙って採らない)
+        let release = { _ = taken.withLock { $0.removeValue(forKey: key) } }
         do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) } catch {
+            release()
             log("Simulator diagnostics not saved: \(error.localizedDescription)")
             return nil
         }
@@ -100,6 +103,7 @@ public enum SimulatorDiagnosticsCapture {
                                commands: commands)
         let pending = head + "\n== unified log ==\nlog not captured (process exited before `log show` finished)\n"
         guard (try? pending.write(to: url, atomically: true, encoding: .utf8)) != nil else {
+            release()
             log("Simulator diagnostics not saved: could not write \(url.path)")
             return nil
         }
