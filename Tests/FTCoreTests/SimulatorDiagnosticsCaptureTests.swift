@@ -105,6 +105,29 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
                                                             reportsDirectory: noReports, commands: ok))
     }
 
+    func testDefaultsArePinned() {
+        XCTAssertEqual(SimulatorDiagnosticsCapture.launchctlTimeoutSeconds, 5)
+        XCTAssertEqual(SimulatorDiagnosticsCapture.logLookbackMinutes, 10)  // 重複抑止の窓も兼ねる
+        XCTAssertEqual(SimulatorDiagnosticsCapture.logShowTimeoutSeconds, 90)
+        XCTAssertEqual(SimulatorDiagnosticsCapture.logTailLines, 800)
+        XCTAssertEqual(SimulatorDiagnosticsCapture.reportWindowSeconds, 3600)
+        XCTAssertEqual(SimulatorDiagnosticsCapture.reportListLimit, 20)
+    }
+
+    func testWaitForPendingLogsReturnsOnceTheBackgroundLogIsWritten() throws {
+        let gate = DispatchSemaphore(value: 0)
+        let url = SimulatorDiagnosticsCapture.capture(
+            udid: udid, reason: "wait", directory: root, reportsDirectory: noReports,
+            commands: { args, _ in
+                if args.contains("show") { gate.wait() }
+                return Shell.Result(status: 0, output: "LOGLINE")
+            })
+        XCTAssertFalse(SimulatorDiagnosticsCapture.waitForPendingLogs(timeout: 0.2))  // 書き終えるまで待っている
+        gate.signal()
+        XCTAssertTrue(SimulatorDiagnosticsCapture.waitForPendingLogs(timeout: 5))
+        XCTAssertTrue(try String(contentsOf: try XCTUnwrap(url), encoding: .utf8).contains("LOGLINE"))
+    }
+
     func testFileNameTimeIsUTC() {
         // 2026-11-25T00:00:00Z
         XCTAssertEqual(SimulatorDiagnosticsCapture.timestamp(Date(timeIntervalSince1970: 1_795_564_800)), "20261125T000000Z")

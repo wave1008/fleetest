@@ -69,6 +69,10 @@ paths:
 
 # プロセスの生存管理(終了猶予・Shell.run・台帳) の規律
 
+- **中断のリレーに載せない子の例外**: 読む範囲が決まった**読み取りだけ**の短命な子で、端末・ホストの状態を変えず、時間上限までに
+  自分で終わるもの(`SimulatorDiagnosticsCapture` の `simctl spawn … log show` = 上限 90 秒・`launchctl list` = `Shell.run` の時間上限)。
+  親が先に終わっても上限までに消え、残っても害が無い。**状態を変える子・ssh・fleetest 自身は例外にしない**。
+  例外を足すときはここに名指しで足す(コードのコメントだけで済ませない)
 - **終了猶予の方針は1つ**(Codex 指摘 2026-09-06): **自前の後始末を持つ fleetest のプロセス**
   (`api run` / `run --runner` の子 / `fleetest-scenarios` = 終了スクリプト・dispatch.lock の解放・
   向きの復元)には**時限の SIGKILL を送らない** —— SIGTERM を送って待ち、刺さったら人が強制終了する

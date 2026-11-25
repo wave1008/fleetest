@@ -19,7 +19,7 @@ public enum SimulatorDiagnosticsCapture {
 
     /// `log show` の時間上限(秒)。根拠: 起動中の Simulator で 10 分ぶんが約 2 秒(2026-11-25 実測)。負荷の下の何十倍かの遅れまで待ち、
     /// 背景のスレッドなので回復は待たせない。尽きたら子ごと止め、ファイルに時間切れと書く(採れた分は無い)
-    static let logShowTimeoutSeconds: Double = 90
+    public static let logShowTimeoutSeconds: Double = 90
 
     /// 書き出す統合ログの末尾の行数。根拠: 1行約 200 バイトで 1 ファイル約 160 KB に収まる
     static let logTailLines = 800
@@ -110,9 +110,13 @@ public enum SimulatorDiagnosticsCapture {
         log("Simulator diagnostics saved: \(url.path) (the unified log is still being collected in the background)")
 
         let command = logShowCommand(udid: udid)
+        // 古いものを消すのは背景の書き直しを始める前(書き直しの一時ファイルを消さない)
+        pruneOldest(in: dir)
+        pendingLogs.enter()
         let work: @Sendable () -> Void = {
             let section = logSection(command: command, commands: commands)
             try? (head + "\n== unified log ==\n" + section).write(to: url, atomically: true, encoding: .utf8)
+            pendingLogs.leave()
             completion?()
         }
         // `log show` の子は中断のリレーに載せない: 読む範囲が決まった読み取りだけの子で、親が先に終わっても
@@ -120,8 +124,18 @@ public enum SimulatorDiagnosticsCapture {
         let thread = Thread { work() }
         thread.name = "fleetest-simulator-diagnostics"
         thread.start()
-        pruneOldest(in: dir)
         return url
+    }
+
+    /// 背景で集めている統合ログ。**すぐ終わるプロセス**(起動の時間切れで投げる `bridge up`・終わる run)が待つ口 ——
+    /// 待たずに終わると、ファイルは「log not captured yet」のまま残る
+    private static let pendingLogs = DispatchGroup()
+
+    /// 背景の統合ログの採取が終わるまで待つ(上限 `logShowTimeoutSeconds` + 余裕 5 秒。尽きたら待たずに戻り、ファイルは仮の行のまま)。
+    /// 採取が無ければすぐ戻る。協調スレッドの上では呼ばない(同期で待つ)
+    @discardableResult
+    public static func waitForPendingLogs(timeout: TimeInterval = logShowTimeoutSeconds + 5) -> Bool {
+        pendingLogs.wait(timeout: .now() + timeout) == .success
     }
 
     // MARK: - 節の組み立て
@@ -211,7 +225,9 @@ public enum SimulatorDiagnosticsCapture {
 
     static func pruneOldest(in dir: URL, keep: Int = maxFilesPerDirectory) {
         let fm = FileManager.default
-        guard let names = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]),
+        // 書き終えた `.txt` だけ数えて消す(Foundation の書き直しの一時ファイルに触れない)
+        guard let names = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]))?
+                .filter({ $0.pathExtension == "txt" }),
               names.count > keep else { return }
         let dated = names.map { ($0, (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) }
         for (url, _) in dated.sorted(by: { $0.1 > $1.1 }).dropFirst(keep) { try? fm.removeItem(at: url) }
@@ -220,13 +236,16 @@ public enum SimulatorDiagnosticsCapture {
     /// `capture` を協調スレッドの外で走らせて待つ(async の回復の経路から呼ぶ口)。launchctl の照会は同期で最大 5 秒 + 子の終了猶予
     /// かかるので、協調スレッドを塞がない。起こし直す前の状態を採る順序は保つ(呼び手は待ってから起こし直す)。
     /// 文言は呼び手のスレッドで出す(`log` を別スレッドへ渡さない)
-    public static func captureOffCooperativePool(udid: String, reason: String, fallbackDirectory: URL?) async
+    /// `waitForLog`: 統合ログを書き終えるまで待つ(呼び手がこの後すぐ投げて終わりうる経路 = 起動の時間切れ)
+    public static func captureOffCooperativePool(udid: String, reason: String, fallbackDirectory: URL?,
+                                                 waitForLog: Bool = false) async
         -> (url: URL?, messages: [String]) {
         await withCheckedContinuation { continuation in
             let thread = Thread {
                 let messages = LockedValue<[String]>([])
                 let url = capture(udid: udid, reason: reason, fallbackDirectory: fallbackDirectory,
                                   log: { line in messages.withLock { $0.append(line) } })
+                if waitForLog, url != nil { waitForPendingLogs() }
                 continuation.resume(returning: (url, messages.value))
             }
             thread.name = "fleetest-simulator-diagnostics-head"

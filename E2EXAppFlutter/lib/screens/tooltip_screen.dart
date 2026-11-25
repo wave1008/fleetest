@@ -28,6 +28,7 @@ class _TooltipScreenState extends State<TooltipScreen> {
   final _clock = Stopwatch()..start();
   int? _s, _w, _r, _u, _h;
   int? _pressAt, _releaseAt;
+  bool _pointerDown = false;
   int _generation = 0; // 前の押しの hidden の時計が次の押しの状態・h を書かないように
 
   int _now() => _clock.elapsedMilliseconds;
@@ -38,6 +39,7 @@ class _TooltipScreenState extends State<TooltipScreen> {
       : 'trace=s$_s w${_ms(_w)} r${_ms(_r)} u${_ms(_u)} h${_ms(_h)}';
 
   void _released() {
+    _pointerDown = false;
     _releaseAt = _now();
     // 出た押しの離しだけ載せる(画面はツールチップで既に変わっている)
     if (_s != null && _s == _pressAt) {
@@ -83,12 +85,14 @@ class _TooltipScreenState extends State<TooltipScreen> {
                 _state = 'shown';
                 _r = _now();
               });
-              // 出る前に離していた(タップで出た)なら、ここから数える
-              if (_releaseAt != null) _scheduleHide();
+              // 押している指がこの Listener に無い(出る前に離した・この Listener を通らない押しや読み上げの操作で出た)なら、
+              // 離しを待たずにここから数える(待つと hidden に戻らない)
+              if (!_pointerDown) _scheduleHide();
             },
             child: Listener(
               behavior: HitTestBehavior.translucent,
               onPointerDown: (_) {
+                _pointerDown = true;
                 _pressAt = _now();
                 _releaseAt = null;
               },

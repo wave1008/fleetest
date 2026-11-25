@@ -54,18 +54,17 @@ class _TouchTraceState extends State<TouchTrace> {
   static const _logTag = 'ft-touch-trace:';
 
   /// 記録する列の始点の左端からの幅(論理 px)。back() の縁の払いは左端 +1pt から始まり、Flutter の
-  /// Cupertino の戻るの払いが拾う縁も 20。**この帯の外で始まった列は記録しない** —— 全部のタップで文字が
-  /// 変わると、木の比較・画素の指紋で「画面が変わらなかった」を見る判定がこの SUT で働かなくなる
+  /// Cupertino の戻るの払いが拾う縁も 20。この帯の外で始まった列は記録しない(back() の材料だけを残し、ログを埋めない)
   static const double _edgeWidth = 20;
 
   void _onDown(PointerDownEvent e) {
+    if (_active.isEmpty) _resample?.cancel(); // 前の列の再サンプルが新しい列の戻るのジェスチャを拾わないように
     if (_active.isEmpty && e.position.dx > _edgeWidth) {
       _primary = null;
       _active.add(e.pointer);
       return;
     }
     if (_active.isEmpty) {
-      _resample?.cancel();
       _primary = e.pointer;
       _downAt = e.timeStamp;
       _down = e.position;
@@ -76,7 +75,6 @@ class _TouchTraceState extends State<TouchTrace> {
       _cancelled = false;
       _gesture = false;
       _sampleGesture();
-      _publish();
     }
     _active.add(e.pointer);
   }
@@ -86,10 +84,7 @@ class _TouchTraceState extends State<TouchTrace> {
     _moves++;
     _last = e.position;
     _sampleGesture();
-    if (_moves == 1) {
-      _firstMoveMs = _ms(e);
-      _publish();
-    }
+    if (_moves == 1) _firstMoveMs = _ms(e);
   }
 
   void _onEnd(PointerEvent e, {required bool cancelled}) {
