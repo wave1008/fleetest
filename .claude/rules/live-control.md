@@ -63,8 +63,6 @@ paths:
 
 # ライブ操作 の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **ライブ操作は他の機械のデバイスも開ける**(DR-79「その機械で動かす」): serve を
   `fleetest remote exec <machine> -- api live serve` で**向こうに**起こす(同じ実機が Wi-Fi 越しにこの Mac から
   見えても、USB で握っている機械のランナーと2本にしない)。グリッドビューの `gridLiveAction` の `remote` が machine・udid を

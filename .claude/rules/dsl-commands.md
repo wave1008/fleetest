@@ -24,11 +24,9 @@ paths:
 
 # DSL コマンド(索引・引数名・スクロール指定・操作の待ち) の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **機械可読な索引は `Sources/FTCore/CommandIndex.swift`**(`fleetest api dsl-commands` が出す)。
-  **コマンドを足す/消す/改名したら索引も直す**(`CommandIndexSyncTests` が Commands.swift /
-  CommandsVerify.swift / CommandsAppControl.swift / ValueAssertions.swift / FTElement と突き合わせる)
+  **コマンドを足す/消す/改名したら索引も直す**(`CommandIndexSyncTests` が FTDSL の
+  `Commands*.swift` 全部 / ValueAssertions.swift / FTElement と突き合わせる)
 - **利用者が scenarios/ に書いた `@FTCommand("summary")` 付き関数(FTDSL の空展開マーカー)は
   `fleetest api dsl-commands --project` / MCP `ft_dsl_commands` の索引に `origin: "project"` で載る**。
   出典は `Sources/FTCore/ProjectCommandIndex.swift`(ソーステキストを直接読む純粋な走査。デバイス・

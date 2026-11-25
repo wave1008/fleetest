@@ -80,8 +80,6 @@ paths:
 
 # FM・テキストの可視性検証(occlusion-guard / OCR) の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **画像を伴う FM の呼び出し(テキストの可視性検証・screenLooksLike・死活の確かめ)は FM の常駐プロセス
   (`fleetest api fm-serve` = `FMServeServer`)だけが撃つ**。シナリオのプロセス・host-metrics・doctor は
   `LanguageModelSession` を持たず、`FMServeClient` で要求を送る(起こすのは `FMServeHost.ensureRunning` = run の2実装・

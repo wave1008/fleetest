@@ -69,8 +69,6 @@ paths:
 
 # プロセスの生存管理(終了猶予・Shell.run・台帳) の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **終了猶予の方針は1つ**(Codex 指摘 2026-09-06): **自前の後始末を持つ fleetest のプロセス**
   (`api run` / `run --runner` の子 / `fleetest-scenarios` = 終了スクリプト・dispatch.lock の解放・
   向きの復元)には**時限の SIGKILL を送らない** —— SIGTERM を送って待ち、刺さったら人が強制終了する

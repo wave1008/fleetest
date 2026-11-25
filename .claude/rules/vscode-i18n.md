@@ -10,8 +10,6 @@ paths:
 
 # VSCode 拡張(ビルド・ソース分割・i18n) の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - `cd vscode-fleetest && npm run compile`(esbuild+tsc)/ テストは変更が通るファイルだけ
   `node esbuild.mjs --tests && node --test out-test/<名前>.test.mjs`(素の `npm test` = 全体はフックが断る。
   全実施を頼まれたときだけ `FT_FULL_TEST=1`)。挙動を変えたら

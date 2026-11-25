@@ -61,8 +61,6 @@ paths:
 
 # ブリッジ(版・ポート・供給) の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **ランナーは `Runner/FleetestRunner.xcodeproj/project.xcproj` を直接編集する**(xcodegen は無い。手書きで作り直さない = 既定値が抜ける)。
   ソースはフォルダ同期なのでフォルダへファイルを足すだけでターゲットに入る。**共有 FTCore ファイルを足すときは xcproj の FTCore グループと
   `BridgeSourceSet.xcuitest` の両方に足す**(等号を `BridgeLauncherRebuildTests` が固定)。Xcode 27.2 未満の xcodebuild は xcproj を開けない

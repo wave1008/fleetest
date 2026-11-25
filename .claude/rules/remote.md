@@ -103,8 +103,6 @@ paths:
 
 # リモート(SSH ディスパッチ・監視の fan-out・ロックと待機列・占有) の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **リモートの純粋ロジック(SSH ディスパッチ・登録簿の解決・dispatch.lock・占有・setup 計画)は
   `Sources/FTRemote`**(利用側は fleetest CLI だけ。受け手のシナリオ実行バイナリにはリンクしない)。
   **FTCore から FTRemote を参照しない**(循環)—— `LocalConfig` が持つ登録簿のスキーマ

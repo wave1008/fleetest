@@ -148,8 +148,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 - 「キーボードが出ているか」を読む → `KeyboardWait.isShown` / `shownState`(`keyboardFrame != nil` と書かない = 隠れたキーボードは
   画面の外の矩形で来る。`KeyboardShownJudgmentTests`)/ シミュレータのアプリを「止めた」と言う・止めてから壊す →
   `BridgeClient.stopOnSimulator`(ランナーの terminate はセッションが起動したアプリにしか効かない。`ClearAppDataContractTests`)
-- iOS Simulator を起動する経路を足す → **`SimulatorBoot.ensureBooted(udid:log:)` を通す**(起動前の掃除 `SimulatorBootCleanup.beforeBoot(udid:)` と、機械全体で同時2台の枠 `SimulatorBootSlots`。直接 simctl boot / bootstatus を撃たない = `SimulatorBootSingleEntryTests`)
-  (`SimulatorPosterCachePurgeWiringTests`。DS-12.4.2・DS-12.4.3)
+- iOS Simulator を起動する経路を足す → **`SimulatorBoot.ensureBooted(udid:log:)` を通す**(起動前の掃除 `SimulatorBootCleanup.beforeBoot(udid:)` と、機械全体で同時2台の枠 `SimulatorBootSlots`。直接 simctl boot / bootstatus を撃たない = `SimulatorBootSingleEntryTests`・`SimulatorPosterCachePurgeWiringTests`。DS-12.4.2・DS-12.4.3)
 - モニターの周期に計測を足す → 周期の中で待たない(裏で回して控えを読むだけ。`DeviceStorageSampler`)→ MN-55
 - 待ち受けのソケットを足す → `FTCore.AcceptLoop` を通す(**fd を閉じるのは、その fd で待っているスレッドだけ** = 別のスレッドが閉じると
   番号が再利用され、受付が無関係の待ち受けの接続を奪う。中継中の接続も一覧から外してから待っていた側が閉じる。`AcceptLoopTests`)
@@ -223,8 +222,8 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 ### e2e.sh を回す条件
 
 - **DSL コマンド・`StepExecutor`・ドライバ・ブリッジ(`InAppBridge`/`Runner`/`AndroidRunner`)・
-  セレクタ/スナップショット/自己修復(指紋照合)/FM 呼び出し(`FTFoundationModels`)を変えたら `Scripts/e2e.sh`**
-  (ユニットテストはデバイス境界のバグを1つも捕まえない)。**ブリッジのスナップショット/型写像と、
+  セレクタ/スナップショット/自己修復(指紋照合)/FM 呼び出し(`FTFoundationModels`)を変えたらデバイスで回す**
+  (ユニットテストはデバイス境界のバグを1つも捕まえない。範囲は下の表)。**ブリッジのスナップショット/型写像と、
   StepExecutor の操作合成(タップ/ドラッグ/スクロール探索の終端処理)を触ったら SUT を絞らず全部**
   回す(フレームワーク差の退行は SUT を跨がないと出ない)→ MN-4.4.1
 - **既定の e2e.sh は iOS を inapp-boost モードで回す**(**利用者の既定も inapp-boost モード**
@@ -237,7 +236,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   digest を、そのモードの実行が**全部成功したときだけ** `.fleetest/<bridge>-e2e-verified` へ記録し、
   開始時と終了時に食い違いを警告する。経緯は docs/verification/operations.md → MN-4.5
 
-**e2e の実行範囲はリスクとコストで決める**(上のゲートは「最低限ここまでは回す」の下限で、
+**e2e の実行範囲はリスクとコストで決める**(上のゲートは「デバイスで回すか」の下限で、
 常に全部回す意味ではない。フルスイートは10分超かかるので、**何も足さない実行はしない**)。
 範囲の欄のシナリオは **`fleetest run --project <P> --profile <prof> --scenario <クラス>` で、変更が通るものを名指しする**
 (`e2e.sh` 系は絞ってもスイート全体を回す):
@@ -246,7 +245,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 |---|---|
 | 改名・シグネチャ変更・型に閉じたリファクタ | **単体テストだけ**(`swift test --filter`。全体を頼まれたら `Scripts/unit-tests.py`)。追随漏れは必ずコンパイルエラーになる |
 | ホスト側ロジック(`StepExecutor` の分岐・セレクタ解決) | `swift test` + **該当シナリオ1〜2本** |
-| ブリッジの挙動(注入・スナップショット・型写像) | 該当 SUT の**1プロファイル**で通るシナリオ。フレームワーク差が絡むなら全 SUT の同じ画面のシナリオ |
+| ブリッジの挙動(注入) | 該当 SUT の**1プロファイル**で通るシナリオ。フレームワーク差が絡む・スナップショット/型写像なら全 SUT の同じ画面 |
 | 入力・キー・IME 系 | 上記 + **xcuitest モード**(`--profile ios-xcuitest`。既定は inapp-boost モードなので、もう片方のモード) |
 | **幾何・容器推定・整定**(実ジェスチャの慣性で挙動が変わるもの) | 上記 + **xcuitest モード**。**in-app ブリッジは慣性を持たない**ので、この種の退行は既定スイートでは原理的に出ない(MN-4.5.1) |
 | flake 調査・性能 | 該当プロファイルを**反復10周**(docs/verification/judgment.md) |

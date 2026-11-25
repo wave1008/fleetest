@@ -30,8 +30,6 @@ paths:
 
 # 受け手フローのスクリプト・エージェント連携・配布 の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - 受け手の状態判定: `Scripts/preflight.sh`(読み取りのみ。既定モードは引数なしでカレントを見て
   ready=0 / installed=2 / blocked=1。SKILL.md ステップ0・0.5 と 1:1)。
   **`--runner [--base <dir>]` はリモートランナー機としての判定**(ready=0 / needs-manual=2 /

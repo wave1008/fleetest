@@ -11,8 +11,6 @@ paths:
 
 # ピンチ・座標ジェスチャ の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **対象未指定のピンチをどこへ当てるかは `FTCore.PinchRegion` の1箇所**(DSL・MCP・ライブ操作が
   共有する)。**指の2点が別々のものに載るとピンチにならない** —— XCTest のピンチは
   **縮小だけ枠の長辺の両端から閉じる**ので、端に手前のものが載っていると1本を取られ、
@@ -48,4 +46,4 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   **②画面が1枚の端末では何も読まない**(`secondaryScreens` が空なら即 nil。毎回の AX の読みを足さない)/
   **③画面が2枚以上の端末ではランナーが自分で撮らない**(`XCUIScreen.main` は開いている間 外側を撮る。どちらが表示中かは
   ランナーの中から確かに言えない)—— `/screenshot` はホストが devicectl で確かめた `display=` を要求し(`BridgeClient.screenshot` が
-  `/status` の `multiDisplay` を見て付ける)、整定の画素比較(`settleFrame`)は撮らずに素通りする。大きさは `bounds` / `scale` から
+  `/status` の `multiDisplay` を見て付ける)、整定の画素比較(`settleFrame`)は撮らずに素通りする。画面の大きさは撮らずに `bounds`(px)/ `scale` から採る

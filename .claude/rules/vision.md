@@ -24,8 +24,6 @@ paths:
 
 # 画像(findImage / checkIsON / 画像分類) の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **チェック状態は `FTCore.CheckStateReading`(a11y の4値)と `FTCore.CheckStateClassifier`(見本画像の
   画像分類。Shirates Vision の移植)の2つだけが読む**。画像分類の学習・推論は `FTCore.VisionClassifier` の
   1箇所で、`imageIs`(DefaultClassifier)と共有する。value は型で絞って読む(バッジの "1" を読まない)。

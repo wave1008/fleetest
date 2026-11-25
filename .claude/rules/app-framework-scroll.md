@@ -20,15 +20,13 @@ paths:
 
 # UI フレームワーク判定・容器推定・スクロールの端 の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **空打ち(スクロール探索の終端)を撃つかは、アプリの UI フレームワーク(`AppUIFrameworkQuery`)→
   掴んだ要素のクラス名の順で決める**(後者は `ElementInfo.axClass` =
   XCUITest ランナーが XCTest の**非公開**属性 5004 から載せる。Compose / Flutter の要素は
   `UIAccessibilityElement`、RN は `UIView`、SwiftUI は `NSObject`。`AccessibilityClassHint`)。
   どれも無ければ撃たない(打って外れると行が押される = 取り消せない側)。**木の形・型の名前から
   フレームワークを推定しない**(実アプリの 10/22 画面が Compose と同形・RN は Flutter と同形。
-  docs/verification/)。③は非公開属性なので `Tests/Fixtures/AXClass/` の等号テストで Xcode の版の
+  docs/verification/)。クラス名は非公開属性なので `Tests/Fixtures/AXClass/` の等号テストで Xcode の版の
   変化を検出し、取れなければ nil = 撃たない側へ縮退する
   **探索の動きが慣性を残さなかったとき(Flutter の in-app の送りだけ = `swipeLeavesNoInertia`)は撃たない** —— 空打ち自身が
   慣性を作り、流れている間 Flutter は操作を塞ぐ(FD-2.2)。送りを足す経路は `leftInertia` / `ghostLeftInertia` を立てる
@@ -51,10 +49,9 @@ CLAUDE.md から移した規則(本文は移設前と同一)。この領域の�
   Android の compose は「Compose を含む」であって全画面が Compose とは限らない(View/XML に混ぜた E2EAppAndroid もこちら)
 - **容器推定(`ContainerGeometry.clippingContainer`)は scrollable 申告の祖先を優先する**。
   この関数はタップの座標補正・ghost 判定・MCP にも効くので、触ったら 5 SUT のフル E2E
-  **+ `--ios-xcuitest`**。**フルスイートは iOS を in-app で回すので、これだけでは守れない** ——
-  現にこの規則の導入(`8a416bc0`)が xcuitest 限定の退行を入れ、フル E2E 緑のまま通った
-  (**5日後の `931897d6` で修正済み** —— 申告の祖先へ倒すのは「深さ由来の候補が要素を収められない」
-  ときだけ。経緯と壊れ方は MN-4.5.1)
+  **+ `--ios-xcuitest`**。**フルスイートは iOS を in-app で回すので、これだけでは守れない**
+  (xcuitest 限定の退行がフル E2E 緑のまま通った。申告の祖先へ倒すのは「深さ由来の候補が要素を収められない」
+  ときだけ → MN-4.5.1)
   **容器推定・探索・撃つ前の断りで「手前に覆いがある」と決めるときは `fm-occlusion.md` の「手前かどうか(塗り順)を木から推測しない」に従う**
   (塗り順の無い木で型・深さ・木の順から手前を補わない。Read してから触る)
   **座標ドラッグは `StepExecutor.dragWithFallback` だけから撃つ**(in-app の drag は自前描画だけ受け、UIKit/SwiftUI は 501。

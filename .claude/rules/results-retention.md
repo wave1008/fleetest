@@ -48,8 +48,6 @@ paths:
 
 # 結果 JSON・run ボード・保持容量の掃除・LPT の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **モニターの run ボード**(フリート横断の実行状況。**誰の run でも**「何本中何本」を出す。
   拡張が起こした run しか見えない `runEvent` の穴を塞ぐ): 契約は **DS-18 が唯一の定義元**。
   供給は機械グローバルの台帳 `~/.fleetest/runs/<pid>.json`(`FTCore.RunProgressLedger`。

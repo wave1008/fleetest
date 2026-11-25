@@ -20,8 +20,6 @@ paths:
 
 # Android(Play Protect・テキスト注入) の規律
 
-CLAUDE.md から移した規則(本文は移設前と同一)。この領域のファイルを Read したときに自動で読み込まれる。
-
 - **テストツールはアプリを Google へ送らない・確認も取らない**(DR-56)。
   Android の `adb install` は Play Protect の照会(「Send app for a security check?」)で無期限に
   止まるので、`AdbInstallVerifier` が install の間だけ `verifier_verify_adb_installs` を 0 にして
