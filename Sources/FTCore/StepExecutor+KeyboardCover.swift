@@ -180,6 +180,7 @@ extension StepExecutor {
                 coverRect = keyboardFrame
                 coverIsKeyboard = jump != nil
                 coverKind = keyboard.frame != nil ? "keyboard" : "keyboard-chrome-inferred"
+                coverElement = nil  // 前の段で見た覆いを持ち越さない(足跡が別の覆いを名指す)
             }
             // 木に載る覆い・貼り付く見出しを外す送りは手前の判定に頼るので、塗り順のある木だけ(キーボード・下端の見切れは申告と枠で決まる)
             let paintOrderKnown = paintOrderIsReal(currentSnapshot.elements)
@@ -216,6 +217,7 @@ extension StepExecutor {
                 jump = lift
                 coverName = coverName ?? "the bottom edge of its scroll container"
                 coverKind = "bottom-edge-clip"
+                coverElement = nil  // 前の段で見た覆いを持ち越さない(足跡が別の覆いを名指す)
                 coverRect = FTRect(x: container.x, y: current.frame.y, width: container.width,
                                    height: max(0, container.y + container.height - current.frame.y))
             }
@@ -227,6 +229,7 @@ extension StepExecutor {
                 jump = lift
                 coverName = coverName ?? "the top edge of its scroll container"
                 coverKind = "top-edge-centre"
+                coverElement = nil  // 前の段で見た覆いを持ち越さない(足跡が別の覆いを名指す)
                 coverRect = FTRect(x: container.x, y: container.y, width: container.width,
                                    height: max(0, current.frame.y + current.frame.height - container.y))
             }
