@@ -118,14 +118,37 @@ public struct OcclusionVerifier {
         // 届くのは OCR のモデルがコンパイル済みでない・予算切れの回だけ。
         // **ocrTextVisibilityCheck(off)を見ない**(ユーザー決定: 精度優先。off はコンパイルしないのでこの回だけ
         // 初回コンパイルを払いうる = nearMissOCRBudget の 60 秒)。トグルに従わせると字形の取り違えが誤った赤になる
-        if !verdict.visible, OCRSupport.isSupported,
-           TranscriptMatch.isNearMiss(transcript: first, expected: expectedText)
-            || TranscriptMatch.isNearMiss(transcript: observed, expected: expectedText),
-           case .read(readable: true, let reading) = await RegionText.resolveWithinBudget(
-                expected: expectedText, pngData: screenshotPNG, frame: frame, screen: screen,
-                cropPadding: cropPadding, budget: Self.nearMissOCRBudget) {
-            verdict = TranscriptMatch.Verdict(visible: true, state: .fullyVisible, reason: "")
-            observed = reading.lines.joined(separator: " ")
+        if !verdict.visible, OCRSupport.isSupported {
+            let nearFirst = TranscriptMatch.isNearMiss(transcript: first, expected: expectedText)
+            let nearObserved = TranscriptMatch.isNearMiss(transcript: observed, expected: expectedText)
+            // 足跡(判定は変えない): 近い外れと見たとき(OCR の分岐に入る回)だけ残す
+            if nearFirst || nearObserved {
+                let fmTranscript = first
+                let budgeted = await RegionText.resolveWithinBudget(
+                    expected: expectedText, pngData: screenshotPNG, frame: frame, screen: screen,
+                    cropPadding: cropPadding, budget: Self.nearMissOCRBudget)
+                var facts: [String: String] = [
+                    "expectedLength": String(expectedText.count),
+                    "fmTranscript": fmTranscript, "fmObserved": observed,
+                    "nearMissFirst": nearFirst ? "true" : "false", "nearMissObserved": nearObserved ? "true" : "false",
+                ]
+                if case .read(let readable, let reading) = budgeted {
+                    facts["ocr"] = "read"
+                    facts["ocrReadable"] = readable ? "true" : "false"
+                    facts["ocrText"] = reading.lines.joined(separator: " ")
+                    facts["ocrAttempts"] = String(reading.attempts)
+                    if readable {
+                        verdict = TranscriptMatch.Verdict(visible: true, state: .fullyVisible, reason: "")
+                        observed = reading.lines.joined(separator: " ")
+                    }
+                } else if case .unreadable = budgeted {
+                    facts["ocr"] = "unreadable"
+                } else {
+                    facts["ocr"] = "budget-exhausted"
+                }
+                facts["rescued"] = verdict.visible ? "true" : "false"
+                StepTraceSink.record(.ocrNearMiss, facts)
+            }
         }
         var reason = verdict.reason
         // 反転(不可視判定)したときだけ、**FM が実際に見た crop** を保存する。

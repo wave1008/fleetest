@@ -1163,12 +1163,14 @@ public struct BridgeLauncher: Sendable {
                 // Simulator はランナーを起動できなかった理由を xcodebuild がログに書く(M1Max の 17e: SpringBoard が落ちて
                 // "Host is down" = "The system shell probably crashed")。表の文言に出さないと再実行でも同じ所で止まる
                 let reason = physical ? nil : Self.simulatorLaunchFailureReason(inLog: text ?? "")
+                captureStartupDiagnostics(log: log)
                 throw LauncherError.timedOut("the test session already ended (\(marker))" + (reason.map { ": " + $0 } ?? ""),
                                              logPath.path)
             case .runnerExited?:
                 // **死んだランナーを待たない**: xcodebuild が起動直後に落ちる形(`Existing file at
                 // -resultBundlePath` 等)は締切まで待っても上がらない。理由はログの末尾にある
                 _ = try physicalDiagnosis()
+                captureStartupDiagnostics(log: log)
                 throw LauncherError.timedOut(
                     "the runner process (pid \(runnerPid ?? 0)) exited before the bridge became ready"
                         + (Self.lastLogLine(in: text).map { " — last log line: \($0)" } ?? ""),
@@ -1217,8 +1219,17 @@ public struct BridgeLauncher: Sendable {
             throw IOSDeviceTransportError.addressNotAnnounced(
                 port: port, logPath: logPath.path, blocker: blocker)
         }
+        captureStartupDiagnostics(log: log)
         throw LauncherError.timedOut((lastError.map(BridgeClient.readinessDetail) ?? "no response")
                                         + (physical ? "" : Self.stoppedSpringBoardNote(udid: device)), logPath.path)
+    }
+
+    /// 起動の時間切れ・準備前の終了の確定時に、Simulator の状態とログを残す(OI-196 / OI-269 の測る口。Simulator だけ・UDID のときだけ)。
+    /// 置き場は run の結果フォルダ、無ければ `<repoRoot>/.fleetest`
+    private func captureStartupDiagnostics(log: (String) -> Void) {
+        guard !physical, UUID(uuidString: device) != nil else { return }
+        SimulatorDiagnosticsCapture.capture(
+            udid: device, reason: "bridge-startup-timeout", fallbackDirectory: stateDir, log: log)
     }
 
     /// Simulator の起動の時間切れに添える1文(SpringBoard が止まっているときだけ。それ以外・判定できなければ空)。

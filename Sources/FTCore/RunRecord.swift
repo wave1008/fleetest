@@ -530,6 +530,8 @@ public struct FailedStepRecord: Codable, Sendable {
     /// このステップに付いた注記(`StepNote` の rawValue)。割り込みを閉じた・整定を打ち切った等、
     /// 失敗の読み解きに要る事実。注記が無ければ nil
     public var notes: [String]?
+    /// 判定の分かれ目の足跡(ScenarioEvent.trace)。無ければ nil = 測っていない
+    public var trace: [StepTraceEntry]?
     public var detail: String?
     public var file: String?
     public var line: Int?
@@ -540,7 +542,7 @@ public struct FailedStepRecord: Codable, Sendable {
 
     public init(index: Int, scene: Int? = nil, sceneTitle: String? = nil, section: String? = nil,
                 description: String, command: String? = nil, failureKind: String? = nil,
-                notes: [String]? = nil,
+                notes: [String]? = nil, trace: [StepTraceEntry]? = nil,
                 detail: String? = nil, file: String? = nil,
                 line: Int? = nil, durationMs: Int? = nil, at: String? = nil) {
         self.index = index
@@ -551,6 +553,7 @@ public struct FailedStepRecord: Codable, Sendable {
         self.command = command
         self.failureKind = failureKind
         self.notes = notes
+        self.trace = trace
         self.detail = detail
         self.file = file
         self.line = line
@@ -598,6 +601,8 @@ public struct TimelineStepRecord: Codable, Sendable {
     /// (description の文言一致で数えない。StepNote の doc 参照)。注記が無いステップと、
     /// notes を持たない旧レコードはどちらも nil
     public var notes: [String]?
+    /// 判定の分かれ目の足跡(ScenarioEvent.trace)。無ければ nil = 測っていない
+    public var trace: [StepTraceEntry]?
     /// DSL のコマンド名(ScenarioEvent.command)。分からないステップは nil
     public var command: String?
     /// 応答時間計測(ScenarioEvent.response)。計測モードで画面を動かす操作のステップだけ
@@ -610,7 +615,9 @@ public struct TimelineStepRecord: Codable, Sendable {
                 scheduleDelayMs: Int? = nil, cpuMs: Int? = nil, ioBlockedMs: Int? = nil,
                 stallMs: Int? = nil, poolStallMs: Int? = nil, guardMs: Int? = nil,
                 ocrMs: Int? = nil, pacingMs: Int? = nil, notes: [String]? = nil,
-                command: String? = nil, response: ResponseMeasurementRecord? = nil) {
+                command: String? = nil, response: ResponseMeasurementRecord? = nil,
+                trace: [StepTraceEntry]? = nil) {
+        self.trace = trace
         self.command = command
         self.response = response
         self.scene = scene
@@ -972,7 +979,8 @@ public struct ScenarioRecordBuilder {
             stallMs: event.stallMs, poolStallMs: event.poolStallMs, guardMs: event.guardMs, ocrMs: event.ocrMs,
             pacingMs: event.pacingMs,
             notes: event.notes?.isEmpty == true ? nil : event.notes,
-            command: event.command, response: event.response))
+            command: event.command, response: event.response,
+            trace: event.trace?.isEmpty == true ? nil : event.trace))
         if let pacingMs = event.pacingMs {
             stepCounts.paced = (stepCounts.paced ?? 0) + 1
             stepCounts.pacedMs = (stepCounts.pacedMs ?? 0) + pacingMs
@@ -1010,6 +1018,7 @@ public struct ScenarioRecordBuilder {
                 section: event.section, description: event.description ?? "",
                 command: event.command, failureKind: event.failureKind,
                 notes: event.notes?.isEmpty == true ? nil : event.notes,
+                trace: event.trace?.isEmpty == true ? nil : event.trace,
                 detail: event.detail, file: event.file, line: event.line,
                 durationMs: event.durationMs, at: event.at))
         default:

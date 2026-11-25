@@ -146,7 +146,7 @@ extension StepExecutor {
         var coverName: String?
         var retook = false
         let clock = ContinuousClock()
-        for _ in 0..<maxLifts {
+        for lifts in 0..<maxLifts {
             // 対象を含む容器が無い(隠れるバー等)なら、画面の主たる縦の容器を送り先にする
             // (`uncoverOutsideScrollJump`。覆いが名前つきで容器の縁に接しているときだけ jump が出る)
             let ownContainer = ContainerGeometry.clippingContainer(
@@ -163,6 +163,9 @@ extension StepExecutor {
             var jump: Double?
             var coverRect: FTRect?
             var coverIsKeyboard = false
+            // 足跡用(判定には使わない): どの経路が覆いと見たか・覆いの要素
+            var coverKind = "none"
+            var coverElement: ElementInfo?
             // 申告が無い木では chrome から推定する(意味は変えない。理由は keyboardBandFromChrome)。
             // **申告が画面の外(隠れた)なら推定しない** —— 申告がある以上「無い」ではない
             let keyboardBand = keyboard.frame
@@ -176,6 +179,7 @@ extension StepExecutor {
                 coverName = coverName ?? "the keyboard"
                 coverRect = keyboardFrame
                 coverIsKeyboard = jump != nil
+                coverKind = keyboard.frame != nil ? "keyboard" : "keyboard-chrome-inferred"
             }
             // 木に載る覆い・貼り付く見出しを外す送りは手前の判定に頼るので、塗り順のある木だけ(キーボード・下端の見切れは申告と枠で決まる)
             let paintOrderKnown = paintOrderIsReal(currentSnapshot.elements)
@@ -189,6 +193,8 @@ extension StepExecutor {
                                                                  container: container)
                 coverName = coverName ?? TapTargetGeometry.describe(over)
                 coverRect = over.frame
+                coverKind = outsideContainer == nil ? "overlay" : "overlay-outside-container"
+                coverElement = over
             }
             // **容器の縁に貼り付いた見出しの下に潜った対象**(木の並びでは見出しが奥 = 上の判定は拾えない。pinnedBandCovering の doc)
             if jump == nil, paintOrderKnown, ownContainer != nil,
@@ -197,6 +203,8 @@ extension StepExecutor {
                 jump = TapTargetGeometry.uncoverScrollJump(target: current, coveredBy: band, container: container)
                 coverName = coverName ?? TapTargetGeometry.describe(band)
                 coverRect = band.frame
+                coverKind = "pinned-band"
+                coverElement = band
             }
             // **iOS: 容器の下端で見切れた対象**(覆いは無いが中心が描かれていない。bottomEdgeClipLift の doc)。
             // 指は見切れた行より上に当てる(行そのものを覆いとして避ける)
@@ -207,6 +215,7 @@ extension StepExecutor {
                let lift = TapTargetGeometry.bottomEdgeClipLift(current, in: currentSnapshot.elements) {
                 jump = lift
                 coverName = coverName ?? "the bottom edge of its scroll container"
+                coverKind = "bottom-edge-clip"
                 coverRect = FTRect(x: container.x, y: current.frame.y, width: container.width,
                                    height: max(0, container.y + container.height - current.frame.y))
             }
@@ -217,16 +226,42 @@ extension StepExecutor {
                let lift = TapTargetGeometry.topEdgeCentreLift(current, container: container) {
                 jump = lift
                 coverName = coverName ?? "the top edge of its scroll container"
+                coverKind = "top-edge-centre"
                 coverRect = FTRect(x: container.x, y: container.y, width: container.width,
                                    height: max(0, current.frame.y + current.frame.height - container.y))
             }
             // **指を当てるのは覆いを避けた領域**(理由は uncoverDragArea)
-            guard let jump, let coverRect,
-                  let dragArea = coverIsKeyboard
-                      ? TapTargetGeometry.keyboardUncoverDragArea(container: container, keyboard: coverRect)
-                      : TapTargetGeometry.uncoverDragArea(container: container, cover: coverRect),
-                  await slowDrag(jump: jump, container: dragArea,
+            // 足跡は覆いと見たとき(coverRect が立ったとき)だけ残す = 覆われていない大多数のタップは何も足さない
+            func coverFacts(_ outcome: String, extra: [String: String] = [:]) -> [String: String] {
+                var facts: [String: String] = [
+                    "outcome": outcome, "pass": String(lifts),
+                    "coverKind": coverKind, "coverIsKeyboard": StepTraceFormat.bool(coverIsKeyboard),
+                    "coverFrame": StepTraceFormat.frame(coverRect),
+                    "target": TapTargetGeometry.describe(current), "targetFrame": StepTraceFormat.frame(current.frame),
+                    "container": StepTraceFormat.frame(container),
+                    "containerIsOwn": StepTraceFormat.bool(ownContainer != nil),
+                    "jump": jump.map(StepTraceFormat.number) ?? "none",
+                ]
+                if let coverElement {
+                    facts["cover"] = TapTargetGeometry.describe(coverElement)
+                    facts["coverType"] = coverElement.type
+                }
+                return facts.merging(extra) { _, new in new }
+            }
+            guard let jump, let coverRect else {
+                if coverRect != nil { trace(.keyboardCoverLift, facts: coverFacts("no-jump")) }
+                return retook ? .stillCovered(element: current, snapshot: currentSnapshot) : nil
+            }
+            guard let dragArea = coverIsKeyboard
+                    ? TapTargetGeometry.keyboardUncoverDragArea(container: container, keyboard: coverRect)
+                    : TapTargetGeometry.uncoverDragArea(container: container, cover: coverRect) else {
+                trace(.keyboardCoverLift, facts: coverFacts("no-drag-area"))
+                return retook ? .stillCovered(element: current, snapshot: currentSnapshot) : nil
+            }
+            guard await slowDrag(jump: jump, container: dragArea,
                                  avoidingInputsIn: currentSnapshot.elements, phase: &phase) else {
+                trace(.keyboardCoverLift, facts: coverFacts("slow-drag-refused",
+                                                            extra: ["dragArea": StepTraceFormat.frame(dragArea)]))
                 return retook ? .stillCovered(element: current, snapshot: currentSnapshot) : nil
             }
             let start = clock.now
@@ -239,6 +274,8 @@ extension StepExecutor {
             retook = true
             guard let (moved, _) = SameTargetResolution.resolve(step: step, original: current,
                                                                 originalElements: currentSnapshot.elements, in: after) else {
+                trace(.keyboardCoverLift, facts: coverFacts("lost-after-lift",
+                                                            extra: ["dragArea": StepTraceFormat.frame(dragArea)]))
                 return .lost(snapshot: after)
             }
             let afterBand = KeyboardOcclusion.resolve(reported: after.keyboardFrame,
@@ -254,6 +291,10 @@ extension StepExecutor {
                 || (takesFocus && ownContainer != nil && TapTargetGeometry.topEdgeCentreLift(moved, container: container) != nil)
                 || (paintOrderIsReal(after.elements)
                     && TapTargetGeometry.pinnedBandCovering(moved, in: after.elements, container: container) != nil)
+            trace(.keyboardCoverLift, facts: coverFacts(stillCovered ? "retaken-still-covered" : "retaken-clear", extra: [
+                "dragArea": StepTraceFormat.frame(dragArea), "movedFrame": StepTraceFormat.frame(moved.frame),
+                "stillCovered": StepTraceFormat.bool(stillCovered), "retakenElements": String(after.elements.count),
+            ]))
             if !stillCovered {
                 return .lifted(element: moved, snapshot: after,
                                note: "scrolled the container to bring the target out from under"

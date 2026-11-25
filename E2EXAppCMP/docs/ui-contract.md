@@ -147,6 +147,11 @@
   contentDescription `情報`)
 - 長押しで `#txt_tooltip` = `これはツールチップです` が出る(Popup = 別ウィンドウ)
 - `#txt_tooltip_state`: `tooltip=shown|hidden`(`tooltipState.isVisible`)
+- `#txt_tooltip_trace` = `trace=s<ms> w<ms> r<ms> u<ms> h<ms>`(初期 `trace=-`)。**E2EXAppFlutter だけ**(OI-230 の測る口。他の SUT には無い)。
+  `s` = 画面を開いてからアンカーを押し始めた時刻(ms)・以降は押し始めからの ms: `w` = `onTriggered`(ツールチップが出た通知)・
+  `r` = `#txt_tooltip_state` を `shown` へ書き換えた時刻・`u` = 指を離した(取り消し含む)時刻・`h` = `hidden` へ倒した時刻
+  (表示から 2 秒の近似)。起きていない段は `-`。次の押し始めで作り直す。シナリオは検証しない(赤の回の要素一覧に残すだけ)。
+  配置は `#btn_tooltip_anchor` の下(既存の対の要素の位置は変えない)
 
 ## チップと分割ボタン(タイトル `チップと分割ボタン`)
 

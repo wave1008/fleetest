@@ -117,16 +117,98 @@ final class InputInjector {
     static void swipe(UiAutomation ua, double fromX, double fromY, double toX, double toY,
                       long durationMs, boolean syntheticUpTime, boolean liftImmediately) {
         long downTime = SystemClock.uptimeMillis();
-        inject(ua, event(downTime, downTime, MotionEvent.ACTION_DOWN, fromX, fromY));
         int steps = Math.max(1, (int) (durationMs / 16));
+        SwipeTrace trace = new SwipeTrace(steps + 2);
+        injectTraced(ua, event(downTime, downTime, MotionEvent.ACTION_DOWN, fromX, fromY), trace);
         for (int i = 1; i <= steps; i++) {
             double t = (double) i / steps;
-            inject(ua, event(downTime, downTime + (long) (t * durationMs), MotionEvent.ACTION_MOVE,
-                    fromX + (toX - fromX) * t, fromY + (toY - fromY) * t));
+            injectTraced(ua, event(downTime, downTime + (long) (t * durationMs), MotionEvent.ACTION_MOVE,
+                    fromX + (toX - fromX) * t, fromY + (toY - fromY) * t), trace);
             if (i < steps || !liftImmediately) SystemClock.sleep(GESTURE_TICK_MS);
         }
         long upTime = syntheticUpTime ? downTime + durationMs : SystemClock.uptimeMillis();
-        inject(ua, event(downTime, upTime, MotionEvent.ACTION_UP, toX, toY));
+        injectTraced(ua, event(downTime, upTime, MotionEvent.ACTION_UP, toX, toY), trace);
+        // 判定には使わない記録。DOWN→最初の MOVE が遅れた払いはランチャーが長押しと読む(OI-398)ので、遅れた回だけ端末ログへ残す
+        if (trace.firstMoveGapActualMs() > SWIPE_GAP_LOG_THRESHOLD_MS) {
+            android.util.Log.w(BridgeInstrumentation.TAG, "swipe injection timing: " + trace.summary());
+        }
+    }
+
+    /** 払いの DOWN→最初の MOVE の実間隔がこれを超えたら端末ログへ要約を残す(ms)。ランチャーの長押し判定(約 400ms)の手前で気づくための目印で、判定には使わない */
+    private static final long SWIPE_GAP_LOG_THRESHOLD_MS = 100;
+
+    /**
+     * 1本の払いの各イベントの記録(OI-398)。planned = MotionEvent の eventTime(予定)・actual = 注入を呼んだ時点の
+     * uptimeMillis・accepted = injectInputEvent の戻り値。**払いは1スレッドで撃つので同期しない**(呼び手が1本ごとに作る)
+     */
+    static final class SwipeTrace {
+        final long[] planned;
+        final long[] actual;
+        final boolean[] accepted;
+        int n = 0;
+        int refused = 0;
+
+        SwipeTrace(int capacity) {
+            planned = new long[capacity];
+            actual = new long[capacity];
+            accepted = new boolean[capacity];
+        }
+
+        void record(long plannedMs, long actualMs, boolean ok) {
+            if (n < planned.length) {
+                planned[n] = plannedMs;
+                actual[n] = actualMs;
+                accepted[n] = ok;
+                n++;
+            }
+            if (!ok) refused++;
+        }
+
+        /** 最初の MOVE を注入し始めた時刻 - DOWN を注入し始めた時刻。MOVE が無ければ -1 */
+        long firstMoveGapActualMs() {
+            return n >= 2 ? actual[1] - actual[0] : -1;
+        }
+
+        long firstMoveGapPlannedMs() {
+            return n >= 2 ? planned[1] - planned[0] : -1;
+        }
+
+        /** 予定の eventTime(DOWN 起点で換算)に対する、注入を呼んだ時点の遅れの最大 */
+        long maxLatenessMs() {
+            long max = 0;
+            for (int i = 1; i < n; i++) {
+                long late = (actual[i] - actual[0]) - (planned[i] - planned[0]);
+                if (late > max) max = late;
+            }
+            return max;
+        }
+
+        String summary() {
+            return summarize(n, firstMoveGapPlannedMs(), firstMoveGapActualMs(), maxLatenessMs(), refused);
+        }
+    }
+
+    /** 失敗文に載せる要約(英語・一次情報だけ)。単体で確かめられるよう純粋な関数にしてある */
+    static String summarize(int events, long firstMovePlannedMs, long firstMoveActualMs, long maxLatenessMs, int refused) {
+        return "swipe injection trace: events=" + events
+                + ", down-to-first-move planned=" + firstMovePlannedMs + "ms actual=" + firstMoveActualMs + "ms"
+                + ", max lateness=" + maxLatenessMs + "ms, refused=" + refused;
+    }
+
+    private static void injectTraced(UiAutomation ua, MotionEvent e, SwipeTrace trace) {
+        long planned = e.getEventTime(); // recycle 後は読めないので注入の前に取る
+        long actual = SystemClock.uptimeMillis();
+        try {
+            inject(ua, e);
+        } catch (BridgeRouter.BridgeException ex) {
+            // 500(拒否)だけ要約を添える。503(口が死んでいる)は文言を変えない
+            if (ex.status == 500) {
+                trace.record(planned, actual, false);
+                throw new BridgeRouter.BridgeException(500, ex.getMessage() + " (" + trace.summary() + ")", ex.reason);
+            }
+            throw ex;
+        }
+        trace.record(planned, actual, true);
     }
 
     /**

@@ -15,6 +15,7 @@ import 'screens/select_screen.dart';
 import 'screens/staggered_screen.dart';
 import 'screens/swipe_actions_screen.dart';
 import 'screens/tab_header_screen.dart';
+import 'touch_trace.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,5 +76,9 @@ class E2EYApp extends StatelessWidget {
     title: 'FT E2EY Flutter',
     debugShowCheckedModeBanner: false,
     routerConfig: _router,
+    builder: (context, child) => TouchTrace(
+      navigatorKey: _router.routerDelegate.navigatorKey,
+      child: child ?? const SizedBox.shrink(),
+    ),
   );
 }

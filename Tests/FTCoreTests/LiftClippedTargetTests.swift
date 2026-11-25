@@ -115,6 +115,28 @@ final class LiftClippedTargetTests: XCTestCase {
                              "見出しの下端(499)より下を撃つはず")
     }
 
+    /// 判定の足跡(StepTrace): 送るたびに「何を覆いと見たか・撮り直した木で再判定した結果」が残る
+    func testLiftLeavesAKeyboardCoverLiftTraceForEachPass() async throws {
+        let driver = DragCountedDriver(screen: screen, statesByDragCount: [
+            scene(rowFrame: clippedByTop),
+            scene(rowFrame: heightGrownStillCovered),
+            scene(rowFrame: liftedClear),
+        ])
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .androidView)
+
+        let outcome = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "row_s_B1")))
+
+        let lifts = outcome.trace.filter { $0.stage == StepTraceStage.keyboardCoverLift.rawValue }
+        XCTAssertEqual(lifts.map { $0.facts["outcome"] }, ["retaken-still-covered", "retaken-clear"])
+        XCTAssertEqual(lifts.map { $0.facts["pass"] }, ["0", "1"])
+        XCTAssertTrue(["overlay", "pinned-band"].contains(lifts.first?.facts["coverKind"] ?? ""),
+                      "覆いの経路が記録されていない: \(lifts.first?.facts ?? [:])")
+        XCTAssertEqual(lifts.first?.facts["cover"], "#hdr_B")
+        XCTAssertEqual(lifts.first?.facts["target"], "#row_s_B1")
+        XCTAssertEqual(lifts.last?.facts["stillCovered"], "false")
+        XCTAssertEqual(lifts.last?.facts["movedFrame"], "84,520 912x116")
+    }
+
     /// **送って撮り直しても外れなければ、撃つ前の木の ref では撃たない**。ブリッジは撮り直しで ref を振り直す
     /// (in-app は最後の /snapshot の表しか持たない)ので、撃つ前の木の ref は表に無ければ 404、
     /// 有れば別の要素を指す(E2EY-iOS の OTP の箱で 404 が 3/3 再現)。外れなかった対象は覆われていない部分を押すか、

@@ -616,8 +616,12 @@ extension StepExecutor {
             // delegate は V6 で非 nil と確かめ済み(fmAvailable は fmConfigured を含む)。無ければ「無回答」と同じ出口
             let freshVerdict: VisibilityVerdictMemo.Verdict?
             if let delegate {
-                freshVerdict = await delegate.verifyElementVisible(
-                    expectedText: expectedText, frame: element.frame, screen: screen, screenshotPNG: screenshot)
+                let called = await StepTraceSink.collecting {
+                    await delegate.verifyElementVisible(
+                        expectedText: expectedText, frame: element.frame, screen: screen, screenshotPNG: screenshot)
+                }
+                freshVerdict = called.result
+                absorbTrace(called.items)
             } else {
                 freshVerdict = nil
             }
@@ -712,8 +716,12 @@ extension StepExecutor {
             let retryStart = clock.now
             let retried: VisibilityVerdictMemo.Verdict?
             if let delegate {
-                retried = await delegate.verifyElementVisible(
-                    expectedText: expectedText, frame: element.frame, screen: screen, screenshotPNG: screenshot)
+                let called = await StepTraceSink.collecting {
+                    await delegate.verifyElementVisible(
+                        expectedText: expectedText, frame: element.frame, screen: screen, screenshotPNG: screenshot)
+                }
+                retried = called.result
+                absorbTrace(called.items)
             } else {
                 retried = nil
             }

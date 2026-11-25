@@ -298,6 +298,6 @@ public enum ScenarioRunner {
                           section: event.section, timing: timing, at: event.at,
                           command: event.command, failureKind: event.failureKind,
                           notes: event.notes, guarded: event.guarded,
-                          response: event.response)
+                          response: event.response, trace: event.trace)
     }
 }

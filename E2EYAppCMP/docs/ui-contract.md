@@ -284,6 +284,17 @@ Android の `CoordinatorLayout` + `AppBarLayout` + `ViewPager2`。
   RN `FlashList` の `masonry` / Android `StaggeredGridLayoutManager` / iOS 列ごとの `LazyVStack` を 2 本並べる
   か `UICollectionView` の自前レイアウト
 
+## Flutter だけの測る口(`#txt_touch_trace`)
+
+**E2EYAppFlutter だけ**(OI-238 の測る口。他の SUT には無い)。アプリ全体を `Listener`(translucent)で包み、直近1本のポインタ列を
+全画面で木に出す。シナリオは検証しない(赤の回の失敗時の要素一覧に残すだけ)。各画面の要素・寸法・ジェスチャは変えない。
+
+- `#txt_touch_trace` = `trace=d<x>,<y> m<n> f<ms> l<x>,<y> u<ms>|c<ms> g<0/1>`(初期 `trace=-`。座標は論理 px)
+  - `d` = DOWN の位置・`m` = MOVE の数・`f` = 最初の MOVE までの ms(無ければ `-`)・`l` = 最後の位置
+  - `u<ms>` = UP まで / `c<ms>` = CANCEL までの ms(まだなら `u-`)
+  - `g` = その列の間(UP の 400ms 後まで)に `Navigator.userGestureInProgress` が立ったか(戻るの払いが始まったか)
+- 配置は画面の右上の隅のステータスバーの帯の中(48x8 論理 px・IgnorePointer・フォント 6)。右下には `#btn_jump_bottom`・`#fab_hiding` が浮かぶので置かない(最前面の要素なので覆いの判定に拾われる)。左端(back の払いの始点)にも置かない
+
 ## 付録: 範囲表記の展開(`fleetest project lint-selectors` の照合用)
 
 本文の `00..59` のような範囲は字面の `#id` にならないので、ここに全部を並べる(生成:

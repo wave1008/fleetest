@@ -769,8 +769,18 @@ final class FTInAppBridge {
             if skipSettle { sem.signal(); return }
             InAppSettle.waitOnMain { converged in
                 if !converged, self.requestGeneration == myGeneration { self.lastSettleCapped = true }
-                if self.requestGeneration == myGeneration, InAppRenderCatchUp.pixelPrint(window) == before {
+                let after = InAppRenderCatchUp.pixelPrint(window)
+                if self.requestGeneration == myGeneration, after == before {
                     note = (note ?? "") + "; the screen looked the same when it settled after the synthetic touch (a handler that responds later, such as a React Native onPress, may still act)"
+                    // 材料(OI-225): 比べた前後の指紋と、1 フレーム待って撮り直した指紋を注記に足す。判定(一致 → 注記)は変えない
+                    DispatchQueue.main.asyncAfter(deadline: .now() + InAppRenderCatchUp.pollSeconds) {
+                        let later = InAppRenderCatchUp.pixelPrint(window)
+                        guard self.requestGeneration == myGeneration else { sem.signal(); return }
+                        note = (note ?? "") + "; pixel prints before=\(Self.printHex(before)) after=\(Self.printHex(after))"
+                            + " one-frame-later=\(Self.printHex(later)) (\(later == before ? "same as before" : "differs from before"))"
+                        sem.signal()
+                    }
+                    return
                 }
                 sem.signal()
             }
@@ -1121,6 +1131,11 @@ final class FTInAppBridge {
         if let before, before.id == ObjectIdentifier(view) { return false }
         let text = (view as? UITextField)?.text ?? (view as? UITextView)?.text
         return !(text ?? "").isEmpty
+    }
+
+    /// 画素の指紋(Hasher の値。同じプロセスの中でだけ比べられる)を注記用の短い16進にする
+    private static func printHex(_ value: Int) -> String {
+        String(UInt(bitPattern: value), radix: 16)
     }
 
     private static func describe(_ rect: CGRect) -> String {

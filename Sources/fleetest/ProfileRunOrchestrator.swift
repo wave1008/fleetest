@@ -177,6 +177,10 @@ enum ProfileRunOrchestrator {
                 // SpringBoard が落ち続ける Simulator は蘇生しても使えない(起こし直しも効かない = OI-234 の測定)。止めて、この run では戻さない(DR-200)
                 if !retired.connection.physical, let udid = retired.connection.udid,
                    let spec = resolved.iosDevices.first(where: { $0.name == name })?.spec {
+                    // 蘇生の前に状態とログを残す(OI-347 / OI-196 / OI-269 の測る口。蘇生すると直前の状態が消える)
+                    SimulatorDiagnosticsCapture.capture(
+                        udid: udid, reason: "worker-revive",
+                        fallbackDirectory: repoRoot.appendingPathComponent(".fleetest"), log: { log($0) })
                     let watched = LockedValue(false)
                     let verdict = await SimulatorSpringBoard.probeCrashLoop(udid: udid, onWatch: { first in
                         watched.withLock { $0 = true }

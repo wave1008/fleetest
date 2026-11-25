@@ -920,7 +920,7 @@ public final class FTDriveCore {
                    stallMs: stallMs, poolStallMs: poolStallMs,
                    guardMs: outcome?.timing?.guardMs, ocrMs: outcome?.timing?.ocrMs,
                    pacingMs: pacingMs, at: recordedAt,
-                   notes: outcome?.notes ?? [], guarded: outcome?.guardEntered ?? false,
+                   notes: outcome?.notes ?? [], guarded: outcome?.guardEntered ?? false, trace: outcome?.trace ?? [],
                    command: command, failureKind: failureKind,
                    response: outcome?.response,
                    readyUpdateForPreviousStep: outcome?.readyUpdateForPreviousStep,
@@ -1763,7 +1763,7 @@ public final class FTDriveCore {
                     scheduleDelayMs: Int? = nil, cpuMs: Int? = nil, ioBlockedMs: Int? = nil,
                     stallMs: Int? = nil, poolStallMs: Int? = nil, guardMs: Int? = nil,
                     ocrMs: Int? = nil, pacingMs: Int? = nil, at: String? = nil,
-                    notes: [StepNote] = [], guarded: Bool = false,
+                    notes: [StepNote] = [], guarded: Bool = false, trace: [StepTraceEntry] = [],
                     command: String? = nil, failureKind: StepFailureKind? = nil,
                     response: ResponseMeasurementRecord? = nil,
                     readyUpdateForPreviousStep: ResponseReadyUpdate? = nil,
@@ -1833,8 +1833,8 @@ public final class FTDriveCore {
         event.waitMs = waitMs
         event.at = at
         event.notes = notes.isEmpty ? nil : notes.map(\.rawValue)
-        // false は載せない(notes と同じ流儀)—— ステップごとに流れる NDJSON なので、
-        // 大多数を占める「ガードに入らなかった」を毎行書くと帯域だけ食う
+        event.trace = trace.isEmpty ? nil : trace
+        // false は載せない(notes と同じ流儀)—— 毎ステップ流れる NDJSON で大多数の「入らなかった」を書くと帯域だけ食う
         event.guarded = guarded ? true : nil
         event.command = command
         event.response = response

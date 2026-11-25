@@ -79,14 +79,18 @@ public struct StepResult: Sendable {
     public let guarded: Bool?
     /// ScenarioEvent.response(応答時間計測)。並列経路の NDJSON 再構築で落とさないために運ぶ
     public let response: ResponseMeasurementRecord?
+    /// ScenarioEvent.trace(判定の足跡)。並列経路の NDJSON 再構築で落とさないために運ぶ。nil = 無い
+    public let trace: [StepTraceEntry]?
 
     public init(index: Int, description: String, status: Status,
                 scene: Int? = nil, sceneTitle: String? = nil, section: String? = nil,
                 synthetic: Bool = false, timing: StepTiming? = nil, at: String? = nil,
                 command: String? = nil, failureKind: String? = nil,
                 notes: [String]? = nil, guarded: Bool? = nil,
-                response: ResponseMeasurementRecord? = nil) {
+                response: ResponseMeasurementRecord? = nil,
+                trace: [StepTraceEntry]? = nil) {
         self.response = response
+        self.trace = trace
         self.index = index
         self.description = description
         self.status = status
@@ -216,11 +220,14 @@ public struct StepOutcome: Sendable {
     /// true = このステップが注入し、次の計測ステップの判定待ち(`readyUpdateForPreviousStep` の宛先)になった。
     /// 呼び手が「前の計測ステップ」の添字を覚える目印(executor の待ちと同じ条件で立つ)
     public let opensReadyObservation: Bool
+    /// 判定の分かれ目の足跡(`StepTrace.swift`)。notes と同じ累積器方式(`traceThisStep`)で `execute` の出口で詰める。
+    /// 内側の return では空のままでよい
+    public let trace: [StepTraceEntry]
 
     public init(status: StepResult.Status, healedStep: FlowStep? = nil,
                healedByFingerprint: Bool = false,
                timing: StepTiming? = nil, driverFallback: String? = nil,
-               notes: [StepNote] = [], guardEntered: Bool = false,
+               notes: [StepNote] = [], trace: [StepTraceEntry] = [], guardEntered: Bool = false,
                observedChecked: Bool? = nil, resolvedElement: ElementInfo? = nil,
                notVisibleSelection: ElementInfo? = nil,
                scrollSwipes: Int? = nil, slowDrags: Int? = nil, failureKind: StepFailureKind? = nil,
@@ -233,6 +240,7 @@ public struct StepOutcome: Sendable {
                readyUpdateForPreviousStep: ResponseReadyUpdate? = nil,
                opensReadyObservation: Bool = false,
                at: String = ISO8601Millis.string(from: Date())) {
+        self.trace = trace
         self.response = response
         self.readyUpdateForPreviousStep = readyUpdateForPreviousStep
         self.opensReadyObservation = opensReadyObservation
@@ -922,6 +930,7 @@ public final class StepExecutor {
         absenceReadWhileStoppedThisStep = nil
         firstFrameBlankObserved = false
         failureKindThisStep = nil
+        traceThisStep = StepTraceBuffer()
         failureKindWithheldThisStep = false
         classifierScreenshotThisStep = nil
         precedingImageMatchScreenshot = imageMatchScreenshotForNextStep
@@ -1006,6 +1015,7 @@ public final class StepExecutor {
                                        Self.joinNotes(outcome.driverFallback, systemAlertAdvisoryThisStep, readerNotesText()),
                                        failed: !Self.isSuccess(status)),
                                    notes: collectedNotes(),
+                                   trace: traceThisStep.finished(),
                                    // アクションは**解決した時点**で立てる(操作の成否より前)ため、
                                    // 失敗した操作の要素を持ち帰らないようここで落とす
                                    resolvedElement: Self.isSuccess(outcome.status)
@@ -1057,6 +1067,7 @@ public final class StepExecutor {
                                    driverFallback: noteWithInterrupt(readerNotesText(),
                                                                      failed: !Self.isSuccess(status)),
                                    notes: collectedNotes(),
+                                   trace: traceThisStep.finished(),
                                    guardEntered: guardEnteredThisStep,
                                    observedChecked: observedCheckedThisStep,
                                    resolvedElement: resolvedElementThisStep,
@@ -1075,6 +1086,7 @@ public final class StepExecutor {
                                                   actionMs: phase.actionMs, waitMs: phase.waitMs,
                                                   guardMs: phase.guardMs, ocrMs: phase.ocrMs),
                                notes: collectedNotes(),
+                                   trace: traceThisStep.finished(),
                                // **注記を載せる枝は分母も載せる** —— ガードに入って
                                // stale/skipped を立てた後に例外が出ると、分子だけ数えて
                                // 分母が落ちる(guardStaleFrame > guarded が起こりうる)
@@ -1237,6 +1249,21 @@ public final class StepExecutor {
             + " \(StoppedAppAdvice.startAgain(afterStopping: command)) if it was the one meant"
     }
 
+    /// 判定の分かれ目の足跡を残す(`StepTraceStage` ごとの facts は docs/results-json.md)。**記録だけで判定には使わない**
+    func trace(_ stage: StepTraceStage, _ facts: KeyValuePairs<String, String>) {
+        traceThisStep.append(stage, facts)
+    }
+
+    /// `StepTraceSink` で集めた他モジュールの足跡を、このステップの累積器へ移す
+    func absorbTrace(_ items: [StepTraceItem]) {
+        for item in items { traceThisStep.append(item.stage, facts: item.facts) }
+    }
+
+    /// 値を組んでから渡す版(キーが条件で増減する記録点用)
+    func trace(_ stage: StepTraceStage, facts: [String: String]) {
+        traceThisStep.append(stage, facts: facts)
+    }
+
     private func collectedNotes() -> [StepNote] {
         noteCodesThisStep.sorted { $0.rawValue < $1.rawValue }
     }
@@ -1360,6 +1387,12 @@ public final class StepExecutor {
     /// このステップの失敗の素性。**最初に立てたものを残す**(内側の救済経路が後から
     /// 別の理由で落ちても、読み手が知りたいのは最初に何が起きたか)
     var failureKindThisStep: StepFailureKind?
+    /// このステップの判定の足跡(execute が StepOutcome.trace に載せる。上限は `StepTraceLimits`)
+    var traceThisStep = StepTraceBuffer()
+    /// 足跡用: 直近のスクロール探索で最後に撃った1本の種類(`swipe` = 払い・`*-drag` / `*-swipe` = 寄せなどの回復)と、
+    /// 内容が動いた容器。`runScrollSearch` の入口で捨てる。判定には使わない
+    var scrollTraceLastSend = "none"
+    var scrollTraceContainer: FTRect?
     /// 判定そのものができなかった失敗(`failedWithoutKind`)で立つ。立っている間は素性を立てない
     /// = 結果 JSON の failureKind を欄ごと省く(「言えないときは省く」。出口の丸め `markFailure(.assertion)` も止める)
     var failureKindWithheldThisStep = false

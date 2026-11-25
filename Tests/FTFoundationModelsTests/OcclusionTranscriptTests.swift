@@ -65,11 +65,14 @@ final class OcclusionTranscriptTests: XCTestCase {
     func testOCRConfirmationOnlyPasses() throws {
         let body = try XCTUnwrap(Self.functionBody(named: "verifyCropped", in: Self.verifierSource()))
         XCTAssertTrue(body.contains("TranscriptMatch.isNearMiss("), "惜しい転写の OCR 確認が無い")
-        XCTAssertTrue(body.contains("case .read(readable: true, let reading) = await RegionText.resolveWithinBudget("),
-                      "OCR の読みが「丸ごと読めた」ときだけに絞られていない")
+        XCTAssertTrue(body.contains("RegionText.resolveWithinBudget("), "惜しい転写の OCR 確認が無い")
+        XCTAssertTrue(body.contains("case .read(let readable, let reading) = budgeted"),
+                      "OCR の読みの結果を取り出していない")
         XCTAssertTrue(body.contains("budget: Self.nearMissOCRBudget"),
                       "惜しい転写の確認が近道と同じ 1.3 秒で諦めている(コールドの初回で誤った赤になる)")
-        let ocrBranch = try XCTUnwrap(Self.balancedBody(after: "case .read(readable: true, let reading) = await RegionText.resolveWithinBudget(", in: body))
+        // 足跡(StepTraceSink)を載せるため、読めたかは `if readable {` で絞る(絞りがこの1箇所であること)
+        XCTAssertEqual(body.components(separatedBy: "verdict = TranscriptMatch.Verdict(visible: true, state: .fullyVisible").count - 1, 1)
+        let ocrBranch = try XCTUnwrap(Self.balancedBody(after: "if readable", in: body))
         XCTAssertTrue(ocrBranch.contains("TranscriptMatch.Verdict(visible: true, state: .fullyVisible"),
                       "OCR で読めた回が visible へ倒れていない")
         XCTAssertFalse(ocrBranch.contains("visible: false") || body.contains("readable: false"),

@@ -1,0 +1,90 @@
+{
+  "_comment": "低頻度の台帳項目(docs/open-issues.md)の再現シナリオ。Scripts/soak.py が読む。キー = OI の ID。project = TestProjects/<名>・profile = その profiles/runs/<名>.json・scenario = クラス名か クラス.メソッド(文字列か配列。fleetest run --scenario へそのまま渡す)。broadcast = 台帳の再現が全デバイス同時の形(true なら --broadcast)。set = 追加の --set(key=value)。watch = 赤のときに見る事実。台帳の項目が消えたらここも消す(Scripts/soak.py --check が実在を確かめる)",
+  "OI-229": {
+    "project": "E2EY-iOS",
+    "profile": "ios-xcuitest",
+    "scenario": "入れ子のスクロールで画面外のカードを押せること.S0010",
+    "mode_note": "xcuitest モード(24 回中 2 回)",
+    "watch": "scrollTo(#txt_shelf_7) の後の exist(#shelf_7) が「centre is outside the screen」。scrollTo の止まった位置(見出しの y)と最後の1本が払いか寄せかを見る"
+  },
+  "OI-230": {
+    "project": "E2EX-Flutter",
+    "profile": "ios-inapp-boost",
+    "scenario": "ツールチップを出せること.S0010",
+    "mode_note": "inapp-boost モード(M1Max の Simulator 4台 25 周で 7/100)",
+    "watch": "textIs(#txt_tooltip_state) が tooltip=hidden の赤。直前の exist の所要・可視性検証の guardMs の内訳(OCR か FM か)・fm.gateWait* を見る(SUT は表示の 2 秒後に hidden へ倒す)"
+  },
+  "OI-226": {
+    "project": "E2EX-Flutter",
+    "profile": "android",
+    "scenario": "時刻ピッカーで時刻を確定できること.S0030",
+    "mode_note": "Android(300 回で 0 件・過去に 2 回)",
+    "watch": "type(.textField[1]) が「target node not found」の 500。失敗時の木に .textField が2つ並んでいるか(入力モードへの切り替えが済んでいたか)を見る"
+  },
+  "OI-314": {
+    "project": "E2EX-Flutter",
+    "profile": "ios-xcuitest",
+    "scenario": "貼り付く見出しのリストを扱えること.S0010",
+    "mode_note": "xcuitest モード(回帰の負荷の下で 1 回・170 回で 0 件)",
+    "watch": "tap(#row_s_F3, scroll: .down) が「found by sweeping back after overshooting it」で見出し(#hdr_F)に吸われ sticky=none。送りの判定(覆いの有無・送った量・inferredPinnedBand)の注記を見る"
+  },
+  "OI-236": {
+    "project": "E2EY-CMP",
+    "profile": "android",
+    "scenario": [
+      "スワイプの距離で結果が変わること.S0030",
+      "シートが畳まれていても背面を操作できること.S0020"
+    ],
+    "mode_note": "Android・M1Max で出た形(580 回で 0 件)。実行機は M1Max を推奨",
+    "watch": "launch が「the app never came to the foreground」(500)。文言の括弧の中(再試行の前後に前面に居たパッケージ・所要)で、前面待ちが期限に負けたのか別のものが前面に居たのかを分ける"
+  },
+  "OI-221": {
+    "project": "E2EX-iOS",
+    "profile": "ios-inapp-boost",
+    "scenario": "ドラッグで並べ替えられること.S0010",
+    "mode_note": "inapp-boost モード。8 台同時だと約 3 割・1 台ずつは稀 = broadcast",
+    "broadcast": true,
+    "watch": "gesture(長押し→ドラッグ)が ✅ なのに textMatches(^order=2,) が order=1,... で赤。要素一覧の #txt_touch_trace(m・f・u/c・h)で ①ドラッグが始まらず u2200 ②取り消しが遅い c1170〜 のどちらかを見る"
+  },
+  "OI-233": {
+    "project": "E2E-Android",
+    "profile": "android",
+    "scenario": "連続ジェスチャが1回のタッチ列として検出されること.S0010",
+    "mode_note": "Android。手元 6 台へ broadcast で 60 回中 6 回",
+    "broadcast": true,
+    "watch": "textIs(#txt_pan, pan=right-down) が pan=- の赤。要素一覧の #txt_touch_trace の lp(長押しが立った ms)・x(閾値を越えた最初の MOVE の処理時刻)・a(事象から処理までの最大の遅れ)を見る"
+  },
+  "OI-190": {
+    "project": "E2E-Flutter",
+    "profile": "android",
+    "scenario": "ジェスチャが正しく検出されること.S0010",
+    "mode_note": "Android。座標の払い(swipePointToPoint 等)で全体の回帰 47 本中 1 本・負荷の下 2/16",
+    "broadcast": true,
+    "watch": "払いの向きに関わらず textIs(#txt_swipe_dir) が swipe=down の赤。座標の払いか4方向の swipe かを失敗ステップの command で分ける"
+  },
+  "OI-325": {
+    "project": "E2EY-RN",
+    "profile": "ios-inapp-boost",
+    "scenario": "選択モードで行を選んで削除できること.S0020",
+    "mode_note": "inapp-boost モード。回帰の負荷の下で 1 回・単独 3/3 緑 = broadcast",
+    "broadcast": true,
+    "watch": "tap(#sel_row_05, hold: 1)(fell back to XCUITest)が ✅ なのに textIs(#txt_select_mode) が mode=normal。XCUITest の press の所要とアプリが受けた長押しの長さを見る"
+  },
+  "OI-359": {
+    "project": "E2E-Flutter",
+    "profile": "ios-inapp-boost",
+    "scenario": "ライフサイクルとプラットフォーム分岐が正しく働くこと.S0040",
+    "mode_note": "inapp-boost モード(回帰で 1 回)",
+    "watch": "clearAppData が「could not delete 1 item(s) in the data container … : Library」の 500。消せなかった項目の名前とエラー(権限・使用中)を見る"
+  },
+  "OI-315": {
+    "project": "E2EX-CMP",
+    "profile": "ios-inapp-boost",
+    "scenario": [
+      "検索バーで検索できること.S0030",
+      "検索バーで検索できること.S0040"
+    ],
+    "mode_note": "inapp-boost モード。M4Max でだけ 3 回(他の機械では出ない)。実行機は M4Max を推奨",
+    "watch": "clearInput が「could not empty the field」(422)か「reported success but the value remained」。失敗時の木の欄の value(検索候補の読み上げの文か)と候補の窓が前面かを見る"
+  }
+}

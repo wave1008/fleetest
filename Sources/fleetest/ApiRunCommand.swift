@@ -1513,6 +1513,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             step.notes = result.notes
             step.guarded = result.guarded
             step.response = result.response
+            step.trace = result.trace
             return [step.encodedLine()]
 
         case .fixSuggestion(let worker, let flowURL, let scenarioID, let command, let file, let line,

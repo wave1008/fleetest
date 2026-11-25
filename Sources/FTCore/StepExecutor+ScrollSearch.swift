@@ -1010,9 +1010,31 @@ extension StepExecutor {
     func runScrollSearch(step: FlowStep, recoverOnMiss: Bool = true,
                          phase: inout PhaseAccumulator) async throws -> ScrollSearchResult {
         let cover = CoverHintBox()
+        scrollTraceLastSend = "none"
+        scrollTraceContainer = nil
         var result = try await searchBody(step: step, recoverOnMiss: recoverOnMiss, cover: cover, phase: &phase)
         result.coverHint = cover.hint
         result.scopeHint = cover.scope
+        // 足跡(判定には使わない)。止まった理由は結果の印から順に読む(複数立つときは先に挙げたもの)。
+        // 1本も送らずに見つかった回は残さない(`tap(…, scroll:)` の大半 = 材料にならず量だけ増える)
+        if result.found, result.swipes == 0, result.hintJumps == 0, result.reverseSweepDrags == 0 { return result }
+        let reason: String
+        if result.found { reason = "found" }
+        else if result.immediateRefusal != nil || result.appGone != nil || result.scrollFrameMissing { reason = "refused-before-send" }
+        else if result.stoppedUnmoving { reason = "content-unmoving" }
+        else if result.exhaustedWhileMoving { reason = "max-swipes" }
+        else if result.screenResized { reason = "screen-resized" }
+        else { reason = "other" }
+        trace(.scrollSearchEnd, facts: [
+            "reason": reason, "swipes": String(result.swipes),
+            "lastSend": scrollTraceLastSend, "hintJumps": String(result.hintJumps),
+            "reverseSweepDrags": String(result.reverseSweepDrags),
+            "contentEverMoved": StepTraceFormat.bool(result.contentEverMoved),
+            "settleCapped": StepTraceFormat.bool(result.settleCapped),
+            "elementFrame": StepTraceFormat.frame(result.element?.frame),
+            "element": result.element.map(TapTargetGeometry.describe) ?? "none",
+            "container": StepTraceFormat.frame(scrollTraceContainer),
+        ])
         return result
     }
 
@@ -1219,6 +1241,7 @@ extension StepExecutor {
                     ?? Self.movedContentContainer(before: previousSnapshot, after: snapshot,
                                                   vertical: direction == .up || direction == .down)
                     ?? scrolledContainer
+                scrollTraceContainer = scrolledContainer
             }
             if justSentClipRecovery, let previousSnapshot {
                 clipRecoveryUnmoved = Self.contentSignature(previousSnapshot.elements)
@@ -1369,6 +1392,7 @@ extension StepExecutor {
                         // swipes が 0 のまま報告され、「2周不変で打ち切り」と弾切れ後の逆走査が
                         // 寄せの周回では一切効かない
                         swipes += 1
+                        scrollTraceLastSend = "clip-recovery-drag"
                         leftInertia = true
                         previousSnapshot = snapshot
                         justSentClipRecovery = true
@@ -1380,6 +1404,7 @@ extension StepExecutor {
                     if swipedViaXCUITest { viaXCUITest = true }
                     if !swipeLeavesNoInertia(swipedViaXCUITest: swipedViaXCUITest) { leftInertia = true }
                     swipes += 1
+                    scrollTraceLastSend = "clip-recovery-swipe"
                     previousSnapshot = snapshot
                     justSentClipRecovery = true
                     continue
@@ -1407,6 +1432,7 @@ extension StepExecutor {
                                       vertical: alongVertical, phase: &phase) {
                         leftInertia = true
                         swipes += 1
+                        scrollTraceLastSend = "leading-edge-nudge"
                         previousSnapshot = snapshot
                         continue
                     }
@@ -1502,6 +1528,7 @@ extension StepExecutor {
                 bringIntoViewDrags += 1
                 leftInertia = true
                 swipes += 1
+                scrollTraceLastSend = "bring-into-view-drag"
                 previousSnapshot = snapshot
                 if pendingScrollFrameNote == nil {
                     pendingScrollFrameNote = "the scrollFrame was mostly off-screen, so the enclosing"
@@ -1637,6 +1664,7 @@ extension StepExecutor {
                                                        pressSeconds: FlowStep.defaultDragPressSeconds,
                                                        durationSeconds: Self.sheetExpandDragSeconds)
                             swipes += 1
+                            scrollTraceLastSend = "sheet-expand-drag"
                             let expanded = try await settledSignature(phase: &phase).snapshot
                             if let grown = scrollContainer(step: step, in: expanded, vertical: true),
                                grown.height > frame.height + 1 {
@@ -1686,6 +1714,7 @@ extension StepExecutor {
                                 if viaX { viaXCUITest = true }
                                 if !swipeLeavesNoInertia(swipedViaXCUITest: viaX) { leftInertia = true }
                                 swipes += 1
+                                scrollTraceLastSend = "container-redirect-swipe"
                                 let after = try await settledSignature(phase: &phase).snapshot
                                 let regionSignature: (SnapshotResponse) -> String = {
                                     Self.contentSignature(Self.elementsInside(Self.searchContentRegion(redirected, in: $0), $0.elements))
@@ -1786,6 +1815,7 @@ extension StepExecutor {
                     hintJumps += 1
                     leftInertia = true
                     swipes += 1
+                    scrollTraceLastSend = "hint-drag"
                     previousSnapshot = snapshot
                     continue
                 }
@@ -1800,6 +1830,7 @@ extension StepExecutor {
                 if swipedViaXCUITest { viaXCUITest = true }
                 if !swipeLeavesNoInertia(swipedViaXCUITest: swipedViaXCUITest) { leftInertia = true }
                 swipes += 1
+                scrollTraceLastSend = "swipe"
                 previousSnapshot = snapshot
                 attempt = ScrollSearchBudget.attemptAfterSending(attempt: attempt, previousSwipeMoved: previousSwipeMoved)
                 swipeAwaitingWeight = true

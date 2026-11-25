@@ -122,6 +122,7 @@ class Tags {
   static const btnTooltipAnchor = 'btn_tooltip_anchor';
   static const tooltipText = 'txt_tooltip';
   static const tooltipState = 'txt_tooltip_state';
+  static const tooltipTrace = 'txt_tooltip_trace';
 
   // チップと分割ボタン
   static const chipWifi = 'chip_wifi';

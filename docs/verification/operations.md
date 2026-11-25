@@ -208,6 +208,34 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
   手元の実機だけなら `--local`
 - 所要の目安: iOS 56 本 × 2 台で約 21 分(並行)・Android は 1 SUT あたり 15〜17 分(2 台並行)
 
+## 低頻度の項目の反復(`Scripts/soak.py`)
+
+台帳(docs/open-issues.md)の「低頻度」(数十〜数百回に1回)の項目は「次に出たら材料を見る」で止まる。**空いた機械(ランナー機・夜間)で
+再現シナリオを回し続け、出た回の事実を貯める**のがこのスクリプト。直す・原因を言うものではない(原因は材料を読んでから = MN-108)。
+
+- **対象の表は `Scripts/soak-targets.json`**(キー = OI の ID。`project` / `profile` / `scenario`(クラス名か クラス.メソッド・配列可)/
+  `broadcast`(台帳の再現が全デバイス同時の形)/ `watch`(赤のときに見る事実)。台帳の項目を直して消したら表からも消す。
+  再現のシナリオが台帳に書かれていない項目(MCP だけで出た・物理端末・単体テスト・環境側)は載せない。
+  `Scripts/soak.py --check` が project・profile・クラス・メソッドの実在を確かめる)
+- **回し方**: 1周 = 各対象を `fleetest run --project … --profile … --scenario …`(`--wait-lock` 付き)で1回。`--rounds N` か `--hours N`。
+  `--runner <機>` ならディスパッチ(開始前に `Scripts/align.sh <機>` を1回・失敗したら止める)。撃つコマンドだけ見るなら `--dry-run`。
+  **長時間は成果物で待つ**(CLAUDE.md「長時間ジョブ」): `nohup bash -c "Scripts/soak.py … --out $out > $out/log 2>&1; echo exit=\$? > $out/log.done" &`、
+  起動を報告する前に `$out/log` の実在を確かめ、終わりは `$out/done` で見る。前提は SUT のビルド済み(各 SUT の `scripts/build-ios.sh` / `build-android.sh` を手元と回す機械の両方で。ワークスペースを宣言したプロジェクトはリモートで回すときも手元の成果物の在りかを確かめて断る)と
+  リモートのアライン済み。**走らせている間は本線でビルドしない**(CLAUDE.md「デバイス実行」)。
+- **成果物(`--out`、既定 `~/github/wave1008/_work/soak-<時刻>/`)**: `ledger.ndjson`(1行 = 1シナリオ記録。緑は対象と時刻・worker・runID だけ。
+  赤は失敗ステップの index・section・description・command・failureKind・notes・trace(欄があれば)・detail の先頭と、証跡のパス =
+  `scenarios/*.json`・`events/*.ndjson`・レポートの `.md`・`.failure.json`・scene の `.png`)/ `summary.md`(対象ごとの回数・赤の回数・
+  **赤の署名 = 最初の失敗ステップの `#index 段 / command / failureKind / notes` ごとの件数**・台帳の watch。周ごとに書き直す)/
+  `logs/`(各回の `fleetest run` の出力)/ `done`。結果 JSON が1つも出なかった run(断られた・ビルド失敗・timeout)は赤に混ぜず
+  「記録なし」として数え、ログの末尾を台帳へ写す。
+- **出た回の見方**: 署名が同じ赤が複数あれば、その回の `evidence`(失敗時の画面・実行ログ)と `watch` の事実を突き合わせ、台帳の項目の
+  「次の一手」に書いた材料(例: OI-230 は `exist` の所要と guardMs の内訳)を採って**項目へ追記**する。**緑だけの周回は項目の
+  反復の行へ1行**(回数と「0 件」。再現しないことは消えたことではない)。赤の run に `workerAnomalies`(デバイスの事象)が付いていれば
+  台帳へ写してあるので、デバイス側の事象と同じ run かを先に見る。**別のセッションの run が同じプロジェクト・プロファイルを回していると
+  その記録も拾う**(`runID` と `host` で見分ける)。
+- **ガード**: `Scripts/test-scope-guard.py` は soak.py の起動を断らない(`--scenario` を持つ `fleetest run` を子として起こすだけで、
+  Scripts/ の中身は読まず、全体の名前(`regress.py` / `e2e*.sh`)でもない。`--check` で確認済み)。
+
 ## クラッシュダイアログは回帰スクリプトが止めて戻す(2026-10-03)
 
 `Scripts/e2e.sh` / `e2ex.sh` / `e2ey.sh` / `e2e-negative.sh` / `e2e-devices.sh` は実行中だけ macOS の問題レポーター(Simulator のアプリが

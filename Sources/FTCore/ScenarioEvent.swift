@@ -109,6 +109,8 @@ public struct ScenarioEvent: Codable, Sendable {
     /// (文言を変えた瞬間に集計が 0 件になるのを防ぐ。StepNote の doc 参照)。
     /// 後発の追加フィールドで Optional = 旧クライアント互換
     public var notes: [String]?
+    /// kind == step。判定の分かれ目の足跡(`StepTrace.swift`)。無ければキーごと省略(= 測っていない。DR-75)
+    public var trace: [StepTraceEntry]?
     /// kind == step。ステップの結果が確定した壁時計時刻(ISO8601+ミリ秒)。動画録画(record:true)の
     /// 再生位置ジャンプ用(録画の startedAt と突き合わせる)。failed 以外も付与されるが、
     /// 永続化(FailedStepRecord.at)は失敗ステップのみ

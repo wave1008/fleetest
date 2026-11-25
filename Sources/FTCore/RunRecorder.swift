@@ -108,6 +108,7 @@ public final class RunRecorder: @unchecked Sendable {
         let resultsDir = RunResultsStore.resultsDir(projectRoot: project.rootURL)
         let runDir = RunResultsStore.runDir(resultsDir: resultsDir, runID: runID)
         let startedAt = ISO8601DateFormatter().string(from: Date())
+        SimulatorDiagnosticsCapture.currentRunDirectory.value = runDir
 
         // runDir/host-metrics.ndjson へ 1Hz 採取・finish で停止
         let hostMetrics: HostMetricsRecorder? = captureHostMetrics

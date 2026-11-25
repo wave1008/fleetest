@@ -314,6 +314,9 @@ extension StepExecutor {
            let inside = LocatorResolver.candidates(locator, elements: snapshot.elements)?.first(where: { !untouchable($0) }) {
             resolved = (inside, nil)
         }
+        // 足跡用(判定には使わない): 救済の前に容器の外と読んだか・そのときの枠
+        let initiallyOutside = grabbedGhost(resolved)
+        let initialTargetFrame = resolved?.0.frame
         var ghostRetries = 0
         var ghostSwipes = 0
         // 救済の送りごとの事実(送る前の対象と容器の枠・送り方・送った後に引き直した枠)。救済を通ったステップの注記と
@@ -571,7 +574,31 @@ extension StepExecutor {
 
         var straddleNote: String?
         var ghostNote: String?
-        if grabbedGhost(resolved) {
+        // 足跡: 容器の外の判定(外と読んだ回・救済した回だけ残す = 外れていない大多数のタップは何も足さない)
+        let finallyOutside = grabbedGhost(resolved)
+        if initiallyOutside || finallyOutside || ghostRetries > 0 {
+            let grabbed = resolved?.0
+            let container = grabbed.flatMap {
+                ContainerGeometry.clippingContainer(of: $0, in: snapshot.elements, inferring: step.containerInference ?? true)
+            }
+            let screen = snapshot.screen
+            let containerOffScreen = container.map {
+                $0.x < screen.x || $0.y < screen.y
+                    || $0.x + $0.width > screen.x + screen.width || $0.y + $0.height > screen.y + screen.height
+            }
+            trace(.containerOutside, facts: [
+                "initiallyOutside": StepTraceFormat.bool(initiallyOutside),
+                "initialTargetFrame": StepTraceFormat.frame(initialTargetFrame),
+                "outside": StepTraceFormat.bool(finallyOutside),
+                "target": grabbed.map(TapTargetGeometry.describe) ?? "none",
+                "targetFrame": StepTraceFormat.frame(grabbed?.frame),
+                "container": StepTraceFormat.frame(container),
+                "containerOffScreen": containerOffScreen.map(StepTraceFormat.bool) ?? "none",
+                "retries": String(ghostRetries), "swipes": String(ghostSwipes),
+                "didNotMove": StepTraceFormat.bool(ghostDidNotMove),
+            ])
+        }
+        if finallyOutside {
             // 掴むだけの手(select 等)は何も送らない = 「操作が飲まれたかも」と容器の外で撃った印を付けない
             if !grabsOnly { noteCodesThisStep.insert(.actedOutsideContainer) }
             ghostNote = "the element is still reported outside its scroll container"

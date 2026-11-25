@@ -46,6 +46,7 @@ final class ApiRunNDJSONPathParityTests: XCTestCase {
         e.command = "tap"
         e.failureKind = StepFailureKind.driverUnreachable.rawValue
         e.guarded = true
+        e.trace = [StepTraceEntry(stage: StepTraceStage.scrollSearchEnd.rawValue, facts: ["reason": "found", "swipes": "3"])]
         e.response = ResponseMeasurementRecord(busyBeforeAction: false, quietWaitMs: 510, firstFrameMs: 54,
                                                firstFrameMissing: nil, downTimeMs: 1000)
         return e
