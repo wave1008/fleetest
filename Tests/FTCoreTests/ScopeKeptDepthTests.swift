@@ -1,4 +1,4 @@
-// スコープ `>>` の子孫は「木に出した祖先の数」(ElementInfo.keptDepth)で引く(OI-237)。
+// スコープ `>>` の子孫は「木に出した祖先の数」(ElementInfo.keptDepth)で引く。
 // 木は E2EY-Flutter の入れ子スクロールを in-app で採った形: `#txt_nested_result` は depth 7 の葉で、直後に
 // 出さなかった兄弟の入れ物(Expanded の ListView)の中身 `#list_nested` が depth 8 で並ぶ
 
@@ -88,5 +88,93 @@ final class ScopeKeptDepthTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(ElementInfo.self, from: Data(json.utf8)).keptDepth, 2)
         let without = #"{"ref":1,"type":"Button","enabled":true,"frame":{"x":0,"y":0,"width":1,"height":1},"depth":7}"#
         XCTAssertNil(try JSONDecoder().decode(ElementInfo.self, from: Data(without.utf8)).keptDepth)
+    }
+
+    // MARK: - Flutter の容器の数え方(XCUITest ランナーの gather と同じ部品の組み合わせ)
+
+    private struct FakeNode {
+        var name: String
+        var kept: Bool
+        var cls: String? = nil
+        var children: [FakeNode] = []
+        var isLeafOther: Bool { children.isEmpty }
+    }
+
+    /// ランナーの `gather` と同じ手順(問う形か → クラス名 → 先頭の子を出したら親を付け替える)。問った回数も返す
+    private func walk(_ node: FakeNode, parent: Int?, names: inout [String], parents: inout [Int?], queries: inout Int) {
+        if node.kept { names.append(node.name); parents.append(parent) }
+        var childParents = BridgeAPI.SemanticsContainerChildren(
+            parent: node.kept ? names.count - 1 : parent,
+            tracksOwn: BridgeAPI.shouldQuerySemanticsContainer(
+                included: node.kept, childCount: node.children.count,
+                firstChildIsLeafOther: node.children.first?.isLeafOther ?? false)
+                && { queries += 1; return BridgeAPI.isSemanticsContainerClass(node.cls) }())
+        for (at, child) in node.children.enumerated() {
+            let before = names.count
+            walk(child, parent: childParents.parent, names: &names, parents: &parents, queries: &queries)
+            childParents.finishedChild(isFirst: at == 0, gatheredIndexIfKept: names.count > before && names[before] == child.name ? before : nil)
+        }
+    }
+
+    private func depths(_ root: FakeNode) -> (names: [String], depths: [Int], queries: Int) {
+        var names: [String] = [], parents: [Int?] = [], queries = 0
+        walk(root, parent: nil, names: &names, parents: &parents, queries: &queries)
+        let kept = BridgeAPI.keptParents(parents: parents, order: Array(parents.indices))
+        return (names, BridgeAPI.keptDepths(keptParents: kept), queries)
+    }
+
+    /// 本物の容器: 先頭の子(出す)の中身が後ろの兄弟 = 先頭の子の子孫に数える
+    func testFlutterContainerCountsSiblingsAsTheFirstChildsContent() {
+        let tree = FakeNode(name: "root", kept: true, children: [
+            FakeNode(name: "container", kept: false, cls: "SemanticsObjectContainer", children: [
+                FakeNode(name: "list", kept: true), FakeNode(name: "card", kept: true)])])
+        let r = depths(tree)
+        XCTAssertEqual(r.names, ["root", "list", "card"])
+        XCTAssertEqual(r.depths, [0, 1, 2])
+        XCTAssertEqual(r.queries, 1)
+    }
+
+    /// 症状の形: 葉(文字)の後ろに並ぶ、出さない入れ物の中身は葉の子孫に数えない
+    func testLeafFollowedByDroppedContainerIsNotItsParent() {
+        let tree = FakeNode(name: "root", kept: true, children: [
+            FakeNode(name: "text", kept: true),
+            FakeNode(name: "container", kept: false, cls: "SemanticsObjectContainer", children: [
+                FakeNode(name: "list", kept: true), FakeNode(name: "card", kept: true)])])
+        XCTAssertEqual(depths(tree).depths, [0, 1, 1, 2])
+    }
+
+    /// 問いの失敗(nil)・別のクラスは木の親子のまま(後ろの兄弟は先頭の子の兄弟)。形が違えば問わない
+    func testFailedOrOtherClassKeepsTreeParentage() {
+        for cls in [nil, "UIAccessibilityElement"] as [String?] {
+            let tree = FakeNode(name: "root", kept: true, children: [
+                FakeNode(name: "container", kept: false, cls: cls, children: [
+                    FakeNode(name: "list", kept: true), FakeNode(name: "card", kept: true)])])
+            XCTAssertEqual(depths(tree).depths, [0, 1, 1], "\(String(describing: cls))")
+        }
+        let notShaped = FakeNode(name: "root", kept: true, children: [
+            FakeNode(name: "group", kept: false, cls: "SemanticsObjectContainer", children: [
+                FakeNode(name: "a", kept: true, children: [FakeNode(name: "x", kept: true)]), FakeNode(name: "b", kept: true)]),
+            FakeNode(name: "single", kept: false, cls: "SemanticsObjectContainer", children: [FakeNode(name: "c", kept: true)])])
+        let r = depths(notShaped)
+        XCTAssertEqual(r.queries, 0)
+        XCTAssertEqual(r.depths, [0, 1, 2, 1, 1])
+    }
+
+    /// 先頭の子を出さなかったとき(間引き・不可視)は付け替えない
+    func testFirstChildNotKeptDoesNotReparent() {
+        let tree = FakeNode(name: "root", kept: true, children: [
+            FakeNode(name: "container", kept: false, cls: "SemanticsObjectContainer", children: [
+                FakeNode(name: "own", kept: false), FakeNode(name: "card", kept: true)])])
+        XCTAssertEqual(depths(tree).depths, [0, 1])
+    }
+
+    /// 出したノードの子は(容器の形でも)問わない = UIKit の普通の入れ子はそのまま
+    func testKeptNodeIsNeverQueried() {
+        let tree = FakeNode(name: "root", kept: true, children: [
+            FakeNode(name: "table", kept: true, cls: "SemanticsObjectContainer", children: [
+                FakeNode(name: "a", kept: true), FakeNode(name: "b", kept: true)])])
+        let r = depths(tree)
+        XCTAssertEqual(r.depths, [0, 1, 2, 2])
+        XCTAssertEqual(r.queries, 0)
     }
 }

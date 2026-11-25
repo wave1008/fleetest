@@ -36,7 +36,11 @@ def judge_scenario(spec, result):
         if passed:
             # 緑でも、守っている経路を通った印(注記)が無ければその経路を確かめていない
             missing = [n for n in spec.get("notesContains", []) if n not in _notes(result)]
-            return ("fail", [f"緑だが注記 {n} が無い(この経路を通っていない): {sorted(_notes(result))}" for n in missing]) if missing else ("ok", [])
+            # 別の救済(自己修復など)で緑になった回は、守っている経路で通ったとは言えない
+            rescued = [n for n in spec.get("notesAbsent", []) if n in _notes(result)]
+            problems = [f"緑だが注記 {n} が無い(この経路を通っていない): {sorted(_notes(result))}" for n in missing]
+            problems += [f"緑だが注記 {n} が付いた(別の救済で通った): {sorted(_notes(result))}" for n in rescued]
+            return ("fail", problems) if problems else ("ok", [])
         fs = _failed_step(result)
         return "fail", [f"緑のはずが赤: {fs.get('description')} — {(fs.get('detail') or '')[:200]}"]
 

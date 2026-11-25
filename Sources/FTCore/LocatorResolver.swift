@@ -640,8 +640,8 @@ public enum LocatorResolver {
 
     /// スコープ `>>` の容器の子孫。**木に出した祖先の数(`ElementInfo.keptDepth`)で引く** —— `descendants` の depth は
     /// 出さなかった入れ物も数えるので、葉の直後に並ぶ「出さなかった兄弟の入れ物」の中身が葉の子孫に見え、
-    /// 中身を持たない要素を容器にした `>>` が別の要素を押して ✅ になった(OI-237)。木に1つでも keptDepth の無い要素が
-    /// あれば(XCUITest ブリッジの木・ホストで組んだ木)depth で引く。スコープを組む側(`SelectorNaming`)もこれを通す = 提案と解決が割れない
+    /// 中身を持たない要素を容器にした `>>` が別の要素を押して ✅ になった。木に1つでも keptDepth の無い要素が
+    /// あれば(ホストで組んだ木・固定コーパス)depth で引く。スコープを組む側(`SelectorNaming`)もこれを通す = 提案と解決が割れない
     public static func scopeDescendants(of element: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
         guard element.keptDepth != nil, elements.allSatisfy({ $0.keptDepth != nil }) else {
             return descendants(of: element, in: elements)
@@ -660,7 +660,7 @@ public enum LocatorResolver {
     /// 要素の子孫(スナップショットは pre-order + 元ツリーの depth を保つため、
     /// 直後から depth がその要素以下になるまでが子孫。3 ブリッジとも同じ規約で組み立てる
     /// [BridgeRouter.collect / InAppSnapshot.collect / SnapshotBuilder.collect])。
-    /// **出さなかった入れ物の中身を、直前の葉の子孫に数えることがある**(depth を詰めないため。OI-237)。
+    /// **出さなかった入れ物の中身を、直前の葉の子孫に数えることがある**(depth を詰めないため)。
     /// スコープの解決は `scopeDescendants` を使う
     public static func descendants(of element: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
         guard let start = elements.firstIndex(where: { $0.ref == element.ref }) else { return [] }

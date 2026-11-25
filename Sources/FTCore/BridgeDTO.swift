@@ -50,7 +50,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 308
+    public static let bridgeProtocolVersion = 309
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -752,12 +752,11 @@ public struct ElementInfo: Codable, Sendable {
     /// bridgeProtocolVersion は据え置き(inOverlayWindow と同じ方針。Android は AndroidBridge.expectedBridgeVersionCode を上げる)
     public var clickable: Bool?
 
-    /// **木に出した祖先の数**(出さなかった入れ物を数えない深さ。根 = 0)。in-app と Android のブリッジが全要素に送る。
-    /// **XCUITest ブリッジは送らない**: Flutter のセマンティクスの容器(先頭の子が容器自身で、中身はその後ろの兄弟)を見分ける材料が無い
-    /// (属性 5004 は Flutter の要素を `UIAccessibilityElement` と返し、容器は木に出ない)。見分けずに数えると Flutter の本物の容器の
-    /// `>>` が「中身が無い」になる(実測)ので、depth のまま(OI-237 は XCUITest の木に残る)。
+    /// **木に出した祖先の数**(出さなかった入れ物を数えない深さ。根 = 0)。in-app・XCUITest・Android のブリッジが全要素に送る。
+    /// XCUITest は Flutter の容器(先頭の子が容器自身で、中身はその後ろの兄弟。木に出ない)を、属性 5004(`UIAccessibilityElement` と返す)でなく
+    /// `XC_kAXXCAttributeElementType` の本当のクラス名で見分ける(`SemanticsContainerChildren`)。
     /// `depth` は元の木の深さで、名前も id も無い入れ物を木に出さなくても詰めない —— そのため葉の直後に並ぶ
-    /// 「出さなかった兄弟の入れ物」の中身が depth の上では葉の子孫に見える(OI-237: Flutter の文字を容器にした
+    /// 「出さなかった兄弟の入れ物」の中身が depth の上では葉の子孫に見える(Flutter の文字を容器にした
     /// `>>` が隣の一覧のカードを押して ✅)。スコープの子孫(`LocatorResolver.scopeDescendants`)はこちらで引く。
     /// `depth` は同じ深さの兄弟の照合(`ContainerGeometry` 等)が使うので変えない。
     /// nil = ホストで組んだ木(固定コーパス・テストの木)で申告が無い。木に1つでも nil があれば `depth` で引く
@@ -1947,32 +1946,5 @@ public struct TouchLandsResponse: Codable, Sendable, Equatable {
         self.receiver = receiver
         self.lands = lands
         self.unresolved = unresolved
-    }
-}
-
-extension BridgeAPI {
-    /// 出す要素ごとの、**木に出した直近の祖先**の位置(`order` の中の添字。nil = 出した祖先が無い)。
-    /// `parents[i]` = 集めた候補 i の直近の「集めた」祖先の添字(nil = 根)、`order` = 出す候補の添字を出す順に。
-    /// 間引き・重複除きで落とした祖先は飛ばして上へ辿る。**親は子より先に `order` に現れること**(preorder なら成り立つ)
-    public static func keptParents(parents: [Int?], order: [Int]) -> [Int?] {
-        var position: [Int: Int] = [:]
-        position.reserveCapacity(order.count)
-        var out: [Int?] = []
-        out.reserveCapacity(order.count)
-        for (at, index) in order.enumerated() {
-            var parent = parents[index]
-            while let p = parent, position[p] == nil { parent = parents[p] }
-            out.append(parent.flatMap { position[$0] })
-            position[index] = at
-        }
-        return out
-    }
-
-    /// `keptParents` から `ElementInfo.keptDepth`(木に出した祖先の数)を出す
-    public static func keptDepths(keptParents: [Int?]) -> [Int] {
-        var depths: [Int] = []
-        depths.reserveCapacity(keptParents.count)
-        for parent in keptParents { depths.append(parent.map { depths[$0] + 1 } ?? 0) }
-        return depths
     }
 }

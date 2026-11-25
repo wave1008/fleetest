@@ -15,6 +15,8 @@ extension BridgeRouter {
         var frame: CGRect
         /// `POST /renderer` が祖先をたどるための節の鎖(ref 採番後に `refNodeLinks` へ移る)
         var link: NodeLink? = nil
+        /// 直近の「集めた」祖先の gathered の添字(nil = 根)。`ElementInfo.keptDepth` の材料(`BridgeAPI.keptParents`)
+        var parent: Int? = nil
     }
 
     /// 取った木の節と親の鎖。XCUIElementSnapshot は親を持たないので走査中に作る。
@@ -46,13 +48,15 @@ extension BridgeRouter {
         var gathered: [Gathered] = []
         if overlayWindowIndices.isEmpty {
             gather(node, depth: depth, screen: screen, insideWebView: insideWebView,
+                   parent: nil,
                    gathered: &gathered,
                    keyboardFrame: &keyboardFrame, offscreenHints: &offscreenHints)
         } else {
             // 根(アプリ)を自分で出してから窓ごとに辿る(手前の窓の中身に inOverlayWindow を付ける。
             // BridgeRouter.overlayWindows の doc)。順序・深さは gather(node) 1回と同じ
             let rootLink = NodeLink(node, parent: nil)
-            if shouldInclude(node, screen: screen) {
+            let rootIncluded = shouldInclude(node, screen: screen)
+            if rootIncluded {
                 gathered.append(Gathered(info: makeInfo(node, ref: 0, depth: depth), frame: node.frame, link: rootLink))
             }
             var contributing = Set<Int>()
@@ -61,6 +65,7 @@ extension BridgeRouter {
                 let start = gathered.count
                 gather(window, depth: depth + 1, screen: screen, insideWebView: insideWebView,
                        parentLink: rootLink,
+                       parent: rootIncluded ? 0 : nil,
                        gathered: &gathered,
                        keyboardFrame: &keyboardFrame, offscreenHints: &offscreenHints)
                 if overlayWindowIndices.contains(index) {
@@ -80,20 +85,39 @@ extension BridgeRouter {
         // 枠が画面全体(実測 0,0 402x874)で、中のボタンとは別に手前に載る。ホストの覆いの判定が「すべての要素が #Toolbar に
         // 覆われている」と読んで撃つ前の送りが空振りし、タップも吸われた(E2EX-RN の sticky・date、SwiftUI の pinch)。
         // 帯の形の本物のツールバーは画面全体の枠にならない。型名はここでは小文字(typeName の後で正規化済み)
-        gathered.removeAll { item in
+        let isFullScreenToolbar = { (item: Gathered) -> Bool in
             ElementInfo.normalizedType(item.info.type) == "toolbar" && !screen.isEmpty
                 && abs(item.frame.width - screen.width) <= 1 && abs(item.frame.height - screen.height) <= 1
+        }
+        if gathered.contains(where: isFullScreenToolbar) {
+            // 添字が詰まるので、親は落とした要素を飛ばして上の祖先へ付け替える(keptDepth の材料)
+            var newIndex: [Int?] = []
+            var next = 0
+            for item in gathered {
+                if isFullScreenToolbar(item) { newIndex.append(nil) } else { newIndex.append(next); next += 1 }
+            }
+            let oldParents = gathered.map(\.parent)
+            var survivors: [Gathered] = []
+            for (old, var item) in gathered.enumerated() where newIndex[old] != nil {
+                var parent = item.parent
+                while let p = parent, newIndex[p] == nil { parent = oldParents[p] }
+                item.parent = parent.flatMap { newIndex[$0] }
+                survivors.append(item)
+            }
+            gathered = survivors
         }
 
         // isRedundant は [ElementInfo] を取るので**同じ列を2本持つ**。`deduped.map(\.info)` を
         // 毎回作ると、全件走査になった分そのまま要素ごとの配列確保になる(木が大きいほど効く)
         var deduped: [Gathered] = []
         var dedupedInfos: [ElementInfo] = []
+        var dedupedSource: [Int] = []
         deduped.reserveCapacity(gathered.count)
         dedupedInfos.reserveCapacity(gathered.count)
-        for item in gathered where !SnapshotDedupe.isRedundant(item.info, alreadyEmitted: dedupedInfos) {
+        for (at, item) in gathered.enumerated() where !SnapshotDedupe.isRedundant(item.info, alreadyEmitted: dedupedInfos) {
             deduped.append(item)
             dedupedInfos.append(item.info)
+            dedupedSource.append(at)
         }
 
         let keptIndices: [Int]
@@ -111,10 +135,14 @@ extension BridgeRouter {
         }
         truncated += deduped.count - keptIndices.count
 
-        for index in keptIndices {
+        // 木に出した祖先の数。間引き・重複除きの後に出した要素で数える(全要素に付ける = ホストは全部にあるときだけ使う)
+        let keptDepths = BridgeAPI.keptDepths(keptParents: BridgeAPI.keptParents(
+            parents: gathered.map(\.parent), order: keptIndices.map { dedupedSource[$0] }))
+        for (position, index) in keptIndices.enumerated() {
             let ref = elements.count + 1
             var info = deduped[index].info
             info.ref = ref
+            info.keptDepth = keptDepths[position]
             frames[ref] = deduped[index].frame
             identities[ref] = (info.identifier, info.label, info.type)
             if let link = deduped[index].link { nodeLinks[ref] = link }
@@ -131,6 +159,7 @@ extension BridgeRouter {
                         insideWebView: Bool,
                         rescale inherited: AXFrameRescale? = nil,
                         parentLink: NodeLink? = nil,
+                        parent: Int?,
                         gathered: inout [Gathered],
                         keyboardFrame: inout CGRect?,
                         offscreenHints: inout [ElementInfo]) {
@@ -154,29 +183,51 @@ extension BridgeRouter {
         if isWebView && insideWebView {
             for child in node.children {
                 gather(child, depth: depth, screen: screen, insideWebView: true, rescale: rescale,
-                       parentLink: link,
+                       parentLink: link, parent: parent,
                        gathered: &gathered,
                        keyboardFrame: &keyboardFrame,
                        offscreenHints: &offscreenHints)
             }
             return
         }
-        if shouldInclude(node, frame: frame, screen: screen) {
+        let included = shouldInclude(node, frame: frame, screen: screen)
+        if included {
             let info = makeInfo(node, frame: frame, ref: 0, depth: depth)
-            gathered.append(Gathered(info: info, frame: frame, link: link))
+            gathered.append(Gathered(info: info, frame: frame, link: link, parent: parent))
         } else if insideWebView, offscreenHints.count < BridgeAPI.maxSnapshotElements,
                   isOffscreenHintCandidate(node, screen: screen) {
             // ref 0(座標表に入れない・タップ対象にしない)。Captured.offscreen 参照。
             // **この別枠上限は間引きと無関係**(hint は elements に混ざらない)
             offscreenHints.append(makeInfo(node, ref: 0, depth: depth))
         }
-        for child in node.children {
+        // **Flutter のセマンティクスの容器**(木に出ない。先頭の子が容器自身のノード、中身はその後ろの兄弟)は、先頭の子を木に出したら
+        // 後ろの兄弟をその子の中身として数える(in-app の `InAppSnapshot.collect` と同じ規則)。クラス名を問うのは
+        // この形のノードだけ(1問い合わせ約 2ms)。問いの失敗は容器と言わない = 木の親子のまま
+        let children = node.children
+        var childParents = BridgeAPI.SemanticsContainerChildren(
+            parent: included ? gathered.count - 1 : parent,
+            tracksOwn: BridgeAPI.shouldQuerySemanticsContainer(
+                included: included, childCount: children.count,
+                firstChildIsLeafOther: children.first.map { $0.elementType == .other && $0.children.isEmpty } ?? false)
+                && BridgeAPI.isSemanticsContainerClass(Self.elementClassName(node)))
+        for (at, child) in children.enumerated() {
+            let before = gathered.count
             gather(child, depth: depth + 1, screen: screen,
                    insideWebView: insideWebView || isWebView, rescale: rescale,
-                   parentLink: link,
+                   parentLink: link, parent: childParents.parent,
                    gathered: &gathered, keyboardFrame: &keyboardFrame,
                    offscreenHints: &offscreenHints)
+            // 先頭の子が自分の ref を持った(= その子の直後に集めた最初の要素がその子)ときだけ付け替える
+            childParents.finishedChild(
+                isFirst: at == 0,
+                gatheredIndexIfKept: gathered.count > before && gathered[before].link?.node === child ? before : nil)
         }
+    }
+
+    /// 本当のクラス名(`XC_kAXXCAttributeElementType`。属性 5004 は Flutter の容器も `UIAccessibilityElement` と返すので使えない)。
+    /// 問いの失敗・非公開 API の変更は nil
+    private static func elementClassName(_ node: XCUIElementSnapshot) -> String? {
+        FTElementClassAttributes(node as AnyObject, ["XC_kAXXCAttributeElementType"])?["XC_kAXXCAttributeElementType"]
     }
 
     private func shouldInclude(_ node: XCUIElementSnapshot, frame: CGRect? = nil, screen: CGRect) -> Bool {

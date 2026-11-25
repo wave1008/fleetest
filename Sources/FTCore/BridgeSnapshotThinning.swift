@@ -1,4 +1,4 @@
-// BridgeDTO.swift から分割した純粋ロジック(焦点の着地判定・座標タップの対象選び・snapshot の間引き)。
+// BridgeDTO.swift から分割した純粋ロジック(焦点の着地判定・座標タップの対象選び・snapshot の間引き・keptDepth の材料)。
 // BridgeDTO.swift と同じく in-app dylib と XCUITest ランナーへ直接コンパイルされるため、Foundation 以外に依存しない
 // (一覧は BridgeSourceSet.swift・InAppBridge/build.sh・Runner の project.xcproj の3か所)。
 
@@ -349,5 +349,62 @@ public enum BridgeSnapshotThinning {
         guard let id = candidate.info.identifier, let count = identifierCounts[id],
               count >= bulkGroupMinimum else { return false }
         return !operableTypes.contains(candidate.info.type)
+    }
+}
+
+extension BridgeAPI {
+    /// 出す要素ごとの、**木に出した直近の祖先**の位置(`order` の中の添字。nil = 出した祖先が無い)。
+    /// `parents[i]` = 集めた候補 i の直近の「集めた」祖先の添字(nil = 根)、`order` = 出す候補の添字を出す順に。
+    /// 間引き・重複除きで落とした祖先は飛ばして上へ辿る。**親は子より先に `order` に現れること**(preorder なら成り立つ)
+    public static func keptParents(parents: [Int?], order: [Int]) -> [Int?] {
+        var position: [Int: Int] = [:]
+        position.reserveCapacity(order.count)
+        var out: [Int?] = []
+        out.reserveCapacity(order.count)
+        for (at, index) in order.enumerated() {
+            var parent = parents[index]
+            while let p = parent, position[p] == nil { parent = parents[p] }
+            out.append(parent.flatMap { position[$0] })
+            position[index] = at
+        }
+        return out
+    }
+
+    /// `keptParents` から `ElementInfo.keptDepth`(木に出した祖先の数)を出す
+    public static func keptDepths(keptParents: [Int?]) -> [Int] {
+        var depths: [Int] = []
+        depths.reserveCapacity(keptParents.count)
+        for parent in keptParents { depths.append(parent.map { depths[$0] + 1 } ?? 0) }
+        return depths
+    }
+
+    /// Flutter のセマンティクスの容器(`SemanticsObjectContainer`。木に出ない。先頭の子が容器自身のノードで、中身はその後ろの兄弟)の
+    /// 子の親を決める。in-app / XCUITest ランナーが同じ規則で `keptParents` の材料(`parent`)を作るための共有部。
+    /// 先頭の子を木に出したら、後ろの兄弟はその先頭の子の中身として数える
+    public struct SemanticsContainerChildren {
+        public private(set) var parent: Int?
+        private var tracksOwn: Bool
+        /// `tracksOwn` = 容器と判定済み(ランナーは `isContainerClass` で確かめた後)
+        public init(parent: Int?, tracksOwn: Bool) {
+            self.parent = parent
+            self.tracksOwn = tracksOwn
+        }
+        /// 次の子を集めるときの親。先頭の子の処理が終わると、先頭の子を出していればその添字へ変わる
+        public mutating func finishedChild(isFirst: Bool, gatheredIndexIfKept: Int?) {
+            guard isFirst, tracksOwn, let index = gatheredIndexIfKept else { return }
+            parent = index
+        }
+    }
+
+    /// 容器かどうかを本当のクラス名で問う価値のある形か。**問うのはこの形だけ**(1問い合わせ約 2ms)。
+    /// 木に出さないノードの、先頭の子が子の無い other で、子が2つ以上
+    public static func shouldQuerySemanticsContainer(included: Bool, childCount: Int,
+                                                     firstChildIsLeafOther: Bool) -> Bool {
+        !included && childCount >= 2 && firstChildIsLeafOther
+    }
+
+    /// 問いの答え(`XC_kAXXCAttributeElementType`)が Flutter のセマンティクスの容器か。nil(問いの失敗)は容器と言わない
+    public static func isSemanticsContainerClass(_ name: String?) -> Bool {
+        name == "SemanticsObjectContainer"
     }
 }

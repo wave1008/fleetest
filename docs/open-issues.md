@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-237 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 15 | OI-329・OI-345・OI-347・OI-358・OI-366・OI-376・OI-377・OI-378・OI-386・OI-388・OI-395・OI-396・OI-398・OI-399・OI-400 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-251・OI-279・OI-327・OI-387・OI-394 |
@@ -35,20 +35,6 @@
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 48 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370・OI-379・OI-385 |
 
 ## 着手可
-
-### OI-237 XCUITest ブリッジの木では、スコープ `>>` の子孫を depth で引くので、間引かれた入れ物の中身が直前の葉の「子孫」に見え、中身を持たない要素を容器にした tap が別の要素を押して ✅(MCP と xcuitest モード)
-- 状態: 再現済み
-- 確認: 56周目(2026-11-16)
-- 属性: 着手可
-- 運用: 要注意 — MCP(iOS は常に XCUITest)と xcuitest モードでは、容器を誤って書いたシナリオでも緑になる。容器は id で入れ物を指す
-- 優先度: 低 — 既定の経路(DSL の inapp-boost モードと Android)では赤になる。書いた容器が対象を含んでいれば結果は同じ要素
-
-出典: 56周目 iultra F3(Flutter の iOS・inapp-boost)。E2EY-Flutter の入れ子スクロールで `tap("#txt_nested_result >> #card_0_01")` が ✅ でカードを押した。同じ型が alocal の `.staticText >> #queue_row_03`(E2EY-Android)
-- 原因の観測(in-app の `/snapshot`): `#txt_nested_result` は depth 7 の葉で、直後に兄弟の入れ物(名前も id も無いので木に出ない)の子 `#list_nested` が depth 8 で並ぶ。ブリッジは出さなかった要素の depth を詰めないので、`LocatorResolver.descendants`(直後から depth がその要素以下になるまで)が隣の中身を葉の子孫に数える
-- 直したもの(in-app ブリッジ v293・Android ブリッジ v144): ブリッジが「木に出した祖先の数」`ElementInfo.keptDepth` を送り、スコープの子孫は `LocatorResolver.scopeDescendants` で引く(スコープの提案 `SelectorNaming` も同じ)。in-app は Flutter のセマンティクスの容器(`SemanticsObjectContainer`。先頭の子が容器自身で、中身はその後ろの兄弟)の後ろの兄弟を先頭の子の中身として数える(数えないと `#list_nested >> …` が「中身が無い」になった = 元の depth ではこの形がたまたま子孫に見えていた)。手元の Simulator / Emulator で、葉を容器にした書き方が赤・本物の容器が緑(Flutter の iOS の inapp-boost・Flutter の Android・E2EY-Android の `.staticText >> #queue_row_03`)。全マシンの回帰でスコープの解決の失敗 0 件
-- 残り: XCUITest ブリッジは keptDepth を送らない(ホストは depth のまま引く)。Flutter の容器を見分ける材料が無い —— 属性 5004 は Flutter の要素を `UIAccessibilityElement` と返し、容器は木に出ない。見分けずに数えると Flutter の本物の容器の `>>` が壊れる(xcuitest モードで実測)
-- 測定(2026-11-25・手元 Sim -01・E2EY-Flutter の入れ子スクロールを xcuitest モードで1本・XCUITest ランナーに一時的な記録を足して測った): 「先頭の子が子の無い other」の形のノード(木に出していない)は、非公開属性 `XC_kAXXCAttributeElementType` で全部 `SemanticsObjectContainer`(先頭の子は `FlutterSemanticsObject`)と答えた(4926 回中、答えなかったのは 3 回)。属性 5004 は同じノードを `UIAccessibilityElement` と返す = 見分ける材料は取れる
-- 次の一手(着手可): XCUITest ランナーのスナップショットで、この形のノードだけ本当のクラス名を引き、`SemanticsObjectContainer` なら in-app と同じ規則(後ろの兄弟を先頭の子の中身として数える)で keptDepth を送る(ブリッジの版上げ)。費用(1ノード約 2ms × Flutter の画面の容器の数)を測ってから入れる。スナップショットの写像を触るので xcuitest モードを SUT を絞らず回す
 
 ## 要測定
 ### OI-399 CMP の iOS で、キーボードぶん縮んだ後も XCUITest の木の行が縮む前の位置のままで、MCP が「キーボードの下」と誤って言う
@@ -314,7 +300,8 @@
 - 観測: 入れ子スクロールの画面に限らない。送らずに back()・カードを押してから・縦に送ってから・横の棚の無い反転チャットの4条件がどれも 0/6、E2EX-Flutter のページャも 0/6、xcuitest モードも 0/12。in-app ブリッジは back() を持たないので、どちらのモードも XCUITest ブリッジの縁の払い(左端 +1pt から画面幅の 65% まで・0.05 秒押して 0.25 秒で引く。BridgeClient.swift の back の drag)に落ちる。対照: 同じ6台の E2EY-iOS(SwiftUI)は同じ4条件で 24/24 戻る・Flutter でも `tap("#btn_back")` は 6/6 戻る・押さずに速く払う `flickLeftToRight(startMarginRatio: 0.0)` は Flutter 0/6・SwiftUI 5/6。= 左端からの合成の払いを Flutter の iOS が戻る払いとして受け取らない。E2EX-Flutter の 01_ナビゲーション のコメントにも同じ記録(始点 x=1〜19・0.25〜0.8 秒のどれでも戻らない)
 - 材料不足: Flutter 側が合成の払いを受け取らない理由(始点・速度・認識器)。✅ を赤にする直しは取らない —— 「木が同じ = 効かなかった」の読みは Compose の Android で a11y のキャッシュが前の画面の木を返して外れていた(11/16 に直した)。外れうる読みを根拠に赤にすると誤った赤を作る
 - 測った(11/16・失敗時の木と実アプリ固定コーパスの全数): back() が押すのは木の `id == "BackButton"` のボタンだけで、それが無い Flutter・CMP・RN(JS の stack)・E2E-iOS の戻るボタンは縁の払いに落ちる。Flutter の iOS の戻るボタンを木で見分ける材料はラベルの語(アプリの tooltip「戻る」・Material の既定の「Back」)とアプリが付けた id だけで、木の要素に特性(traits)の欄は無い。型・寸法・位置は左上の「閉じる」「共有」のアイコンボタン(コーパスの地図の `CardButtonTypeClose`・E2EX-Flutter の全画面ダイアログの leading の閉じる)と同じ形 = 語の一致で拾うと取り違える(DR-3)。57周目の対照「E2EY-iOS は 24/24 戻る」は `BackButton` を押す経路で、縁の払い同士の対照ではなかった
-- 次の一手: 直さない(木に材料が無い)。ブリッジが戻るボタンの特性(UIKit の戻るの印)を申告できるようになったら見直す
+- 測った(2026-11-25・手元 Sim・xcuitest モード・XCUITest ランナーに一時的な記録を足して特性(traits)を記録): SwiftUI の本物の戻るボタン(`UIAccessibilityBackButtonElement`)は `8724152321`、E2EY-Flutter の `#btn_back`(`FlutterSemanticsObject`)と E2EY-CMP の `#btn_back` は `8589934593` = 差の `1<<27` が戻るの特性で、**Flutter(と CMP)の戻るボタンはそれを立てない**。XCUITest ランナーが特性を申告しても Flutter の戻るボタンは見分けられない
+- 次の一手: 直さない(木にも特性にも材料が無い)。Flutter が戻るの特性を立てるようになったら見直す
 
 ### OI-245 iOS の hideKeyboard が背景のタップで閉じられない複数行の欄では、続けて送る Enter が欄に改行を入れて値を変え、それでも閉じずに赤(E2EY-CMP の iOS の `#field_title`・6/6)
 - 状態: 再現済み
@@ -327,7 +314,8 @@
 - 経緯: 「焦点の欄の型が `textView` なら Enter を送らない」で直した(DR-185・0.22.1)が、iOS の Compose Multiplatform は1行の欄も `textView` で出すため、背景のタップで閉じず Enter で閉じる1行の欄(sut-ec-mobile の住所フォーム)で hideKeyboard が失敗する退行になり、取り消した
 - 材料が無いこと: 木の型では1行と複数行を見分けられない(E2E-CMP の iOS の `#field_single`(singleLine)も `textView`)。枠の高さ・ラベルで決める形は推測になるので取らない
 - 測った(11/16・E2E-CMP の iOS の `#field_single`・`#field_password`・`#field_multiline`): 型は XCUITest の木(MCP)でも in-app の木でも3つとも `textView`。焦点を持つ実体は3つとも Compose の `OverlayInputView` で、入力の特性(`UITextInputTraits` = リターンキーの種類・キーボードの種類)を持たない(in-app ブリッジに一時的に足した診断で確認)。打った文字を受ける UIKit の部品も無い = UIKit の側からは1行か複数行かを読めない
-- 次の一手: Compose の a11y の要素(UIAccessibilityElement)の属性に1行か複数行かが出ていないかを見る(出ていなければ据え置き)
+- 測った(2026-11-25・手元 Sim・xcuitest モード・XCUITest ランナーに一時的な記録を足して、木の要素の本当のクラス名・基の型・特性(traits)・追加の属性の全部を記録): E2E-CMP の `#field_single`・`#field_password`・`#field_multiline` と E2EY-CMP の `#field_title` は全部 `AccessibilityElement`(基は `UIAccessibilityElement`)で、特性の値も同じ(焦点の有無で2つの値を行き来するだけ)。E2E-Flutter の `#field_single`・`#field_multiline` も同じく `TextInputSemanticsObject`・同じ特性の値(パスワードだけ型 50)。追加の属性は 5004 のクラス名だけ = XCUITest の側にも1行か複数行かの材料は無い
+- 次の一手: 直さない(in-app・XCUITest のどちらの側にも材料が無い)。Compose / Flutter が1行か複数行かを申告するようになったら見直す
 - 探索 2026-11-25(`_work/explore-20261125/findings-r1-im4.md`・`findings-r2-im4.md`): 同じ形が他の SUT の複数行の欄にもある(E2E-iOS・E2E-Flutter・E2EX-iOS・E2EX-Flutter の `#field_multiline`。E2E-Flutter は 5/5)。E2EX-CMP の数字・パスワードの欄の赤は、SUT がこの2欄に `singleLine = true` を付けていない = Compose では複数行の欄(Enter が改行を入れる)で、欄の種類のせいではない(SUT 側。ui-contract-wave2.md:87-89 は複数行と書いていない)。E2E-CMP が緑なのは InputScreen.kt:54 が背景のタップで `clearFocus` するため。手の順は `executeIOSHideKeyboard`(StepExecutor+DirectActions.swift:966)・`closeKeyboardByTappingOutside`(:1130)で、Done を探して無かったことは文にも結果にも残らない。CMP と Flutter の木は焦点(`focused`)を出さないので、Enter が欄に改行を入れて値が変わっても失敗文に「値が変わった」が付かない(SwiftUI は付く。`focusedValueChanged` :1112)
 
 ### OI-163 キーボードの下の欄への clearInput の時間切れ・タブの下の行への tap・上端の一覧の scroll: が引っ張って更新を走らせるほか
@@ -1074,6 +1062,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 印の扱い(11/11 ユーザー決定): このシナリオは xcuitest モードで探索の止まる位置しだいで赤になる(手元8台で 1〜5/8)ので、xcuitest の印の条件からだけ外す(`Scripts/mark_exclusions.py`。シナリオは回し続け、外した赤は名指す)。失敗の文言は①で見出しを名指して直し方を言う
 - シナリオの扱い(11/17 ユーザー決定): SUT のシナリオを「見出しに掛からない位置まで送ってから撃つ」形に書き換えない(罠が試験から見えなくなる)。今の形(赤 + 見出しを名指す文言)で確定。送り出しを戻すのは XCUITest の木に塗り順の材料が出たときだけ(DR-145)
 - 11/19 の回帰(`_work/rr83-impl/regress3`): E2EX-CMP の xcuitest で「伸縮するヘッダ」の `tap("#row_c_37", scroll: .down)` が ✅ のあと結果が `collapse=none` のまま(「the preceding tap … did not change the screen at all」)。同じ日の他の2回の回帰では緑 = 同じ系統の断続(送りの後のタップが飲まれる)
+- 観測(2026-11-25・全マシンの回帰と手元 Sim の反復・E2EX-RN の xcuitest モード `貼り付く見出しのリストを扱えること.S0010`): `tap("#row_s_B1", scroll: .up)` の探索が行を貼り付く見出し `#hdr_B (16,157 370x33)` の下(行 `(32,163 338x44)` = 中心が見出しの帯の中)で止め、tap が見出しに当たって ✅・続く `textIs` が赤(回帰で1回)。手元の反復は今日の前のコミット 90fb61a66 で 6/8 緑・今日のコード(29c559d73 とXCUITest ランナーの keptDepth の変更)で 4/11 緑 = どちらも揺れる。差は回数が少なく偶然と区別できない(据え置きのまま。率が下がり続けるなら探索の止まり方を測る)
 
 ### OI-205 Android の Flutter のオートコンプリートの候補への tap が選ばずに緑(a11y の枠が描画とずれる)・CMP のドロップダウンを開いたままの type の文言・セレクタの末尾の空白ほか
 - 状態: 再現済み

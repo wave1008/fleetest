@@ -217,7 +217,18 @@
       "scenarios": {
         "S0010": { "expect": "red", "command": "tap", "detailContains": ["lands on", "not on the target"] }
       }
-    }  ],
+    },
+    {
+      "project": "E2EY-Flutter", "file": "90_中身の無い葉をスコープにする.swift", "profile": "ios-xcuitest", "os": "ios",
+      "class": "中身の無い葉をスコープにする",
+      "guards": "XCUITest ランナーが Flutter のセマンティクスの容器を本当のクラス名で見分けて keptDepth を送る。葉をスコープにした >> は空(赤)・本物の容器の >> は緑",
+      "watches": ["Runner/FleetestRunnerUITests/BridgeRouter+Snapshot.swift", "Sources/FTCore/LocatorResolver.swift"],
+      "scenarios": {
+        "S0010": { "expect": "red", "command": "tap" },
+        "S0020": { "expect": "green", "notesAbsent": ["heal-fingerprint-match"] }
+      }
+    }
+  ],
   "photosAlertCleanup": {
     "project": "E2E-iOS", "file": "98_写真の権限アラートを閉じる.swift", "profile": "ios-inapp-boost",
     "class": "写真の権限アラートを閉じる"

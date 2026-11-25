@@ -150,6 +150,12 @@ test('注記の期待が満たされなければ ❌', () => {
   assert.equal(judge(spec, withNote).verdict, 'ok')
 })
 
+test('緑の対照に別の救済の注記が付いたら ❌(notesAbsent)', () => {
+  const spec = { expect: 'green', notesAbsent: ['heal-fingerprint-match'] }
+  assert.equal(judge(spec, { passed: true, timeline: [{ notes: [] }] }).verdict, 'ok')
+  assert.equal(judge(spec, { passed: true, timeline: [{ notes: ['heal-fingerprint-match'] }] }).verdict, 'fail')
+})
+
 test('appCrash の evidence が違う・無いなら ❌', () => {
   const spec = { expect: 'red', appCrash: 'fatalException' }
   assert.equal(judge(spec, failed(offscreen)).verdict, 'fail')
