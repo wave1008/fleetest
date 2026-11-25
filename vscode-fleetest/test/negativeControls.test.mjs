@@ -1,5 +1,5 @@
 // 陽性対照スイート(Scripts/e2e-negative.sh)の2つの砦を固定する:
-// ①同期 —— TestProjects/E2E-*/scenarios/_disabled/*.swift は全部 Scripts/negative-controls.json に載る
+// ①同期 —— TestProjects/E2E*-*/scenarios/_disabled/*.swift は全部 Scripts/negative-controls.json に載る
 //   (controls か delegated)。載らない陽性対照は自動で回らないまま腐る
 // ②判定 —— Scripts/negative_controls_judge.py の judge_scenario が「赤なら何でも ✅」になっていない
 //   (場所・理由・クラッシュの記録まで見る。⚠️ 未検証を ✅ に畳まない)
@@ -19,7 +19,7 @@ const table = JSON.parse(readFileSync(join(ROOT, 'Scripts/negative-controls.json
 function disabledScenarios() {
   const out = []
   for (const project of readdirSync(join(ROOT, 'TestProjects'))) {
-    if (!/^E2E-/.test(project)) continue
+    if (!/^E2E[XY]?-/.test(project)) continue
     const dir = join(ROOT, 'TestProjects', project, 'scenarios/_disabled')
     if (!existsSync(dir)) continue
     for (const file of readdirSync(dir)) if (file.endsWith('.swift')) out.push(`${project}/${file}`)

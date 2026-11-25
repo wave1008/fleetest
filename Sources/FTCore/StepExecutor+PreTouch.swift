@@ -223,7 +223,19 @@ extension StepExecutor {
                 // XCUITest の false は誤ることがある(SwiftUI で送って戻した FAB = 本物のタッチは FAB に届く)。in-app の当たり判定で
                 // 「対象に届き、覆いの候補のどれにも届かない」と言えたときだけ撃つ(言えない・xcuitest モード・自前描画は断るまま)。
                 // ref は `snapshot`(直前に撮った木)の番号 = 間に木を撮らないこと
-                if await driver.hitTest(query: HitTestQuery(element)) == .hittable(false) {
+                let hit = await driver.hitTest(query: HitTestQuery(element))
+                if hit == .hittable(true) {
+                    // true も誤ることがある(SwiftUI の半分のシートの裏の行)。対象に届かず覆いに届くと言い切れたときだけ断る(自前描画・xcuitest モードは素通り)
+                    let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY,
+                                                        refs: [element.ref] + covers.map(\.ref))
+                    if let landed = TapTargetGeometry.touchLandsOnCoverInstead(lands, target: element.ref, covers: covers) {
+                        let name = TapTargetGeometry.describe(landed)
+                        return .refuse("did not touch \(step.locatorSummary): the app's hit test says a touch at its position lands on"
+                            + " \(name), not on the target, so a touch would press that instead (nothing was touched). "
+                            + Self.uncoverRemedy(cover: name, step: nil))
+                    }
+                }
+                if hit == .hittable(false) {
                     let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY,
                                                         refs: [element.ref] + covers.map(\.ref))
                     guard TapTargetGeometry.touchClearsCovers(lands, target: element.ref, covers: covers.map(\.ref)) else {

@@ -47,6 +47,14 @@ extension TapTargetGeometry {
         return covers.allSatisfy { !answer.lands.contains($0) }
     }
 
+    /// `isHittable` が true と答えた対象を断ってよいか(true は誤ることがある = SwiftUI の半分のシートの裏の行。2026-11-25 実測: 届く先はシート)。
+    /// 断るのは **全部の view を引けて、タッチが対象に届かず、覆いの候補のどれかに届く** と言い切れたときだけ(積極的な材料)。
+    /// 自前描画(Flutter・CMP)は全要素が同じ view なので対象にも届く = 断らない。返すのは届いた覆いの候補
+    public static func touchLandsOnCoverInstead(_ answer: TouchLandsResponse?, target: Int, covers: [ElementInfo]) -> ElementInfo? {
+        guard let answer, answer.unresolved.isEmpty, !answer.lands.contains(target) else { return nil }
+        return covers.first { answer.lands.contains($0.ref) }
+    }
+
     private static func innermostScrollableAncestor(of element: ElementInfo, in elements: [ElementInfo]) -> ElementInfo? {
         ancestors(of: element, in: elements).first { $0.scrollable == true }
     }

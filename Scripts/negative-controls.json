@@ -208,8 +208,16 @@
       "scenarios": {
         "S0010": { "expect": "red", "command": "tap", "detailContains": ["under the software keyboard"] }
       }
-    }
-  ],
+    },
+    {
+      "project": "E2EY-iOS", "file": "90_半分のシートの裏の行.swift", "profile": "ios-inapp-boost", "os": "ios",
+      "class": "半分のシートの裏の行",
+      "guards": "isHittable が true と答えた行でも、in-app の当たり判定が対象に届かず覆いに届くと言い切れたら撃たずに断る(TapTargetGeometry.touchLandsOnCoverInstead)。見えている背面の行・シートの行は撃つ",
+      "watches": ["Sources/FTCore/StepExecutor+PreTouch.swift", "Sources/FTCore/OtherLayerOcclusion.swift", "InAppBridge/Sources/InAppBridge.swift"],
+      "scenarios": {
+        "S0010": { "expect": "red", "command": "tap", "detailContains": ["lands on", "not on the target"] }
+      }
+    }  ],
   "photosAlertCleanup": {
     "project": "E2E-iOS", "file": "98_写真の権限アラートを閉じる.swift", "profile": "ios-inapp-boost",
     "class": "写真の権限アラートを閉じる"

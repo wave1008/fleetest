@@ -131,7 +131,7 @@ occlusion-guard の FM 判定を、
 | 行 | 段 | 入る条件 | 出口 | 注記・書き換える状態 | 門 |
 |---|---|---|---|---|---|
 | V1 | 入口 | `visibilityGuardActive` が偽 | 緑 | なし(`guardEnteredThisStep` も立てない) | 残す |
-| V2 | 画面外 | 中心が画面外(`offscreenScrollGateCentre`) | 赤(offscreen) | `guardEnteredThisStep` | 残す |
+| V2 | 画面外・細すぎる枠 | 中心が画面外(`offscreenScrollGateCentre`)。または Android で押せる非文字の要素の短辺が床(`minimumVisibleTapExtent` × `pointScale`)未満(`OcclusionEligibility.unreadableSliver`・DR-231) | 赤(offscreen / 見えている幅が小さい) | `guardEnteredThisStep` | 残す |
 | V3 | 覆いの下 | 塗り順が本物の木で `coveredTouch` が tooThin | 次へ | `coveredByFrontElement` | — |
 | V4 | 行の確かめの判定 | iOS・OCR の段あり・文字の子の無い行 | 次へ(V17 で決める) | 最後の判定で `rowLabelNotRead` を付け外し | — |
 | V5 | 文字の子へ | 同じラベルの文字の子が1つ | 次へ(以降は子を見る) | — | — |

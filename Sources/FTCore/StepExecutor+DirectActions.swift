@@ -857,7 +857,7 @@ extension StepExecutor {
         }
         // **改行(IME アクション)で焦点は次の欄へ移りうる** —— 叩いた欄を覚えたままだと、続くロケータなしの type が
         // 「焦点が木に無い」(次の欄がキーボードの下)を救済の対象と読んで、叩いた欄(移る前の欄)へ打つ
-        if text.contains("\n") { lastTapTarget = nil }
+        if text.contains("\n") { lastTapTarget = nil; lastTypedField = nil }
         else if isAndroid, !text.isEmpty {
             // 改行を含む打鍵は IME アクションで焦点が移りうるので見ない。1枚読むのは Android の改行なしの打鍵だけ
             let readStart = clock.now

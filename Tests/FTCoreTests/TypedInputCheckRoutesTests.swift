@@ -31,6 +31,46 @@ final class TypedInputCheckRoutesTests: XCTestCase {
         }
     }
 
+    // MARK: ref なしの追記(直前の type の欄と同じ焦点)
+
+    /// 伏せ字 2 の欄へ直前に type し、続けて ref なしで「abかな」(長さ 4)を打ってかなが落ちる = 伏せ字 4 = 置き換えと数が一致する形
+    func testRefLessAppendAfterTypeToSameFieldFailsWhenKanaDropped() {
+        let typed = el(1, "secureTextField", id: "password", value: "•", focused: true)
+        let before = el(1, "secureTextField", id: "password", value: "••", focused: true)
+        let after = el(1, "secureTextField", id: "password", value: "••••", focused: true)
+        let prior = TypedInputCheck.Prior(focusedIn: [before], previouslyTyped: typed)
+        XCTAssertTrue(prior.wasFocused)
+        XCTAssertNotNil(TypedInputCheck.failure(prior: prior, text: "abかな", isAndroid: false, after: [after]))
+        // 記録が無ければ従来どおり置き換えと読んで通す
+        let plain = TypedInputCheck.Prior(focusedIn: [before])
+        XCTAssertFalse(plain.wasFocused)
+        XCTAssertNil(TypedInputCheck.failure(prior: plain, text: "abかな", isAndroid: false, after: [after]))
+    }
+
+    /// 反例: 間にアプリが焦点を別の欄へ移した = 直前の type の欄と同じと言えないので従来どおり
+    func testRefLessAfterTypeIsNotFocusedWhenAppMovedFocusToOtherField() {
+        let typed = el(1, "secureTextField", id: "password", value: "••", focused: false)
+        let moved = el(2, "secureTextField", id: "confirm", value: "••", focused: true)
+        let prior = TypedInputCheck.Prior(focusedIn: [typed, moved], previouslyTyped: typed)
+        XCTAssertFalse(prior.wasFocused)
+        let none = TypedInputCheck.Prior(focusedIn: [typed], previouslyTyped: typed)
+        XCTAssertFalse(none.wasFocused)
+    }
+
+    func testRefLessAfterTypeIsFocusedThroughWrapperField() {
+        let wrapper = ElementInfo(ref: 1, type: "other", identifier: "pw", label: nil, value: nil, placeholder: nil, enabled: true,
+                                  frame: FTRect(x: 0, y: 0, width: 300, height: 50), depth: 1, focused: nil)
+        let inner = el(2, "secureTextField", id: nil, value: "••", focused: true)
+        XCTAssertTrue(TypedInputCheck.Prior(focusedIn: [wrapper, inner], previouslyTyped: wrapper).wasFocused)
+    }
+
+    /// 配線: ロケータなしの type の入口は直前の type の記録を渡す(渡し忘れると従来の false に戻る)
+    func testDirectUnfocusedTypeWiresPreviouslyTyped() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let src = try String(contentsOf: root.appendingPathComponent("Sources/FTCore/StepExecutor+TypeClear.swift"), encoding: .utf8)
+        XCTAssertTrue(src.contains("previouslyTyped: typedFieldBeforeThisStep"))
+    }
+
     func testFocusedPriorIsEmptyWhenFocusIsNotUnique() {
         let a = el(1, "secureTextField", id: "a", value: "•••", focused: true)
         let b = el(2, "textField", id: "b", value: "x", focused: true)

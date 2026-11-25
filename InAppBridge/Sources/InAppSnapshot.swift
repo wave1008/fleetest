@@ -457,8 +457,42 @@ enum InAppSnapshot {
             focused: (node as? UIResponder)?.isFirstResponder == true ? true : nil,
             // スクロールできる容器か(scroll マーク・scrollFrame の空振り検出用)。
             // 判定は isScrollableContainer(Compose/Flutter も 2026-08-08 から判る。false は送らない)
-            scrollable: Self.isScrollableContainer(node))
+            scrollable: Self.isScrollableContainer(node),
+            drawnTitle: type == .button ? drawnTitle(node) : nil)
     }
+
+    /// ボタンが**タイトルとして描いている文字**(`ElementInfo.drawnTitle`)。UIButton は `titleLabel` の表示中の文字。
+    /// それ以外の view(RN の Pressable 等)は、配下の表示中の文字の view(UILabel / RN の Paragraph・Text)がちょうど1つのときだけその文字。
+    /// アイコンだけ・文字が複数・走査の上限超え・view でない要素は nil(= 測っていない。a11y ラベルは描かれた文字と限らない)
+    private static func drawnTitle(_ node: NSObject) -> String? {
+        guard let view = node as? UIView, view.window != nil else { return nil }
+        if let button = view as? UIButton {
+            guard let label = button.titleLabel, !label.isHidden, label.alpha >= 0.01,
+                  let text = label.text, !text.isEmpty else { return nil }
+            return text
+        }
+        var found: [String] = []
+        var budget = drawnTitleScanLimit
+        func walk(_ v: UIView, level: Int) {
+            for sub in v.subviews where !sub.isHidden && sub.alpha >= 0.01 && budget > 0 {
+                budget -= 1
+                let text: String?
+                if let label = sub as? UILabel { text = label.text }
+                else {
+                    let name = NSStringFromClass(type(of: sub))
+                    text = name.contains("Paragraph") || name.hasPrefix("RCTText") ? sub.accessibilityLabel : nil
+                }
+                if let text, !text.isEmpty { found.append(text); continue }
+                if level < drawnTitleScanDepth { walk(sub, level: level + 1) }
+            }
+        }
+        walk(view, level: 0)
+        return budget > 0 && found.count == 1 ? found[0] : nil
+    }
+
+    /// `drawnTitle` の走査の上限(子孫の view 数 / 深さ)。ボタンの中身は浅く小さいので十分で、超えたら nil(申告しない)
+    private static let drawnTitleScanLimit = 60
+    private static let drawnTitleScanDepth = 6
 
     // 空の UITextField は accessibilityValue が placeholder を返すため value に漏れる。
     // 実テキストが空なら value なし(placeholder は placeholder フィールドで返す)。

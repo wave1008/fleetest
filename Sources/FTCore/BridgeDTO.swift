@@ -50,7 +50,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 307
+    public static let bridgeProtocolVersion = 308
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -784,13 +784,21 @@ public struct ElementInfo: Codable, Sendable {
     /// (z は撮るたびに振り直す)。実体の祖先が無い・実体のノード自身は省略
     public var renderHost: Int?
 
+    /// **ボタンがタイトルとして実際に描いている文字**(iOS の in-app ブリッジだけが、UIKit の `UIButton` の `titleLabel` と
+    /// RN のボタン配下の表示中の文字から、読めたときだけ送る。省略 = 測っていない: SwiftUI・CMP・Flutter・xcuitest・Android・アイコンだけのボタン)。
+    /// ボタンの a11y ラベルは説明文のことがあり描かれた文字と限らないので、可視性検証がボタンを対象に入れてよいかの材料
+    /// (`OcclusionEligibility.drawsOwnTitle`)。省略に「描かない」の意味は無い
+    public var drawnTitle: String?
+
     public init(ref: Int, type: String, identifier: String?, label: String?, value: String?,
                 placeholder: String?, enabled: Bool, frame: FTRect, depth: Int,
                 checked: Bool? = nil, web: Bool? = nil, focused: Bool? = nil,
                 scrollable: Bool? = nil, z: Int? = nil, range: String? = nil,
                 axClass: String? = nil, scrollActions: [String]? = nil,
                 inOverlayWindow: Bool? = nil, clickable: Bool? = nil, keptDepth: Int? = nil,
-                labelSource: String? = nil, renderer: String? = nil, renderHost: Int? = nil) {
+                labelSource: String? = nil, renderer: String? = nil, renderHost: Int? = nil,
+                drawnTitle: String? = nil) {
+        self.drawnTitle = drawnTitle
         self.renderer = renderer
         self.renderHost = renderHost
         self.labelSource = labelSource
@@ -841,6 +849,7 @@ public struct ElementInfo: Codable, Sendable {
         labelSource = try container.decodeIfPresent(String.self, forKey: .labelSource)
         renderer = try container.decodeIfPresent(String.self, forKey: .renderer)
         renderHost = try container.decodeIfPresent(Int.self, forKey: .renderHost)
+        drawnTitle = try container.decodeIfPresent(String.self, forKey: .drawnTitle)
     }
 
     /// 先頭 1 文字だけ小文字化する(`StaticText` → `staticText`)。冪等なので二重適用しても安全

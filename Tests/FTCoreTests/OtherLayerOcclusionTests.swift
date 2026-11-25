@@ -120,6 +120,20 @@ final class OtherLayerOcclusionTests: XCTestCase {
         // 自前描画(全要素が同じ view)= 覆いにも届く
         XCTAssertFalse(TapTargetGeometry.touchClearsCovers(lands([2, 4]), target: 2, covers: [4]))
     }
+
+    /// true を覆す材料は「全部引けて・対象に届かず・覆いのどれかに届く」だけ(両方向)
+    func testTouchLandsOnCoverInsteadOnlyOnPositiveEvidence() {
+        func lands(_ refs: [Int], unresolved: [Int] = []) -> TouchLandsResponse {
+            TouchLandsResponse(receiver: "HostingView", lands: refs, unresolved: unresolved)
+        }
+        let cover = ElementInfo(ref: 4, type: "button", identifier: "queue_row_03", label: "キュー 03", value: nil, placeholder: nil,
+                                enabled: true, frame: FTRect(x: 0, y: 380, width: 402, height: 60), depth: 2)
+        XCTAssertEqual(TapTargetGeometry.touchLandsOnCoverInstead(lands([4]), target: 2, covers: [cover])?.ref, 4)
+        XCTAssertNil(TapTargetGeometry.touchLandsOnCoverInstead(lands([2, 4]), target: 2, covers: [cover]), "対象にも届く(自前描画)")
+        XCTAssertNil(TapTargetGeometry.touchLandsOnCoverInstead(lands([]), target: 2, covers: [cover]), "どれにも届かない")
+        XCTAssertNil(TapTargetGeometry.touchLandsOnCoverInstead(lands([4], unresolved: [2]), target: 2, covers: [cover]), "引けない ref")
+        XCTAssertNil(TapTargetGeometry.touchLandsOnCoverInstead(nil, target: 2, covers: [cover]), "答えられない")
+    }
 }
 
 /// DSL の tap: 門が開く木で `hitTest(query:)` が false のときだけ撃たずに断る
@@ -200,10 +214,34 @@ final class OtherLayerHitTestWiringTests: XCTestCase {
         XCTAssertFalse(outcome.notes.contains(.touchReachesTargetDespiteHitTest))
     }
 
-    /// true のときは当たり判定を聞かない(費用を足さない)
-    func testTrueDoesNotAskWhereTheTouchLands() async {
-        let (driver, _) = await run(sheetTree(), answer: .hittable(true))
-        XCTAssertTrue(driver.landsAsked.isEmpty, "\(driver.landsAsked)")
+    /// true も誤ることがある(SwiftUI の半分のシートの裏の行): 当たり判定が「対象に届かず覆いに届く」と言い切ったときだけ断る
+    func testTrueButTouchLandingOnlyOnACoverRefuses() async {
+        let driver = FakeQueryDriver(elements: sheetTree(), screen: screen, answer: .hittable(true),
+                                     lands: TouchLandsResponse(receiver: "HostingView", lands: [4], unresolved: []))
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(label: "本文 07")))
+        XCTAssertEqual(driver.landsAsked, [[2, 4]])
+        XCTAssertTrue(driver.taps.isEmpty, "撃った: \(driver.taps)")
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("lands on"), message)
+        XCTAssertTrue(message.contains("queue_row_03"), "届いた覆いを名指すこと: \(message)")
+    }
+
+    /// true で、対象にも届く(自前描画 = 全要素が同じ view)・答えられない・引けない ref がある、は従来どおり撃つ
+    func testTrueFiresUnlessTheTouchProvablyMissesTheTarget() async {
+        let answers: [TouchLandsResponse?] = [
+            TouchLandsResponse(receiver: "FlutterView", lands: [2, 4], unresolved: []),
+            TouchLandsResponse(receiver: "HostingView", lands: [2], unresolved: []),
+            TouchLandsResponse(receiver: "HostingView", lands: [4], unresolved: [2]),
+            TouchLandsResponse(receiver: nil, lands: [], unresolved: []),
+            nil,
+        ]
+        for lands in answers {
+            let driver = FakeQueryDriver(elements: sheetTree(), screen: screen, answer: .hittable(true), lands: lands)
+            let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+                .execute(FlowStep(action: "tap", locator: FlowLocator(label: "本文 07")))
+            XCTAssertEqual(driver.taps.count, 1, "\(String(describing: lands)): 撃たれなかった \(outcome.status)")
+        }
     }
 
     /// 中心だけ別の層の帯(タブ)に覆われ、上に見えている部分が残る行

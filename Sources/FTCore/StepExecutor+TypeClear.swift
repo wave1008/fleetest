@@ -287,7 +287,7 @@ extension StepExecutor {
         let start = clock.now
         let snap = try? await driver.snapshot(bypassingCache: driver.supportsCacheBypass)
         phase.snapshotMs += Self.ms(clock.now - start)
-        return TypedInputCheck.Prior(focusedIn: snap?.elements)
+        return TypedInputCheck.Prior(focusedIn: snap?.elements, previouslyTyped: typedFieldBeforeThisStep)
     }
 
     /// 打った文字が欄の領域に描かれているかを OCR で見る(`verifyTypedText` の「値が1文字も動かない」形の

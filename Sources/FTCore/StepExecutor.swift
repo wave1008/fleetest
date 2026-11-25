@@ -1556,6 +1556,11 @@ public final class StepExecutor {
     var scrollSearchTrace: [String] = []
     /// 直前の type / clearInput が叩いた欄(`InputFocusRescue.tapFocusedIt` の priorTap に使う)。次の手の入口で捨て、type / clearInput が撃つ直前に立て直す
     var lastFieldTouchTarget: ElementInfo?
+    /// 直前のステップが type(改行なし)で打った欄。**間に画面へ触る操作が1つも無い間だけ**生きる(ロケータなしの type は保つ・それ以外の
+    /// 操作は捨てる。hideKeyboard は焦点を動かさないので保つ)。ロケータなしの type の事後の照合が「焦点を保ったままの追記」と言う根拠
+    var lastTypedField: ElementInfo?
+    /// このステップが始まる前の `lastTypedField`
+    var typedFieldBeforeThisStep: ElementInfo?
     /// `lastTapTarget` を叩く直前の木(`InputFocusRescue.fieldToType` の `before`)。`lastTapTarget` と同じ寿命
     var tapTreeForRescue: [ElementInfo]?
 

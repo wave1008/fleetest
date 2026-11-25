@@ -145,7 +145,7 @@ for ds in json.load(sys.stdin)["devices"].values():
     || echo "⚠️ 写真の権限のリセットに失敗した($1 / $2)" >&2
 }
 
-list_runs() { find "$ROOT"/TestProjects/E2E-*/results/runs -mindepth 2 -maxdepth 2 -type d 2>/dev/null | sort; }
+list_runs() { find "$ROOT"/TestProjects/E2E*-*/results/runs -mindepth 2 -maxdepth 2 -type d 2>/dev/null | sort; }
 PLAN="$(mktemp -t e2e-negative-plan)"
 SUMMARY="$(mktemp -t e2e-negative-summary)"
 

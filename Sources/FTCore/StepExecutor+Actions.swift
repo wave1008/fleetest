@@ -141,6 +141,8 @@ extension StepExecutor {
         // hideKeyboard は下の lastTapTarget と同じく、直前の type / clearInput が叩いた欄も捨てない(type(セレクタ) → hideKeyboard →
         // ロケータなしの type が 409 で赤だった。tap から始めた並びだけ通っていた = 11周目の探索 im4 F1)
         if !grabsOnly, action != "hideKeyboard" { lastFieldTouchTarget = nil }
+        typedFieldBeforeThisStep = lastTypedField
+        if !grabsOnly, action != "hideKeyboard", action != "type" || step.locator != nil { lastTypedField = nil }
         // **hideKeyboard は「直前に叩いた欄」を変えない**(キーボードを閉じても次の ref 無し type の入れ先は同じ。捨てると救済・断りが
         // 効かず、前に焦点のあった別の欄へ打って緑になった)。焦点を動かす操作(tap・pressEnter・back 等)だけが捨てる
         if !grabsOnly, action != "hideKeyboard", (action != "type" && action != "clearInput") || step.locator != nil {
@@ -1553,6 +1555,7 @@ extension StepExecutor {
             }
             // 改行で焦点は次の欄へ移りうる(続く操作を「同じ欄」と読ませない)
             lastFieldTouchTarget = (step.text ?? "").contains("\n") ? nil : element
+            lastTypedField = lastFieldTouchTarget
             // **入力欄でないものへ打とうとしていないか**(TypeReadback の doc に実測)。
             // 検証は両側とも空になる経路なので、せめて内側の欄を名指しして知らせる
             let nonInputNote = TapTargetGeometry.nonInputTypeTargetNote(element, in: snapshot.elements)

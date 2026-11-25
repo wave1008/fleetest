@@ -27,7 +27,7 @@ enum FirstFrameGateUse {
 enum VisibilityStage: CaseIterable {
     /// V1 入口(`visibilityGuardActive` が偽なら緑。`guardEnteredThisStep` も立てない)
     case entry
-    /// V2 画面外(Tier-0。スクショも FM も要らない)
+    /// V2 画面外・見えている幅が文字を描けないほど小さい押せる要素(Tier-0。スクショも FM も要らない)
     case offscreen
     /// V3 覆いの下(塗り順が本物の木で tooThin なら注記だけ)
     case coveredByFront
@@ -239,6 +239,14 @@ extension StepExecutor {
     /// iOS の木は画面外の要素も frame ごと残すので、これが無いと通り過ぎた要素への exist が通る。
     /// FM 側は crop が画像の外に落ちると nil = 素通りなので、**FM が生きていてもこの形は FM では塞がらない**)
     private func stageOffscreen(_ e: inout VisibilityEvidence) -> VisibilityStageOutcome {
+        // 見えている幅・高さが文字を描けないほど小さい押せる要素(カルーセルの端の 2px)。画面外と同じ幾何の赤(DR-231)
+        // Android だけ: Android の木は枠を可視の範囲へ切って返す(細い = 切られた結果)。iOS の枠は切られず、細い要素は元から細い(画像地図のリンク等)
+        if isAndroid, !e.expectedText.isEmpty,
+           let thin = OcclusionEligibility.unreadableSliver(e.element, scale: driver.pointScale) {
+            return .fail(.failed("text visibility check failed (on screen): present in the tree but only \(Int(saturating: thin.visible))"
+                                 + " of its width or height is visible (under \(Int(saturating: thin.floor)), too small to read any text);"
+                                 + " scroll it fully into view before this step"), .keep)
+        }
         guard let c = TapTargetGeometry.offscreenScrollGateCentre(for: e.element, screen: e.screen) else { return .next }
         return .fail(.failed("text visibility check failed (offscreen): present in the tree but its centre"
                              + " (\(Int(saturating: c.x)), \(Int(saturating: c.y))) is outside the screen, so it is not visible"
@@ -306,9 +314,10 @@ extension StepExecutor {
 
     /// V9 足切り: label が verbatim 描画されない要素(アイコン/画像/絵文字/結合セマンティクス)は
     /// FM で約50%誤反転する(実機確認)ため対象外=素通り(pass)。textEquals の期待値は結合規則を外す。
-    /// 行(rowCheckByOCR)は型で落とさず、ラベルの規則(結合・記号のみ)だけを当てる
+    /// 行(rowCheckByOCR)と、タイトルを描くとブリッジが申告したボタン(`drawsOwnTitle`)は型で落とさず、ラベルの規則(結合・記号のみ)だけを当てる
     private func stageEligibility(_ e: inout VisibilityEvidence) -> VisibilityStageOutcome {
-        guard OcclusionEligibility.eligible(type: e.rowCheckByOCR ? "staticText" : e.element.type, label: e.expectedText,
+        let titleDrawn = OcclusionEligibility.drawsOwnTitle(e.element, expectedText: e.expectedText)
+        guard OcclusionEligibility.eligible(type: e.rowCheckByOCR || titleDrawn ? "staticText" : e.element.type, label: e.expectedText,
                                             isUserText: e.expectedIsUserText,
                                             value: e.element.value, placeholder: e.element.placeholder,
                                             web: e.element.web).ok

@@ -170,6 +170,19 @@ final class VisibilityCheckCharacterizationTests: XCTestCase {
         check("V2", await r.step(), "failed text visibility check failed (offscreen) | notes=[] | fm=0 | gate=true | blank=false | pixels=false")
     }
 
+    /// V2(細すぎる枠): 見えている幅が 2 の押せる要素(Android のカルーセルの端)→ 赤。同じ要素が十分な幅なら素通り
+    func testV2ThinSliverOfOperableElementFails() async {
+        let delegate = FakeVisibilityDelegate(visible: true)
+        let thin = Self.element(type: "clickable", frame: FTRect(x: 380, y: 100, width: 2, height: 154))
+        let r = rig([[thin]], shots: [blank], delegate: delegate, armGate: true, isAndroid: true)
+        check("V2 thin", await r.step(), "failed text visibility check failed (on screen) | notes=[] | fm=0 | gate=true | blank=false | pixels=false")
+        let ios = rig([[thin]], shots: [blank], delegate: delegate, armGate: true, isAndroid: false)
+        check("V2 thin on iOS", await ios.step(), "passed | notes=[] | fm=0 | gate=true | blank=false | pixels=false")
+        let wide = Self.element(type: "clickable",frame: FTRect(x: 300, y: 100, width: 80, height: 154))
+        let r2 = rig([[wide]], shots: [blank], delegate: delegate, armGate: true, isAndroid: true)
+        check("V2 wide", await r2.step(), "passed | notes=[] | fm=0 | gate=true | blank=false | pixels=false")
+    }
+
     /// V3: 塗り順が本物の木(全要素が z を持つ)で、覆いの下にある要素 → 注記 covered-by-front-element(合否は変えない)
     func testV3CoveredByFrontElementNote() async {
         let target = Self.element(ref: 1, z: 0)

@@ -26,15 +26,29 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-237 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 15 | OI-329・OI-345・OI-347・OI-358・OI-366・OI-376・OI-377・OI-378・OI-386・OI-388・OI-395・OI-396・OI-398・OI-399・OI-400 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 21 | OI-121・OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-237・OI-238・OI-245・OI-251・OI-279・OI-327・OI-387・OI-394・OI-397 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-251・OI-279・OI-327・OI-387・OI-394 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 45 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-218・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-345・OI-346・OI-358・OI-359・OI-366・OI-378・OI-385・OI-386・OI-396・OI-398 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 12 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347・OI-358・OI-385 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 48 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-218・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370・OI-379・OI-385 |
 
 ## 着手可
+
+### OI-237 XCUITest ブリッジの木では、スコープ `>>` の子孫を depth で引くので、間引かれた入れ物の中身が直前の葉の「子孫」に見え、中身を持たない要素を容器にした tap が別の要素を押して ✅(MCP と xcuitest モード)
+- 状態: 再現済み
+- 確認: 56周目(2026-11-16)
+- 属性: 着手可
+- 運用: 要注意 — MCP(iOS は常に XCUITest)と xcuitest モードでは、容器を誤って書いたシナリオでも緑になる。容器は id で入れ物を指す
+- 優先度: 低 — 既定の経路(DSL の inapp-boost モードと Android)では赤になる。書いた容器が対象を含んでいれば結果は同じ要素
+
+出典: 56周目 iultra F3(Flutter の iOS・inapp-boost)。E2EY-Flutter の入れ子スクロールで `tap("#txt_nested_result >> #card_0_01")` が ✅ でカードを押した。同じ型が alocal の `.staticText >> #queue_row_03`(E2EY-Android)
+- 原因の観測(in-app の `/snapshot`): `#txt_nested_result` は depth 7 の葉で、直後に兄弟の入れ物(名前も id も無いので木に出ない)の子 `#list_nested` が depth 8 で並ぶ。ブリッジは出さなかった要素の depth を詰めないので、`LocatorResolver.descendants`(直後から depth がその要素以下になるまで)が隣の中身を葉の子孫に数える
+- 直したもの(in-app ブリッジ v293・Android ブリッジ v144): ブリッジが「木に出した祖先の数」`ElementInfo.keptDepth` を送り、スコープの子孫は `LocatorResolver.scopeDescendants` で引く(スコープの提案 `SelectorNaming` も同じ)。in-app は Flutter のセマンティクスの容器(`SemanticsObjectContainer`。先頭の子が容器自身で、中身はその後ろの兄弟)の後ろの兄弟を先頭の子の中身として数える(数えないと `#list_nested >> …` が「中身が無い」になった = 元の depth ではこの形がたまたま子孫に見えていた)。手元の Simulator / Emulator で、葉を容器にした書き方が赤・本物の容器が緑(Flutter の iOS の inapp-boost・Flutter の Android・E2EY-Android の `.staticText >> #queue_row_03`)。全マシンの回帰でスコープの解決の失敗 0 件
+- 残り: XCUITest ブリッジは keptDepth を送らない(ホストは depth のまま引く)。Flutter の容器を見分ける材料が無い —— 属性 5004 は Flutter の要素を `UIAccessibilityElement` と返し、容器は木に出ない。見分けずに数えると Flutter の本物の容器の `>>` が壊れる(xcuitest モードで実測)
+- 測定(2026-11-25・手元 Sim -01・E2EY-Flutter の入れ子スクロールを xcuitest モードで1本・XCUITest ランナーに一時的な記録を足して測った): 「先頭の子が子の無い other」の形のノード(木に出していない)は、非公開属性 `XC_kAXXCAttributeElementType` で全部 `SemanticsObjectContainer`(先頭の子は `FlutterSemanticsObject`)と答えた(4926 回中、答えなかったのは 3 回)。属性 5004 は同じノードを `UIAccessibilityElement` と返す = 見分ける材料は取れる
+- 次の一手(着手可): XCUITest ランナーのスナップショットで、この形のノードだけ本当のクラス名を引き、`SemanticsObjectContainer` なら in-app と同じ規則(後ろの兄弟を先頭の子の中身として数える)で keptDepth を送る(ブリッジの版上げ)。費用(1ノード約 2ms × Flutter の画面の容器の数)を測ってから入れる。スナップショットの写像を触るので xcuitest モードを SUT を絞らず回す
 
 ## 要測定
 ### OI-399 CMP の iOS で、キーボードぶん縮んだ後も XCUITest の木の行が縮む前の位置のままで、MCP が「キーボードの下」と誤って言う
@@ -224,6 +238,7 @@
 - 観測: 起動直後のルートの `back()` は 10/10 で注記が付くが、pop した直後のルートでは inapp-boost 0/10
 - 原因(観測済み): ルートへ着地した後も約 0.7 秒、pop した画面の `BackButton` が木に残り、`before` が 32 要素・`after` が 31 要素になって `BackEffect.treesAreIdentical` が false を返す(in-app の /snapshot を約 70ms 周期で並走して読んだ)
 - 処理(2026-11-25): 直前のステップが `back()` のときだけ、before を読む前に既存の整定待ち(2回続けて同じ木)を通すようにした。xcuitest は 6/10 → 10/10。inapp-boost は 0/10 のまま —— 残る BackButton は動かずに居座るので整定待ちが早く返る。居座る要素と本物の要素は木から見分けられない
+- 測定(2026-11-25・手元 Sim -02・E2EX-iOS・XCUITest ブリッジの /snapshot を約 130ms 周期で並走して読んだ・3/3): XCUITest の木にも、ルートへ戻る back の後 0.40〜0.55 秒は pop した画面の `BackButton`(`button`・enabled)が残り、0.65 秒以降は消える。XCUITest の木で比べ直しても同じく居座りを拾う = 材料にならない(棚卸しで挙げた「XCUITest の木なら残らない」は外れ)
 
 ### OI-387 Android の Flutter で、木に残る覆い(非モーダルの常駐シート)の裏の行への検証が注記なしの ✅
 - 状態: 再現済み
@@ -236,18 +251,6 @@
 - 観測: E2EY-Flutter の Android「引き伸ばせるシート」(sheet=half)で、裏の `#row_main_10` への `tap` がシートの行 `#queue_row_01` に当たって ✅(DSL 1/1・MCP 2/2×3担当)。注記は `occluder-naming-suppressed` だけで覆いの警告は無い。同じ画面の View・RN は「was not touched: its centre is covered by #queue_row_01」で断る。裏の行への `exist` / `textIs` も 12/12 注記なしの ✅(RN は `covered-by-front-element` 付き・View は赤)
 - 原因(観測済み): 画面の 30 要素は全部 `renderer=virtual`・`renderHost=3`・`inOverlayWindow` なし。`OccluderNaming.mayName` の申告の枝(両方 virtual・同じ土台)で名指しを抑えた(DR-230)。**この画面では葉の行どうしの z の向きが実際の塗り順と一致していた**(対象 z=45 < シートの行 z=57)が、E2EX-Flutter の FAB の画面(DR-230 の元になった誤りの名指し)では逆だった = Flutter の木の z は画面によって合う・合わないがあり、木からは見分けられない。検証の注記の段(`stageCoveredByFront`)は `paintOrderIsReal` が前提で、Android の Flutter では素通り(DR-230 より前から)。Flutter のダイアログ・メニュー・ボトムシートは裏を木から外すので、この形は木に残る常駐シートだけ
 - 処理(2026-11-25・要判断をおすすめの案で): tap の側は、名指しを止めた出口でも相手を名指さない注意を出すようにした(DR-230。DSL の緑の tap の注記 `TapTargetGeometry.unnamedCoverCaution`・失敗後の案内・MCP の注記)。残るのは検証の側: `stageCoveredByFront` は塗り順のある木が前提で、Android の Flutter の木は塗り順かどうかを見分けられない(木に材料なし)
-
-### OI-397 Android で、2px だけ見えている押せる要素(説明だけのラベル)への `exist` / `textIs` が ✅
-- 状態: 再現済み
-- 確認: 90fb61a66(2026-11-25)
-- 属性: 木に材料なし
-- 運用: 要注意 — 横のカルーセルの端の要素は送って見える位置に出してから確かめる
-- 優先度: 低 — 誤った成功(DR-230 より前から)
-
-出典: 探索的テスト(2026-11-25・3周×7担当・`_work/explore-20261125/findings-r<周>-<担当>.md`)
-- 観測: Pixel 4a・3a の E2E-Android のスクロール画面で、横カルーセルの端の `#tag_04`(frame (1034,1880 2x154)・type Clickable・labelSource "desc"・renderer "view")への `exist("タグ 04")` と `textIs` が 10/10 ✅(guardMs 0・ocrMs 0・notes なし)。tag_01〜03 は同じラベルの StaticText の子を持つが、tag_04 の子はカルーセルの枠の外に出て木から落ちている
-- 原因(観測済み・段を直接示す口は無い): 画面外の判定は「中心が画面の外」だけで、中心 x=1035 は画面の内。可視性検証の足切り(`OcclusionEligibility.eligible`)が型 clickable を「文字の型でない」として素通しし、`DescriptionOnlyLabel` まで届かない(E2E-Android の結果 JSON の notes 7428 件に `description-only-label-not-checked` は 0 件)。木だけでは「子が枠で落ちた clickable」と「アイコンだけのボタン」を見分けられない
-- 次の一手: 見えている幅で赤にする判定を足すなら、固定コーパスの全数で前後を見てから
 
 ### OI-327 XCUITest の木で容器が全画面に申告され、スクロール容器の下端で切られたボタンへの `tap(scroll: .down)` が払わずに押して飲まれる
 - 状態: 再現済み
@@ -270,6 +273,7 @@
 - 次の一手(②): XCUITest の木で「ラベルが要素に比べて極端に切られている」を到達の判定に入れるかは、既存の SUT と実アプリのコーパスで反例を見分けられるか確かめてから(MN-108)
 - 評価 6回目(11/21・`_work/scen-eval-20261121b/`): hk_sutstore_ios の本番 M1Ultra 0/4(登録直後の `exist "#btn_logout"`・赤の文言は「容器の外」を言う = ①の直しが効いた)・作成時の `#btn_save` の飲まれ(hk_sutstore_ios・r8_order_ios)。e2ey_rn_ios で入れ子のリストの下端のカードへの `tap(scroll: .down)` も同じ形で飲まれた
 - 評価 7回目(11/22・`_work/scen-eval-20261122/`): hk_sutstore_ios の本番 M1Ultra 1 本(赤の文言は「容器の枠の外」を名指し = 正しい赤)・作成時の `#btn_save` の飲まれ 2 セッション
+- 測定(2026-11-25・手元 Sim・E2E-CMP の入力画面を xcuitest モードで1本・XCUITest ランナーに一時的な記録を足して測った): XCTest のスナップショットの `visibleFrame` は取れるが、CMP の全画面の容器 `scrollView (0,0 402x874)` には枠と同じ全画面を返す(217/217)。枠と違ったのはキーボードの窓の中・画面の縁で切れたノードだけ = 容器の窓を言う材料にならない
 
 ### OI-279 CMP の iOS で、要素の中心への XCUITest のタップが効かず、作成時に誤った欠陥の起票・座標のシナリオを生む
 - 状態: 再現済み
@@ -326,19 +330,6 @@
 - 次の一手: Compose の a11y の要素(UIAccessibilityElement)の属性に1行か複数行かが出ていないかを見る(出ていなければ据え置き)
 - 探索 2026-11-25(`_work/explore-20261125/findings-r1-im4.md`・`findings-r2-im4.md`): 同じ形が他の SUT の複数行の欄にもある(E2E-iOS・E2E-Flutter・E2EX-iOS・E2EX-Flutter の `#field_multiline`。E2E-Flutter は 5/5)。E2EX-CMP の数字・パスワードの欄の赤は、SUT がこの2欄に `singleLine = true` を付けていない = Compose では複数行の欄(Enter が改行を入れる)で、欄の種類のせいではない(SUT 側。ui-contract-wave2.md:87-89 は複数行と書いていない)。E2E-CMP が緑なのは InputScreen.kt:54 が背景のタップで `clearFocus` するため。手の順は `executeIOSHideKeyboard`(StepExecutor+DirectActions.swift:966)・`closeKeyboardByTappingOutside`(:1130)で、Done を探して無かったことは文にも結果にも残らない。CMP と Flutter の木は焦点(`focused`)を出さないので、Enter が欄に改行を入れて値が変わっても失敗文に「値が変わった」が付かない(SwiftUI は付く。`focusedValueChanged` :1112)
 
-### OI-237 XCUITest ブリッジの木では、スコープ `>>` の子孫を depth で引くので、間引かれた入れ物の中身が直前の葉の「子孫」に見え、中身を持たない要素を容器にした tap が別の要素を押して ✅(MCP と xcuitest モード)
-- 状態: 再現済み
-- 確認: 56周目(2026-11-16)
-- 属性: 木に材料なし
-- 運用: 要注意 — MCP(iOS は常に XCUITest)と xcuitest モードでは、容器を誤って書いたシナリオでも緑になる。容器は id で入れ物を指す
-- 優先度: 低 — 既定の経路(DSL の inapp-boost モードと Android)では赤になる。書いた容器が対象を含んでいれば結果は同じ要素
-
-出典: 56周目 iultra F3(Flutter の iOS・inapp-boost)。E2EY-Flutter の入れ子スクロールで `tap("#txt_nested_result >> #card_0_01")` が ✅ でカードを押した。同じ型が alocal の `.staticText >> #queue_row_03`(E2EY-Android)
-- 原因の観測(in-app の `/snapshot`): `#txt_nested_result` は depth 7 の葉で、直後に兄弟の入れ物(名前も id も無いので木に出ない)の子 `#list_nested` が depth 8 で並ぶ。ブリッジは出さなかった要素の depth を詰めないので、`LocatorResolver.descendants`(直後から depth がその要素以下になるまで)が隣の中身を葉の子孫に数える
-- 直したもの(in-app ブリッジ v293・Android ブリッジ v144): ブリッジが「木に出した祖先の数」`ElementInfo.keptDepth` を送り、スコープの子孫は `LocatorResolver.scopeDescendants` で引く(スコープの提案 `SelectorNaming` も同じ)。in-app は Flutter のセマンティクスの容器(`SemanticsObjectContainer`。先頭の子が容器自身で、中身はその後ろの兄弟)の後ろの兄弟を先頭の子の中身として数える(数えないと `#list_nested >> …` が「中身が無い」になった = 元の depth ではこの形がたまたま子孫に見えていた)。手元の Simulator / Emulator で、葉を容器にした書き方が赤・本物の容器が緑(Flutter の iOS の inapp-boost・Flutter の Android・E2EY-Android の `.staticText >> #queue_row_03`)。全マシンの回帰でスコープの解決の失敗 0 件
-- 残り: XCUITest ブリッジは keptDepth を送らない(ホストは depth のまま引く)。Flutter の容器を見分ける材料が無い —— 属性 5004 は Flutter の要素を `UIAccessibilityElement` と返し、容器は木に出ない。見分けずに数えると Flutter の本物の容器の `>>` が壊れる(xcuitest モードで実測)
-- 次の一手: XCUITest のスナップショットで、出さない容器の側に Flutter の容器だと言える事実(属性・クラス)が取れるかを測る。取れれば in-app と同じ規則で keptDepth を送る
-
 ### OI-163 キーボードの下の欄への clearInput の時間切れ・タブの下の行への tap・上端の一覧の scroll: が引っ張って更新を走らせるほか
 - 状態: 再現済み
 - 確認: 4605aa35(2026-11-03)
@@ -369,30 +360,21 @@
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-02)
 - 属性: 木に材料なし
-- 運用: 回避の手は未確認 — SwiftUI のスライダへの `swipeBy` は回避の手を確かめていない
-- 優先度: 中 — 回避の手が未確認
+- 運用: 回避可 — 値で合わせる `setSliderValue` を使う(SwiftUI での実例は `TestProjects/E2E-iOS/scenarios/32_スライダーを値で合わせる.swift`)
+- 優先度: 低 — 回避可(`swipeBy` で動かす書き方だけが残る)
 
 出典: `_work/explore-20261102a/findings-*.md`(5周目・11/2)。SwiftUI のスライダへの `swipeBy` が動かない(se3 F5)。
 - 11/7: 観測 = 払いは対象の中心を挟んで対称(つまみではなく溝から引く)で、つまみの位置は木に出ない = 木に材料なし
 
-### OI-156 iOS のテキストの可視性検証が、ボタンは縁で切れていてもタブバーの下でも読まずに緑にする
+### OI-156 iOS のテキストの可視性検証が、SwiftUI・CMP・Flutter のボタンは縁で切れていてもタブバーの下でも読まずに緑にする
 - 状態: 再現済み
 - 確認: 0a67f89b(2026-11-04)
 - 属性: 木に材料なし
-- 運用: 回避不可(見逃し) — iOS のボタンがタブバーの下・縁で切れていても、テキストの可視性検証は緑にする。押した後の結果を確かめれば、押せないことは赤にできる
+- 運用: 回避不可(見逃し) — SwiftUI・CMP・Flutter のボタンがタブバーの下・縁で切れていても、テキストの可視性検証は緑にする。押した後の結果を確かめれば、押せないことは赤にできる
 - 優先度: 中 — ボタンの見えにくさの見逃し(回避不可)。押した後の確かめで補える
 
-11/3 の7周目の探索(vis F2・F3)。iOS のボタン(`button "自己修復"` のタブバーの下)はテキストの可視性検証の対象外のまま(アイコンのボタンは描かれない説明文をラベルに持つ)。Android と iOS の行(セル)は直した(`OcclusionEligibility.sameLabelTextDescendant` / `isLabelledRowWithoutText`)
-- 11/6: 残りのボタンは、描かれない説明文をラベルに持つアイコンのボタンと文字のボタンを木で見分ける材料が無い = 木に材料なし
-
-### OI-121 ref なしの secure 欄の追記の誤った緑
-- 状態: 再現済み
-- 確認: コミット未記録(2026-11-02)
-- 属性: 木に材料なし
-- 運用: 回避可 — ロケータ付きで `type` する(ロケータありは赤になる)。ref なしの追記だけが誤った緑
-- 優先度: 低 — ロケータ付きで書けば赤になる狭い形
-
-`ab` のあと ref なしで `abかな` を打つとかなが落ちても緑。木からは「焦点を保った」と「タップで取り戻した」を区別できない(ロケータありは赤)。直すには直前に同じ欄へ打った記憶が要る。
+11/3 の7周目の探索(vis F2・F3)。Android と iOS の行(セル)は直した(`OcclusionEligibility.sameLabelTextDescendant` / `isLabelledRowWithoutText`)。UIKit と RN のボタンは、in-app ブリッジがタイトルとして描いている文字を申告する(`ElementInfo.drawnTitle`・iOS v308)ようにして直した(`OcclusionEligibility.drawsOwnTitle`)
+- 残り: SwiftUI・CMP・Flutter のボタンは、描かれない説明文をラベルに持つアイコンのボタンと文字のボタンを木で見分ける材料が無い(描かれた文字を申告できない)
 
 ### OI-173 半分のシートの見出しの帯の下の行への tap が何も押さず ✅・SwiftUI の FAB を容器の外と読む(M1Ultra の負荷の下だけ)
 - 状態: 再現済み
@@ -403,14 +385,16 @@
 
 出典: `_work/explore-20261105b/findings-*.md`(14周目・11/5)。①E2EY-RN の Android の A9 で、半分のシートの見出しの帯の下の行への `tap` が ✅ を返すが何も押していない(amax F1・16/16。送りの形「scrolled the container to bring the target out from under #queue_row_00」が 4・送り無しで注記も無い形が 12)。後続の赤は「may have been swallowed」だけで覆いを名指さない。キューの行が覆いのときは撃たずに断る(8/8)。撃った中心を覆うノードは木に無く、シートの面(見出しの帯)が木に載っていない = **木に材料なし**(面が木に無い理由は材料不足)③SwiftUI の iOS で、開いた直後に見えている FAB への素の `tap("#fab_hiding")` を容器の外と扱って一覧を送り、バーと FAB を隠して何も押さずに赤(iultra F2・12回中6回。CMP・Flutter は 6/6 緑)。FAB をどの容器の子と数えたか・台で分かれた理由は材料不足(手元の8台×2周では 16/16 緑 = M1Ultra の負荷の下でだけ出ている)。候補の仕組み: E2EX-iOS の FAB の画面で、開いた直後の `tap("#fab_add")` が push の遷移の途中で滑っている前の画面の一覧 `(-121,0 402x874)` を容器に選んで「容器の外」と読み、救済の遅いドラッグを1本撃つ形を観測(緑・1/1)。外側の一覧の判定(`clippedByOuterScroller`)は画面からはみ出た枠を除くが、容器の外の判定(`isOutsideContainer`)は除かない。赤の回が同じ仕組みかは、M1Ultra で出たときの救済の記録(`[rescue: …]` に容器の枠が出る)で確かめる(直すなら容器推定を触るので 5 SUT のフル E2E と xcuitest)。11/8 の HEAD では M1Ultra の6台×2周で 0/12(救済の経路にも入らない)= 低頻度
 
-### OI-174 入れ子の横の棚の画面外の項目の失敗文が縦の scroll: だけを案内する
+### OI-174 入れ子の横の棚の画面外の項目の失敗文が、CMP と Flutter の iOS(inapp-boost)では横の棚を案内しない
 - 状態: 再現済み
-- 確認: コミット未記録(2026-11-05)
+- 確認: 85a843179(2026-11-25)
 - 属性: 木に材料なし
-- 運用: ①回避可 — 失敗文の案内は誤っているが、横の棚を `scrollFrame` に名指して横へ送れば通る見込み(未確認)
-- 優先度: 中 — ①失敗文の案内どおりに書いても赤
+- 運用: 回避可 — 横の棚を `withScrollRight(scrollFrame: "<棚>")` で名指して横へ送る
+- 優先度: 低 — 文言だけ(SwiftUI・UIKit 等の木では案内が出る)
 
-出典: `_work/explore-20261105c/findings-*.md`(15周目・11/5)。①入れ子の横の棚の画面外の項目(`#card_1_03`)が not found のとき、失敗文が縦の `scroll:` と縦の容器(`withScrollDown(scrollFrame: "#list_nested")`)だけを案内し、横の棚(`#shelf_1`・`withScrollRight`)を名指さない。案内どおりに書くと縦にしか探さず赤(iultra F1・CMP・Flutter・SwiftUI で同じ文)。原因は材料不足(木に対象が無く、ツールは対象がどの棚の中かを知り得ない)。
+出典: `_work/explore-20261105c/findings-*.md`(15周目・11/5)。入れ子の横の棚の画面外の項目(`#card_1_03`)が not found のとき、失敗文が縦の `scroll:` だけを案内し、横の棚(`#shelf_1`・`withScrollRight`)を名指さない(CMP・Flutter・SwiftUI で同じ文)
+- 処理(2026-11-25): 中身が左右の縁をまたぐ横の容器が木にあれば、その容器を `withScrollRight(scrollFrame:)` の候補として挙げる文言を足した(判定は変えない・対象がどの棚かは言わない。`horizontalOverflowingShelves`)。E2EY-iOS(SwiftUI)の inapp-boost で `tap("#card_1_08")` の失敗文に `#shelf_0`・`#shelf_1`・`#shelf_2` が出ることを確認
+- 残り(観測): E2EY-CMP・E2EY-Flutter の iOS(inapp-boost)では案内が出ない。in-app の木が棚の子の枠を画面の縁で切って返す(CMP: `#card_0_02 (312,202 90x120)` = 右端 402 ちょうど)ので「縁をまたぐ」と言えない。縁に接しているだけの子を数えると、ちょうど画面幅に収まる棚まで挙げることになる = 木に材料なし
 
 ## 低頻度
 
@@ -1331,6 +1315,7 @@ SwiftUI・CMP・Flutter の iOS の in-app の木は塗り順 `z` を持たな�
 - RN のスワイプ行で同じラベルの「アーカイブ」が複数あるとき、MCP の iOS と xcuitest モードでは覆われた先頭(行1の裏)を撃つ(シナリオは `#btn_sw_archive_4` のように1つを名指す。inapp-boost の RN は z があるので露出した候補を撃つ)
 - 据え置きの理由(ユーザー決定 11/4): 9〜11周目に木の順で手前を推測するたびに別の縁で誤った赤が出た。塗り順の無い木では手前の推測で撃ち方を変えず、中心を撃ち、後続が赤になったときに失敗の文言が覆いの疑いと直し方を言う。既知の制約として FD-2.1 と user-docs「覆われた要素を押した後は結果を確かめる」に書いた。探索ではこの形を新しい所見に数えない。見直すのは、ブリッジが塗り順か当たり判定を申告できるようになったとき
 - XCUITest の `isHittable`(11/5): false は全部正しく、true は誤ることがある(SwiftUI の半分のシートの裏の行・CMP の縮んだヘッダでナビゲーションバーの裏の `btn_follow`)。そこで「撃つ点に別のスクロール容器の押せる要素が重なり、`isHittable` が false なら断る」だけを入れた(`TapTargetGeometry.otherLayerCoverSuspect`)。残るのは true が誤る2つの形
+- 処理(2026-11-25): true が誤る形のうち SwiftUI の半分のシートの裏の行は、inapp-boost モードで true のときも in-app の当たり判定(`/touchlands`)を聞き、対象に届かず覆いに届くと言い切れたときだけ断るようにした(`TapTargetGeometry.touchLandsOnCoverInstead`・FD-2.1)。E2EY-iOS の `#row_main_08`: 直しの前は in-app が行を直接押して ✅(本物のタッチはシートのセルに届く)・直しの後は断る。対照の見えている背面の行・シートの行と、E2EY の CMP・Flutter・RN のシート・E2EX-iOS の FAB は緑のまま。残るのは xcuitest モード(当たり判定を聞けない)と自前描画(CMP の縮んだヘッダの `btn_follow` = 全要素が同じ view で対象にも届く)
 
 ### OI-140 存在しない `--scenario` 名でも、先に全台のブリッジの供給が走ってから「scenario not found」になる
 - 状態: 再現済み

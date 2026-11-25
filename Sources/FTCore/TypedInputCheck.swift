@@ -12,7 +12,7 @@ public enum TypedInputCheck {
         public let target: ElementInfo?
         public let valueBefore: String
         public let treeBefore: [ElementInfo]
-        /// 打つ前(**タップの前**の木)に欄が焦点を持っていたか。ref なしは区別できず false。焦点を保ったままの打鍵は追記・取り戻した欄は置き換えなので、
+        /// 打つ前(**タップの前**の木)に欄が焦点を持っていたか。ref なしは直前のステップが同じ欄への type だったと言えるときだけ true(`init(focusedIn:previouslyTyped:)`)。焦点を保ったままの打鍵は追記・取り戻した欄は置き換えなので、
         /// 伏せ字の数の期待が変わる(`maskedShortfall` の doc)
         public let wasFocused: Bool
 
@@ -26,14 +26,24 @@ public enum TypedInputCheck {
 
         /// ref なし / ロケータ無し: **打つ直前に読んだ木**の焦点の欄(ちょうど1つのときだけ)を前の値とする。
         /// 直前に読むので replace の消去は既に反映済み。`tree` が nil(読めなかった)・焦点が0/複数 = 前の値は不明(空)
-        public init(focusedIn tree: [ElementInfo]?) {
+        /// `previouslyTyped` = 直前のステップが type で叩いた欄(間に画面へ触る操作が無いとホストが言えるときだけ渡す)。
+        /// 今の木で焦点がちょうど1つで、それが `previouslyTyped` と同じ欄(または包みの中の入力欄)のときだけ焦点を保った扱い。
+        /// アプリが焦点を別の欄へ移していれば同じ欄と言えず false のまま
+        public init(focusedIn tree: [ElementInfo]?, previouslyTyped: ElementInfo? = nil) {
             let focused = (tree ?? []).filter { $0.focused == true }
             self.target = nil
             self.valueBefore = focused.count == 1 ? TypeReadback.normalizedValue(of: focused[0]) : ""
             self.treeBefore = tree ?? []
-            // 直前の木の焦点は「焦点を保った」か「タップで取り戻した」かを区別できない(どちらも焦点あり)ので false
-            self.wasFocused = false
+            // 木だけでは「焦点を保った」か「タップで取り戻した」かを区別できない(どちらも焦点あり)ので、直前の type の記録がある形だけ true
+            self.wasFocused = focused.count == 1 && previouslyTyped.map { TypedInputCheck.isSameField($0, focused[0], in: tree ?? []) } == true
         }
+    }
+
+    /// 同じ欄か。木の中の照合(`TypeReadback.match`)の ref が焦点の要素と一致、または対象が包みなら中の入力欄が一致
+    static func isSameField(_ typed: ElementInfo, _ focused: ElementInfo, in tree: [ElementInfo]) -> Bool {
+        guard let live = TypeReadback.match(of: typed, in: tree) else { return false }
+        if live.ref == focused.ref { return true }
+        return TypeReadback.enclosedInput(of: live, in: tree)?.ref == focused.ref
     }
 
     /// ref なしで打つ前に木を読む必要があるか。ref なしの門(`wantsMaskedCheck(target: nil)`)が開くのは

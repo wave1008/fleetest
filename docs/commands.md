@@ -570,7 +570,7 @@ tap・長押し・`doubleTap`・ドラッグの始点は撃たずに失敗し、
 
 > `screenLooksLike` とテキストの可視性検証の FM 段(`requireVisible` / `fmTextVisibilityCheck`)は FM に画像を渡すため
 > **macOS 27+ が必要**。macOS 26 では自動でスキップ/素通りになる(現在の可否は `fleetest doctor`)。
-> テキストの可視性検証の**幾何の段(中心が画面外の一致を可視と呼ばない)は FM 無しでも効く**。
+> テキストの可視性検証の**幾何の段(中心が画面外の一致・Android で見えている幅か高さが 8dp 未満の押せる要素を可視と呼ばない)は FM 無しでも効く**(DR-231。横のカルーセルの端の要素は送って見える位置に出してから確かめる)。
 
 > **画像判定の絵の撮り方(iOS の inapp-boost モード)**: テキストの可視性検証・`findImage` / `existImage` / `imageIs`・`checkIsON` / `checkIsOFF` の
 > 分類器は、ふだん in-app の絵(キーボードとシステムアラートが写らない)で判定し、**判定に使う木がキーボードを申告しているとき**と

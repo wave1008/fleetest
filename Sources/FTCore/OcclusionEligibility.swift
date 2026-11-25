@@ -36,6 +36,27 @@ public enum OcclusionEligibility {
         return child
     }
 
+    /// 文字の型でないボタンが、期待文字列をタイトルとして描いているとブリッジが申告したか(`ElementInfo.drawnTitle`。
+    /// iOS の in-app の UIKit・RN だけ)。true なら足切りの型を文字として扱い、既存の可視性検証にそのまま乗せる。
+    /// 申告が無い(SwiftUI・CMP・Flutter・xcuitest・Android)は false = 従来どおり対象外。DSL の `occlusionFlip` が唯一の呼び手
+    public static func drawsOwnTitle(_ element: ElementInfo, expectedText: String) -> Bool {
+        !isTextType(element.type) && !expectedText.isEmpty && element.drawnTitle == expectedText
+    }
+
+    /// 押せる要素(文字の型でない)で、見えている幅か高さが「文字を1字も描けない」ほど小さいときの (見えている短辺, 床)。nil = その形ではない。
+    /// 床は `TapTargetGeometry.minimumVisibleTapExtent`(8 pt/dp ≒ 1.25mm = 人が見て読める最小の幅の目安)× `scale`(`AppDriver.pointScale`。
+    /// iOS=1・Android=密度。木の単位へ換算する = px の木へ pt の値をそのまま当てない)。新しい定数は置かない。
+    /// **Web(DOM)の要素は対象外**。呼び手は Android だけに使う(iOS の画像地図のリンクは元から数 pt で、文字は別の場所に描かれる = 固定コーパスの天気の地図の9件)。
+    /// 尽きたとき(床未満)は「在る」と言わず赤(DR-231)。**文字の型は対象外**(ink・OCR の段が読む)。**押せない要素も対象外**
+    /// (細い進捗バー・区切り線は元から細い。押せる要素の細さは枠で切られた結果)
+    public static func unreadableSliver(_ element: ElementInfo, scale: Double) -> (visible: Double, floor: Double)? {
+        guard !isTextType(element.type), element.web != true, TapTargetGeometry.isOperableCover(element),
+              element.frame.width > 0, element.frame.height > 0 else { return nil }
+        let floor = TapTargetGeometry.minimumVisibleTapExtent * scale
+        let visible = min(element.frame.width, element.frame.height)
+        return visible < floor ? (visible, floor) : nil
+    }
+
     /// 行(セル)の型。iOS の in-app の木は UITableView のセルを `clickable`、XCUITest 経由は `cell` で出す
     /// (実測 `clickable "行 08"`)。`button`・アイコンのボタンは描かれない a11y ラベルを持つので含めない
     private static let rowTypes: Set<String> = ["clickable", "cell"]

@@ -40,7 +40,7 @@ final class ElementInfoCodingTests: XCTestCase {
             clickable: true,
             keptDepth: 3,
             labelSource: "desc",
-            renderer: "virtual", renderHost: 17)
+            renderer: "virtual", renderHost: 17, drawnTitle: "保存")
     }
 
     func testEveryFieldSurvivesAnEncodeDecodeRoundTrip() throws {
