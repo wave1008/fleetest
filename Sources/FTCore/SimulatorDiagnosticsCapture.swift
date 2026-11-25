@@ -29,9 +29,12 @@ public enum SimulatorDiagnosticsCapture {
     static let reportWindowSeconds: TimeInterval = 3600
     static let reportListLimit = 20
 
-    /// `log show` の絞り込み。SpringBoard / backboardd のプロセスと、UIKit の外観(UIUserInterfaceStyle 等)に関わる行
-    static let logPredicate = "process == \"SpringBoard\" OR process == \"backboardd\""
+    /// `log show` の絞り込み。SpringBoard / backboardd のプロセスと、UIKit の外観(UIUserInterfaceStyle 等)に関わる行。
+    /// **XCUITest の行(`com.apple.dt.xctest`)は除く**: ランナーが SpringBoard の木を読むたびに SpringBoard の名で何千行も出て、
+    /// 末尾 `logTailLines` 行が約1秒ぶんで埋まり、外観の部品(`UserInterfaceStyleArbiter`)の行を押し流した(OI-347・11/25 夜の採取 3 件)
+    static let logPredicate = "(process == \"SpringBoard\" OR process == \"backboardd\""
         + " OR eventMessage CONTAINS[c] \"UIUserInterfaceStyle\" OR eventMessage CONTAINS[c] \"appearance\""
+        + " OR category == \"UserInterfaceStyleArbiter\") AND NOT (subsystem == \"com.apple.dt.xctest\")"
 
     /// `launchctl list` から拾う行の語(ラベルに含まれるもの)
     static let launchctlLabelKeywords = ["SpringBoard", "backboardd", "InputUI", "TextInput", "FleetestRunner"]
@@ -56,6 +59,18 @@ public enum SimulatorDiagnosticsCapture {
 
     static func launchctlCommand(udid: String) -> [String] {
         ["xcrun", "simctl", "spawn", udid, "launchctl", "list"]
+    }
+
+    /// 外観の部品(SpringBoard の `UserInterfaceStyleArbiter`)が変更を受けた行だけを長く遡る絞り込み。
+    /// 根拠(OI-347・2026-11-25 夜): 外観が届かない SpringBoard は、起動の瞬間の1回(`forReason:0`)の後に1度も動いていなかった
+    /// (起動から4時間40分)。届く SpringBoard は変更のたびに動く = 壊れた状態は起動の時点で決まり、`logLookbackMinutes` の窓では
+    /// 起動まで届かない。1日ぶんでも数十行(行数は `logTailLines` で切らない)・所要は 6 時間ぶんで約 1.8 秒(実測)
+    static let arbiterLookbackHours = 24
+    static let arbiterPredicate = "category == \"UserInterfaceStyleArbiter\" AND eventMessage CONTAINS \"_updateCurrentStyleAndNotify\""
+
+    static func arbiterLogCommand(udid: String) -> [String] {
+        ["xcrun", "simctl", "spawn", udid, "log", "show", "--last", "\(arbiterLookbackHours)h",
+         "--style", "compact", "--predicate", arbiterPredicate]
     }
 
     static func logShowCommand(udid: String) -> [String] {
@@ -110,11 +125,15 @@ public enum SimulatorDiagnosticsCapture {
         log("Simulator diagnostics saved: \(url.path) (the unified log follows)")
 
         let command = logShowCommand(udid: udid)
+        let arbiterCommand = arbiterLogCommand(udid: udid)
         // 古いものを消すのは背景の書き直しを始める前(書き直しの一時ファイルを消さない)
         pruneOldest(in: dir)
         let work: @Sendable () -> Void = {
             let section = logSection(command: command, commands: commands)
-            try? (head + "\n== unified log ==\n" + section).write(to: url, atomically: true, encoding: .utf8)
+            let arbiter = arbiterSection(command: arbiterCommand, commands: commands)
+            try? (head + "\n== unified log ==\n" + section
+                  + "\n== appearance arbiter (SpringBoard UserInterfaceStyleArbiter, last \(arbiterLookbackHours)h) ==\n" + arbiter)
+                .write(to: url, atomically: true, encoding: .utf8)
             completion?()
         }
         // `log show` の子は中断のリレーに載せない: 読む範囲が決まった読み取りだけの子で、親が先に終わっても
@@ -176,6 +195,22 @@ public enum SimulatorDiagnosticsCapture {
             let header = "last \(logLookbackMinutes)m, predicate: \(logPredicate)\n"
                 + "showing the last \(tail.count) of \(lines.count) lines\n"
             return header + tail.joined(separator: "\n") + "\n"
+        } catch {
+            return "not captured: \(SimulatorSpringBoard.failureDetail(error))\n"
+        }
+    }
+
+    /// 外観の部品の行を全部書く(切らない)。0 行も事実として書く(起動から1度も動いていない = 起動の行も窓の外)
+    static func arbiterSection(command: [String], commands: CommandRunner) -> String {
+        do {
+            let result = try commands(command, logShowTimeoutSeconds)
+            guard let output = result.outputIfSucceeded else {
+                return "not captured: log show exited with status \(result.status): \(result.tail)\n"
+            }
+            let lines = output.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+                .filter { $0.contains("UserInterfaceStyleArbiter") }
+            return "predicate: \(arbiterPredicate)\n\(lines.count) line(s)\n"
+                + (lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n")
         } catch {
             return "not captured: \(SimulatorSpringBoard.failureDetail(error))\n"
         }

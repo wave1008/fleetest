@@ -545,7 +545,16 @@ public enum RegionText {
             // 覆い・空白・画面外はどこまで上げても読めない(実測: ×1 で無読の 3 枚は ×2/×3 でも 0 枚が
             // 読めた)。ここで止めるのが効くのは、覆いが消えるのを待つ poll 周回 —— 毎周 3 回撃つと
             // 待ちの間じゅう払い続けることになる
-            if reading.lines.isEmpty { return (false, accumulated) }
+            if reading.lines.isEmpty {
+                // 等倍で0行のときだけ、文字の在りかから切り直して1回読む(`readTextRegion` の doc)。領域が無ければ従来どおり諦める
+                guard index == 0,
+                      let regional = await readTextRegion(pngData: pngData, frame: frame, screen: screen,
+                                                          cropPadding: cropPadding, languages: languages)
+                else { return (false, accumulated) }
+                return (readable(expected: expected, lines: regional.lines),
+                        Reading(lines: regional.lines, elapsedMs: accumulated.elapsedMs + regional.elapsedMs,
+                                attempts: index + 2, pixels: regional.pixels))
+            }
             last = accumulated
         }
         return last.map { (false, $0) }
@@ -725,6 +734,60 @@ public enum RegionText {
         return Reading(lines: lines, elapsedMs: elapsedMs, attempts: 1,
                        pixels: crop.width * crop.height)
     }
+
+    /// **等倍の切り出しが0行だったときの読み直し**: Vision の文字の領域の検出で文字の矩形を先に得て、その外接矩形に
+    /// 文字の高さの半分の余白を足した所だけを読む。nil = 領域が無い・切れない・OCR が失敗(呼び手は従来どおり諦める)。
+    /// 根拠: 横に極端に長い切り出し(2547×174)の中の薄い灰色の小さな文字は、全体を渡すと1行も読めず、
+    /// 切り方を数ピクセル変えると読めたり読めなかったりした。文字の矩形から切ると余白の取り方(高さの 0.5 倍・1 倍)に
+    /// よらず「単一行」を読んだ。**余白 0.5 倍の根拠**: 0.25 倍では固定コーパスの selected-row40 が `selectea` に化け、
+    /// 0.5 倍・1 倍は読めた(下限の側)。保存してある切り出し 553 枚の全数で、等倍0行の 368 枚のうちこれで読めたのは
+    /// 5 枚(描かれた文字の「単一行」3・「エヌビディ」2)だけ・描かれていない固定コーパスの offscreen-text は領域0。
+    /// **文字を作らない**(描かれた画素を切り直すだけ)ので、覆われた文字を読めたことにはならない(一致は readable が見る)。
+    /// 判定の読みの Vision を差し替えたテスト(`readRecognizeOverrideForTesting`)の間は撃たない(本物の検出を混ぜない)
+    static func readTextRegion(pngData: Data, frame: FTRect, screen: FTRect, cropPadding: CGFloat,
+                               languages: [String]) async -> Reading? {
+        guard readRecognizeOverrideForTesting == nil,
+              let source = CGImageSourceCreateWithData(pngData as CFData, nil),
+              let full = CGImageSourceCreateImageAtIndex(source, 0, nil),
+              let rect = OcclusionCrop.rect(frame: frame, screen: screen, imageWidth: full.width,
+                                            imageHeight: full.height, cropPadding: cropPadding),
+              let crop = full.cropping(to: rect) else { return nil }
+        let start = Date()
+        let boxes: [CGRect]
+        do {
+            boxes = try await DetectTextRectanglesRequest().perform(on: crop).map { observation in
+                let b = observation.boundingBox.cgRect   // 正規化・原点は左下
+                return CGRect(x: b.minX * CGFloat(crop.width), y: (1 - b.maxY) * CGFloat(crop.height),
+                              width: b.width * CGFloat(crop.width), height: b.height * CGFloat(crop.height))
+            }
+        } catch {
+            VisionUsageLedger.record(ok: false, ms: Date().timeIntervalSince(start) * 1000)
+            return nil
+        }
+        guard let first = boxes.first else {
+            VisionUsageLedger.record(ok: true, ms: Date().timeIntervalSince(start) * 1000)
+            return nil
+        }
+        let union = boxes.dropFirst().reduce(first) { $0.union($1) }
+        let pad = (boxes.map(\.height).max() ?? 0) * textRegionPaddingRatio
+        let bounds = CGRect(x: 0, y: 0, width: crop.width, height: crop.height)
+        guard let region = crop.cropping(to: union.insetBy(dx: -pad, dy: -pad).intersection(bounds).integral) else {
+            return nil
+        }
+        let lines: [String]
+        do {
+            lines = try await recognizeObservations(region, languages: languages).compactMap { $0.topCandidates(1).first?.string }
+        } catch {
+            VisionUsageLedger.record(ok: false, ms: Date().timeIntervalSince(start) * 1000)
+            return nil
+        }
+        let elapsedMs = Date().timeIntervalSince(start) * 1000
+        VisionUsageLedger.record(ok: true, ms: elapsedMs)
+        return Reading(lines: lines, elapsedMs: elapsedMs, attempts: 1, pixels: region.width * region.height)
+    }
+
+    /// `readTextRegion` の余白(検出した文字の矩形の高さに対する比)。根拠は `readTextRegion` の doc
+    static let textRegionPaddingRatio: CGFloat = 0.5
 
     public static let defaultLanguages = ["ja-JP", "en-US"]
 

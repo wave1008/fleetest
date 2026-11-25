@@ -128,7 +128,7 @@ final class InputInjector {
         }
         long upTime = syntheticUpTime ? downTime + durationMs : SystemClock.uptimeMillis();
         injectTraced(ua, event(downTime, upTime, MotionEvent.ACTION_UP, toX, toY), trace);
-        // 判定には使わない記録。DOWN→最初の MOVE が遅れた払いはランチャーが長押しと読む(OI-398)ので、遅れた回だけ端末ログへ残す
+        // 判定には使わない記録。DOWN→最初の MOVE が遅れた回だけ端末ログへ残す(払いが途中で切れた・長押しと読まれた回の切り分けの材料)
         if (trace.firstMoveGapActualMs() > SWIPE_GAP_LOG_THRESHOLD_MS) {
             android.util.Log.w(BridgeInstrumentation.TAG, "swipe injection timing: " + trace.summary());
         }
@@ -138,7 +138,7 @@ final class InputInjector {
     private static final long SWIPE_GAP_LOG_THRESHOLD_MS = 100;
 
     /**
-     * 1本の払いの各イベントの記録(OI-398)。planned = MotionEvent の eventTime(予定)・actual = 注入を呼んだ時点の
+     * 1本の払いの各イベントの記録。planned = MotionEvent の eventTime(予定)・actual = 注入を呼んだ時点の
      * uptimeMillis・accepted = injectInputEvent の戻り値。**払いは1スレッドで撃つので同期しない**(呼び手が1本ごとに作る)
      */
     static final class SwipeTrace {
@@ -1229,6 +1229,8 @@ final class InputInjector {
             checkpoints.add(upMs[i]);
         }
 
+        // 拒否(500)の失敗文の events= が何番目のイベントで拒否されたかを言う(tapAppIcon のドロワーを開く払いはこの経路)
+        SwipeTrace trace = new SwipeTrace(checkpoints.size() + n);
         long base = SystemClock.uptimeMillis();
         long downTime = base + globalStart;
         boolean[] active = new boolean[n];
@@ -1243,12 +1245,12 @@ final class InputInjector {
                     active[i] = true;
                     int[] ids = activeIndices(active);
                     if (ids.length == 1) {
-                        inject(ua, pointerEvent(downTime, eventTime, MotionEvent.ACTION_DOWN, ids, fingers, tSec));
+                        injectTraced(ua, pointerEvent(downTime, eventTime, MotionEvent.ACTION_DOWN, ids, fingers, tSec), trace);
                     } else {
                         int idx = indexOf(ids, i);
                         int action = MotionEvent.ACTION_POINTER_DOWN
                                 | (idx << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
-                        inject(ua, pointerEvent(downTime, eventTime, action, ids, fingers, tSec));
+                        injectTraced(ua, pointerEvent(downTime, eventTime, action, ids, fingers, tSec), trace);
                     }
                     transitioned = true;
                 }
@@ -1256,12 +1258,12 @@ final class InputInjector {
                     if (!active[i] || upMs[i] != t) continue;
                     int[] ids = activeIndices(active);
                     if (ids.length == 1) {
-                        inject(ua, pointerEvent(downTime, eventTime, MotionEvent.ACTION_UP, ids, fingers, tSec));
+                        injectTraced(ua, pointerEvent(downTime, eventTime, MotionEvent.ACTION_UP, ids, fingers, tSec), trace);
                     } else {
                         int idx = indexOf(ids, i);
                         int action = MotionEvent.ACTION_POINTER_UP
                                 | (idx << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
-                        inject(ua, pointerEvent(downTime, eventTime, action, ids, fingers, tSec));
+                        injectTraced(ua, pointerEvent(downTime, eventTime, action, ids, fingers, tSec), trace);
                     }
                     active[i] = false;
                     transitioned = true;
@@ -1269,9 +1271,13 @@ final class InputInjector {
                 if (!transitioned) {
                     int[] ids = activeIndices(active);
                     if (ids.length > 0) {
-                        inject(ua, pointerEvent(downTime, eventTime, MotionEvent.ACTION_MOVE, ids, fingers, tSec));
+                        injectTraced(ua, pointerEvent(downTime, eventTime, MotionEvent.ACTION_MOVE, ids, fingers, tSec), trace);
                     }
                 }
+            }
+            // 判定には使わない記録(swipe と同じ閾値)
+            if (trace.firstMoveGapActualMs() > SWIPE_GAP_LOG_THRESHOLD_MS) {
+                android.util.Log.w(BridgeInstrumentation.TAG, "gesture injection timing: " + trace.summary());
             }
         } finally {
             for (int i = 0; i < n; i++) {

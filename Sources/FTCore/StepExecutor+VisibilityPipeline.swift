@@ -197,7 +197,7 @@ extension StepExecutor {
         switch stage {
         case .entry: return stageEntry(&e)
         case .offscreen: return stageOffscreen(&e)
-        case .coveredByFront: return stageCoveredByFront(&e)
+        case .coveredByFront: return await stageCoveredByFront(&e, phase: &phase)
         case .rowCheckDecision: return stageRowCheckDecision(&e)
         case .sameLabelChild: return stageSameLabelChild(&e)
         case .noStageConfigured: return stageNoStageConfigured(&e)
@@ -253,13 +253,51 @@ extension StepExecutor {
                              + " (scroll it into view before this step)"), .keep)
     }
 
-    /// V3 塗り順が本物の木で、tap なら撃つ前に断る覆いの下にある要素(合否は変えない = StepNote.coveredByFrontElement)
-    private func stageCoveredByFront(_ e: inout VisibilityEvidence) -> VisibilityStageOutcome {
-        if paintOrderIsReal(e.elements), case .tooThin? = TapTargetGeometry.coveredTouch(
-            for: e.element, in: e.elements, screen: e.screen, inferring: true, scale: driver.pointScale, zIsPaintOrder: true) {
-            noteCodesThisStep.insert(.coveredByFrontElement)
+    /// V3 塗り順が本物の木で、tap なら撃つ前に断る覆いの下にある要素(合否は変えない = StepNote.coveredByFrontElement)。
+    /// 塗り順の分からない木では、重なる要素のラベルが対象の枠に描かれているかを画素で読む(`coverReadOnScreen`。合否は変えない)
+    private func stageCoveredByFront(_ e: inout VisibilityEvidence, phase: inout PhaseAccumulator) async -> VisibilityStageOutcome {
+        if paintOrderIsReal(e.elements) {
+            if case .tooThin? = TapTargetGeometry.coveredTouch(
+                for: e.element, in: e.elements, screen: e.screen, inferring: true, scale: driver.pointScale, zIsPaintOrder: true) {
+                noteCodesThisStep.insert(.coveredByFrontElement)
+            }
+            return .next
         }
+        let clock = ContinuousClock()
+        let start = clock.now
+        if await coverReadOnScreen(e) != nil { noteCodesThisStep.insert(.coveredByFrontElementReadOnScreen) }
+        phase.ocrMs += Self.ms(clock.now - start)
         return .next
+    }
+
+    /// 対象の中心に、ラベルを持つ別の要素が重なっている(祖先・子孫 = 枠が他方を丸ごと含む形は除く)とき、対象の枠を OCR で1回読み、
+    /// 対象の文字は読めず重なる要素のラベルが読めたら、その要素を返す(= 画面ではその要素が手前に描かれている)。
+    /// 塗り順の分からない木(Android の Flutter 等 = `PaintOrder.isReal` が偽)で、木では手前が決まらない重なりを画素で決める。
+    /// 実測(2026-11-25・E2EY-Flutter の Android・半分のシート): 覆われた `#row_main_10`(本文 10)の枠は「キュー02」と読め、覆われていない
+    /// `#row_main_06` の枠は「本文 06」と読めた。どちらのラベルも読めない(アイコン等)なら nil = 何も言わない。OCR の段が無効なら撃たない。
+    /// 費用: 重なりがある回だけスクリーンショット1枚 + OCR 1回
+    func coverReadOnScreen(_ e: VisibilityEvidence) async -> ElementInfo? {
+        guard occlusionOCRMode != .off, !e.expectedText.isEmpty else { return nil }
+        let target = e.element
+        let centre = (x: target.frame.x + target.frame.width / 2, y: target.frame.y + target.frame.height / 2)
+        let expected = TranscriptMatch.normalize(e.expectedText)
+        let candidates = e.elements.filter { other in
+            guard other.ref != target.ref, let label = other.label, !label.isEmpty,
+                  TranscriptMatch.normalize(label) != expected,
+                  other.frame.containsClosed(x: centre.x, y: centre.y) else { return false }
+            return !Self.frame(other.frame, contains: target.frame) && !Self.frame(target.frame, contains: other.frame)
+        }
+        guard !candidates.isEmpty, let shot = try? await driver.screenshot(),
+              let reading = await RegionText.read(
+                pngData: shot, frame: target.frame, screen: e.screen,
+                languages: RegionText.languages(forAny: [e.expectedText] + candidates.compactMap(\.label))) else { return nil }
+        guard !RegionText.readable(expected: e.expectedText, lines: reading.lines) else { return nil }
+        return candidates.first { RegionText.readable(expected: $0.label ?? "", lines: reading.lines) }
+    }
+
+    private static func frame(_ outer: FTRect, contains inner: FTRect) -> Bool {
+        outer.x <= inner.x && outer.y <= inner.y
+            && outer.x + outer.width >= inner.x + inner.width && outer.y + outer.height >= inner.y + inner.height
     }
 
     /// V4 文字の子を持たない行(iOS の in-app の木のセル)は、その枠で読ませて見えていなければ赤(`OcclusionEligibility.isLabelledRowWithoutText`)。

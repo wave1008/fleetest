@@ -860,6 +860,17 @@ final class FTInAppBridge {
                 Self.hitAreaMiss(node: node, at: CGPoint(x: $0.midX, y: $0.midY))
                     ?? (activationPointMarksHitArea ? Self.activationPointMiss(node: node) : nil)
             }
+            // **押すとメニューが出る部品(UIControl.showsMenuAsPrimaryAction)は in-app では撃たない**: activate は true を返すのに
+            // メニューは出ず、座標の合成タッチでも出ない(カレンダーの表示切り替え `#toggle-day-list-view` = `_UIButtonBarButton`。
+            // XCUITest のタップなら出る。同じ画面の普通のボタン・長押しだけのメニューを持つボタンは false)。
+            // 501 でホストに XCUITest の座標タップへ回させる(SwiftUI の不発と同じ回し方)
+            if (node as? UIControl)?.showsMenuAsPrimaryAction == true {
+                thrown = InAppError(501, "this control opens a menu as its primary action; accessibilityActivate reports"
+                    + " success without opening it and a synthetic touch does not open it either."
+                    + " inapp-boost mode hands it to the XCUITest bridge")
+                sem.signal()
+                return
+            }
             if node.accessibilityActivate() {
                 hitAreaMiss = miss
                 delivery = .activate

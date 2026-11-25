@@ -36,6 +36,17 @@
         "3": false
       },
       "why": "下端で切れて描かれていない。1行も読めないので段を上げずに FM へ回す = 見逃しを作らない側の証拠"
+    },
+    {
+      "file": "placeholder-single-line.png",
+      "expectedText": "単一行",
+      "readableWithLanguageRule": true,
+      "ladderAttemptsWithRule": 2,
+      "readableAtWithJapanese": {
+        "1": false,
+        "2": false
+      },
+      "why": "E2E-RN の iOS(iPhone Duo・inapp-boost)の入力欄のプレースホルダ。2547×174 の横に極端に長い切り出しの中の薄い灰色の小さな文字で、全体を渡すと等倍も ×2 も1行も読めない。等倍で0行のときの文字の領域からの読み直し(RegionText.readTextRegion)で読める = 2回目で読める"
     }
   ]
 }

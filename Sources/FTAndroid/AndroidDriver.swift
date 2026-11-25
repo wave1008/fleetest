@@ -725,8 +725,28 @@ public final class AndroidDriver: AppDriver {
     /// adb keyevent 直行。
     public func openAppSwitcher() async throws {
         try sendKeyevent("KEYCODE_APP_SWITCH", what: "opening the app switcher")
+        let sentAt = ContinuousClock.now
         // keyevent は遷移完了を待たないため、直後の snapshot 用の整定待ち(activate と同様)
         await settleViaBridge()
+        await waitOutAppSwitch(since: sentAt)
+    }
+
+    /// **アプリを切り替えるキー(HOME・APP_SWITCH)の後 `appSwitchTimeout` は次の入力を撃たない**。Android の入力の配送
+    /// (AOSP InputDispatcher)は切り替えのキーを受けると上限 APP_SWITCH_TIMEOUT(500ms)まで切り替えを待ち、上限までに
+    /// 済まなければ**その時点で配送待ちの入力を捨てる**(端末ログ「Dropped event because of pending overdue app switch」)。
+    /// その間に撃ったドラッグは途中の MOVE から捨てられて「injectInputEvent was refused」の赤になり、DOWN だけが届いた形は
+    /// ランチャーが長押しと読んだ(Pixel 3a の tapAppIcon。捨てられた時刻はどれもホームのキーの 0.49〜0.5 秒後)。
+    /// 起点はキーを送るコマンドが戻った時刻(端末がキーを作った時刻より後 = 待ちが足りなくならない側)。整定待ちの間に過ぎていれば待たない
+    static let appSwitchTimeout: Duration = .milliseconds(500)
+
+    static func appSwitchWaitRemaining(elapsed: Duration) -> Duration {
+        elapsed >= appSwitchTimeout ? .zero : appSwitchTimeout - elapsed
+    }
+
+    private func waitOutAppSwitch(since sentAt: ContinuousClock.Instant) async {
+        let remaining = Self.appSwitchWaitRemaining(elapsed: ContinuousClock.now - sentAt)
+        guard remaining > .zero else { return }
+        try? await Task.sleep(for: remaining)
     }
 
     /// ホーム画面に戻る。**gRPC の名前付きキー("GoHome" 等)は使わない** — 成功を返すのに
@@ -737,8 +757,10 @@ public final class AndroidDriver: AppDriver {
     /// adb keyevent 直行。
     public func home() async throws {
         try sendKeyevent("KEYCODE_HOME", what: "going to the home screen")
+        let sentAt = ContinuousClock.now
         // keyevent は遷移完了を待たないため、直後の snapshot 用の整定待ち(openAppSwitcher と同様)
         await settleViaBridge()
+        await waitOutAppSwitch(since: sentAt)
     }
 
     /// 前の画面へ戻る。**gRPC "GoBack" は使わない** — 成功を返すのにキーが届かない

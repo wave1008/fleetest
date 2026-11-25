@@ -937,6 +937,20 @@ extension StepExecutor {
             return vanishedAfterSeenFailure(step, subject: subject, lastActual: lastActual,
                                             lastSnapshot: lastSnapshot)
         }
+        // 1度も見つからなかったときだけ、存在のアサーションと同じくアプリの XCUITest の木を1回照会する(DR-199)。in-app の木の id・
+        // ラベルが XCUITest と違う形(マップの見出しの id = in-app `PlaceHeaderView` / XCUITest `PlaceHeaderTitle`)で、
+        // 作成時(MCP = XCUITest)に書いた textIs が本番(inapp-boost)でだけ not found になった。値が期待に合い、見えていると
+        // 確かめられたときだけ緑(見つかっただけ・値が違うだけでは結論を変えない = 失敗の文言は従来どおり)
+        if !found, let consulted = try await appXCUITestTreeMatch(step: step, phase: &phase, matchedText: { element, tree in
+            let value = assert == "idEquals" ? element.identifier
+                : (assert.hasPrefix("value") ? TypeReadback.assertedValue(of: element, in: tree.elements) : element.label)
+            return LocatorResolver.matchedText(value, expected: expected, assert: assert,
+                                               normalization: Self.textNormalization(for: step))
+        }) {
+            resolvedElementThisStep = consulted
+            noteCodesThisStep.insert(.foundInXCUITestTree)
+            return .passed
+        }
         let leftHint = found ? "" : (await leftForegroundHint() ?? "")
         return found
             ? .failed("\(subject) \(relation): expected \"\(expected)\", actual \(Self.quotedActual(lastActual))"

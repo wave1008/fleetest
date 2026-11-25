@@ -75,6 +75,7 @@
 
 ### マップ・キャンバス系のジェスチャ(doubleTap, pinchIn, pinchOut, gesture, hold)
 - [`setPickerValue` が回すのはホイール1本だけ](../commands/gestures_ja.md#注意点) — ピッカー全体ではなくホイール自体(`.pickerWheel[n]` か `#id`)を指してください。複数のホイールやホイールでない要素は、何も送る前に断ります。
+- [スライダーは `swipeBy` では動かないことがある](../commands/gestures_ja.md#注意点) — `swipeBy` は要素の中心を挟んでスワイプするので、つまみが中心に無いと動きません。値は `setSliderValue` で合わせます。
 - [`setSliderValue` はスライダーの帯をタップすることがある](../commands/gestures_ja.md#注意点) — アクセシビリティの操作で動かせないスライダーは、帯の上のタップで値を合わせます(途中の値を通ります)。
 - [スナップショットに値が出ないスライダーは setSliderValue で合わせられない](../commands/gestures_ja.md#注意点) — iOS の xcuitest モードの Flutter のスライダーがこれにあたります。既定の inapp-boost モードでは合わせられます。
 - [離す速さで結果が変わる部品はモードで結果が割れる](../commands/gestures_ja.md#注意点) — 途中までスワイプするとボタンが出る行は inapp-boost で削除まで走り、xcuitest(MCP の確認)ではボタンで止まることがあります。本番と同じモードで確かめ、ボタンだけなら小さめの比率にします。

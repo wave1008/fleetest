@@ -21,10 +21,17 @@ final class WebViewDOMSnapshotTests: XCTestCase {
         XCTAssertFalse(js.contains(#"\\s+"#))
     }
 
+    /// 選ばれているタブは checked で出す(XCUITest の a11y と同じ形)。消すと `exist(".button&&主要&&checked=true")` が inapp-boost でだけ赤
+    func testSelectedTabIsReportedChecked() {
+        let js = WebViewDOM.javaScript
+        XCTAssertTrue(js.contains(#"(el.getAttribute("role") || "").toLowerCase() === "tab""#))
+        XCTAssertTrue(js.contains(#"(el.getAttribute("aria-selected") || "").toLowerCase() === "true""#))
+    }
+
     func testDecodePayload() throws {
         let json = """
         {"readyState":"complete",
-         "viewport":{"offsetLeft":0,"offsetTop":0,"scale":1,"width":390,"height":600},
+         "viewport":{"offsetLeft":0,"offsetTop":0,"scale":1,"width":390,"height":600,"pageLeft":0,"pageTop":0},
          "crossOriginFrames":2,
          "nodes":[{"role":"link","label":"リンク","x":16,"y":20,"width":100,"height":22,"enabled":true},
                   {"role":"textField","placeholder":"入力","value":"abc","x":16,"y":60,"width":300,"height":44,"enabled":false}]}
@@ -73,6 +80,32 @@ final class WebViewDOMSnapshotTests: XCTestCase {
         XCTAssertEqual(rect.y, 80)    // (60 - 20) * 2
         XCTAssertEqual(rect.width, 200)
         XCTAssertEqual(rect.height, 40)
+    }
+
+    /// 上下の覆いの下まで広がる WKWebView(Safari)は、可視ビューポートの左上が contentInset ぶん下にある。
+    /// 実測(iOS 27.2 Simulator の Safari): 先頭で contentOffset.y = -62・scrollY 0、500 送ると contentOffset.y = 438・scrollY 500 —
+    /// どちらも 62。inset の無い WKWebView(contentOffset = scroll × zoom)では 0
+    func testContentOriginFollowsTheInsetNotTheScroll() {
+        func viewport(pageTop: Double) -> WebViewDOM.Viewport {
+            WebViewDOM.Viewport(offsetLeft: 0, offsetTop: 0, scale: 1, width: 402, height: 714, pageLeft: 0, pageTop: pageTop)
+        }
+        let top = WebViewDOM.contentOrigin(viewport: viewport(pageTop: 0), zoomScale: 1, contentOffsetX: 0, contentOffsetY: -62)
+        XCTAssertEqual(top.x, 0)
+        XCTAssertEqual(top.y, 62)
+        let scrolled = WebViewDOM.contentOrigin(viewport: viewport(pageTop: 500), zoomScale: 1,
+                                                contentOffsetX: 0, contentOffsetY: 438)
+        XCTAssertEqual(scrolled.y, 62)
+        let plain = WebViewDOM.contentOrigin(viewport: viewport(pageTop: 300), zoomScale: 2,
+                                             contentOffsetX: 0, contentOffsetY: 600)
+        XCTAssertEqual(plain.y, 0)
+    }
+
+    /// 可視ビューポートの文書座標は JS が送る(読み手は欄が無いと decode に失敗する = 黙って 0 にしない)
+    func testPayloadCarriesTheVisualViewportPagePosition() throws {
+        XCTAssertTrue(WebViewDOM.javaScript.contains("pageTop: vv ? vv.pageTop : window.scrollY"))
+        let payload = try WebViewDOM.decode(
+            #"{"readyState":"complete","viewport":{"offsetLeft":0,"offsetTop":0,"scale":1,"width":402,"height":714,"pageLeft":0,"pageTop":500},"nodes":[]}"#)
+        XCTAssertEqual(payload.viewport?.pageTop, 500)
     }
 
     /// scale=0(未定義な値が来たとき)で矩形を潰さない
@@ -161,7 +194,7 @@ final class WebViewDOMSnapshotTests: XCTestCase {
         let json = """
         {"readyState":"complete",
          "viewport":{"offsetLeft":\(offsetLeft),"offsetTop":\(offsetTop),"scale":\(scale),
-                     "width":360,"height":640},
+                     "width":360,"height":640,"pageLeft":0,"pageTop":0},
          "crossOriginFrames":0,
          "nodes":[{"role":"staticText","label":"8/15","x":\(x),"y":\(y),
                    "width":56,"height":45,"enabled":true}]}
@@ -213,7 +246,7 @@ final class WebViewDOMSnapshotTests: XCTestCase {
     /// 潰れた要素は落とす(a11y 側の規約と揃える)
     func testElementsDropsZeroSizedNodes() {
         let json = """
-        {"viewport":{"offsetLeft":0,"offsetTop":0,"scale":1,"width":360,"height":640},
+        {"viewport":{"offsetLeft":0,"offsetTop":0,"scale":1,"width":360,"height":640,"pageLeft":0,"pageTop":0},
          "nodes":[{"role":"staticText","label":"x","x":0,"y":0,"width":0,"height":10}]}
         """
         let els = WebViewDOM.elements(payload: try! WebViewDOM.decode(json),
@@ -395,7 +428,7 @@ final class WebViewDOMSnapshotTests: XCTestCase {
     private func payload(_ json: String) -> WebViewDOM.Payload { try! WebViewDOM.decode(json) }
 
     private let oneNode = """
-    "viewport":{"offsetLeft":0,"offsetTop":0,"scale":1,"width":360,"height":640},
+    "viewport":{"offsetLeft":0,"offsetTop":0,"scale":1,"width":360,"height":640,"pageLeft":0,"pageTop":0},
     "nodes":[{"role":"staticText","label":"a","x":0,"y":0,"width":10,"height":10,"enabled":true}]
     """
 
@@ -406,7 +439,7 @@ final class WebViewDOMSnapshotTests: XCTestCase {
                        "読み込み中の payload で a11y の部分木を落とす")
         XCTAssertFalse(WebViewDOM.isUsable(payload("{\"readyState\":null,\(oneNode)}")))
         XCTAssertFalse(WebViewDOM.isUsable(payload(
-            "{\"readyState\":\"complete\",\"viewport\":{\"offsetLeft\":0,\"offsetTop\":0,\"scale\":1,\"width\":1,\"height\":1},\"nodes\":[]}")),
+            "{\"readyState\":\"complete\",\"viewport\":{\"offsetLeft\":0,\"offsetTop\":0,\"scale\":1,\"width\":1,\"height\":1,\"pageLeft\":0,\"pageTop\":0},\"nodes\":[]}")),
                        "空の nodes で a11y の部分木を落とす")
         XCTAssertFalse(WebViewDOM.isUsable(payload("{\"error\":\"boom\"}")))
     }

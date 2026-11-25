@@ -36,6 +36,26 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
         XCTAssertEqual(log.last, SimulatorDiagnosticsCapture.logPredicate)
         XCTAssertTrue(SimulatorDiagnosticsCapture.logPredicate.contains("SpringBoard"))
         XCTAssertTrue(SimulatorDiagnosticsCapture.logPredicate.contains("UIUserInterfaceStyle"))
+        XCTAssertTrue(SimulatorDiagnosticsCapture.logPredicate.contains("category == \"UserInterfaceStyleArbiter\""))
+        XCTAssertTrue(SimulatorDiagnosticsCapture.logPredicate.hasSuffix("AND NOT (subsystem == \"com.apple.dt.xctest\")"),
+                      "XCUITest の行を除かないと末尾の行数が SpringBoard の木の読みで埋まる")
+    }
+
+    /// 外観の部品の行は長い窓(24h)で読み、全行を書く。0 行も書く(起動から1度も動いていない、という事実)
+    func testArbiterSectionReadsTheLongWindowAndKeepsEveryLine() {
+        let command = SimulatorDiagnosticsCapture.arbiterLogCommand(udid: udid)
+        XCTAssertEqual(Array(command.prefix(8)), ["xcrun", "simctl", "spawn", udid, "log", "show", "--last", "24h"])
+        XCTAssertEqual(command.last, SimulatorDiagnosticsCapture.arbiterPredicate)
+        let arbiterLine = "2026-11-25 17:55:47.579 Df SpringBoard[6624:b8d0] [com.apple.UIKit:UserInterfaceStyleArbiter] Arbiter _updateCurrentStyleAndNotify:1 forReason:0"
+        let result = run { args, _ in
+            if args.contains("launchctl") { return Shell.Result(status: 0, output: "1\t0\tcom.apple.SpringBoard\n") }
+            if args.contains("24h") { return Shell.Result(status: 0, output: "Timestamp Ty Process\n" + arbiterLine + "\n") }
+            return Shell.Result(status: 0, output: "line1\n")
+        }
+        XCTAssertTrue(result.text.contains("== appearance arbiter (SpringBoard UserInterfaceStyleArbiter, last 24h) =="))
+        XCTAssertTrue(result.text.contains("1 line(s)\n" + arbiterLine), "見出しの行を数えず、部品の行だけを全部書く")
+        let empty = SimulatorDiagnosticsCapture.arbiterSection(command: command) { _, _ in Shell.Result(status: 0, output: "Timestamp\n") }
+        XCTAssertTrue(empty.contains("0 line(s)"))
     }
 
     func testFilterLaunchctlKeepsOnlyRelevantLabels() {

@@ -72,3 +72,59 @@ final class CoveredByFrontElementNoteTests: XCTestCase {
         XCTAssertTrue(message.contains("the app's own dialog window is in front"), message)
     }
 }
+
+/// 塗り順の分からない木で、重なる要素のラベルが対象の枠に描かれていたら注記を付ける(合否は変えない)。
+/// 実測の形: E2EY-Flutter の Android の半分のシートの裏の行 `#row_main_10`(本文 10)にシートの行 `#queue_row_02`(キュー 02)が重なる
+final class CoverReadOnScreenNoteTests: XCTestCase {
+    override func tearDown() {
+        RegionText.readRecognizeOverrideForTesting = nil
+        super.tearDown()
+    }
+
+    private let row = ElementInfo(ref: 1, type: "button", identifier: "row_main_10", label: "本文 10", value: nil, placeholder: nil,
+                                  enabled: true, frame: FTRect(x: 0, y: 300, width: 300, height: 60), depth: 3)
+    private let sheetRow = ElementInfo(ref: 2, type: "button", identifier: "queue_row_02", label: "キュー 02", value: nil,
+                                       placeholder: nil, enabled: true, frame: FTRect(x: 0, y: 320, width: 300, height: 60), depth: 3)
+
+    private func exist(read: [String], ocr: RegionTextGateMode = .on, tree: [ElementInfo]? = nil) async -> StepOutcome {
+        RegionText.readRecognizeOverrideForTesting = { _ in read }
+        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [tree ?? [row, sheetRow]],
+                                   screenshots: [StepExecutorTests.inkedPNG])
+        let executor = StepExecutor(driver: driver, occlusionOCRMode: ocr, isAndroid: true, tunables: RunTunables(),
+                                    uiFramework: .flutter)
+        return await executor.execute(FlowStep(assert: "exists", locator: FlowLocator(id: "row_main_10"),
+                                               timeout: 0, occlusionGuard: true))
+    }
+
+    func testOtherLabelDrawnInTheTargetFrameIsNoted() async {
+        let outcome = await exist(read: ["キュー02"])
+        guard case .passed = outcome.status else { return XCTFail("合否を変えた: \(outcome.status)") }
+        XCTAssertTrue(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
+        XCTAssertTrue(outcome.driverFallback?.contains("the text drawn where it is belongs to another element") == true,
+                      "文言がステップの説明に出ない: \(outcome.driverFallback ?? "nil")")
+    }
+
+    func testOwnTextDrawnIsNotNoted() async {
+        let outcome = await exist(read: ["本文 10"])
+        XCTAssertFalse(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
+    }
+
+    /// どちらのラベルも読めない(アイコン等)なら何も言わない
+    func testNothingReadIsNotNoted() async {
+        let outcome = await exist(read: [])
+        XCTAssertFalse(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
+    }
+
+    func testOCROffDoesNotRead() async {
+        let outcome = await exist(read: ["キュー02"], ocr: .off)
+        XCTAssertFalse(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
+    }
+
+    /// 対象を丸ごと含む要素(祖先・容器)は重なりに数えない
+    func testContainerIsNotACover() async {
+        let list = ElementInfo(ref: 3, type: "scrollView", identifier: "list", label: "一覧", value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 100, width: 300, height: 500), depth: 2)
+        let outcome = await exist(read: ["一覧"], tree: [list, row])
+        XCTAssertFalse(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
+    }
+}

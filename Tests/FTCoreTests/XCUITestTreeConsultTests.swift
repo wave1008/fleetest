@@ -64,6 +64,60 @@ final class XCUITestTreeConsultTests: XCTestCase {
     }
 }
 
+/// テキスト比較(textIs 等)も、in-app の木で1度も見つからずに締め切りへ来たら同じ照会を通す(DR-199)。
+/// 採るのは「値が期待に合い・可視性検証で文字を読めた」回だけ。in-app と XCUITest で id が違う形(マップの見出し)
+final class XCUITestTreeTextConsultTests: XCTestCase {
+
+    private static let heading = ElementInfo(ref: 3, type: "staticText", identifier: "PlaceHeaderTitle", label: "東京駅",
+                                             value: nil, placeholder: nil, enabled: true,
+                                             frame: FTRect(x: 16, y: 200, width: 200, height: 30), depth: 0)
+
+    private func run(expected: String, fmVisible: Bool = true, inAppTree: [ElementInfo] = [],
+                     xcuitestTree: [ElementInfo] = [heading]) async -> StepOutcome {
+        let shot = StepExecutorTests.blankPNG
+        let inApp = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [inAppTree], screenshots: [shot])
+        let xcuitest = FakeAppDriver(name: "xcuitest", log: CallLog(), snapshotElements: [xcuitestTree], screenshots: [shot])
+        xcuitest.appForeground = true
+        let executor = StepExecutor(driver: inApp, typeDriver: xcuitest, delegate: FakeVisibilityDelegate(visible: fmVisible),
+                                    occlusionOCRMode: .off, fmVisibilityCheckEnabled: true, isAndroid: false,
+                                    tunables: RunTunables(), uiFramework: .uikit)
+        executor.launchedBundleID = "com.apple.Maps"
+        return await executor.execute(FlowStep(assert: "textEquals", locator: FlowLocator(id: "PlaceHeaderTitle"),
+                                               expected: expected, timeout: 0.2, occlusionGuard: true))
+    }
+
+    func testMatchingValueReadOnScreenPasses() async {
+        let outcome = await run(expected: "東京駅")
+        XCTAssertEqual("\(outcome.status)", "\(StepResult.Status.passed)")
+        XCTAssertTrue(outcome.notes.contains(.foundInXCUITestTree), "\(outcome.notes)")
+    }
+
+    /// 値が期待と違うなら採らない(失敗の文言は従来どおり not found = 照会で結論を変えない)
+    func testDifferentValueStaysRed() async {
+        let outcome = await run(expected: "大阪駅")
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.description.contains("element not found"), message.description)
+        XCTAssertTrue(outcome.notes.contains(.xcuitestTreeNoMatch), "\(outcome.notes)")
+    }
+
+    func testFoundButNotReadOnScreenStaysRed() async {
+        let outcome = await run(expected: "東京駅", fmVisible: false)
+        guard case .failed = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertFalse(outcome.notes.contains(.foundInXCUITestTree))
+    }
+
+    /// in-app の木で見つかって値が違う(= 本当の不一致)ときは照会しない
+    func testMismatchInTheInAppTreeIsNotConsulted() async {
+        var inApp = Self.heading
+        inApp.label = "大阪駅"
+        let outcome = await run(expected: "東京駅", inAppTree: [inApp])
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.description.contains("expected \"東京駅\""), message.description)
+        XCTAssertFalse(outcome.notes.contains(.foundInXCUITestTree))
+        XCTAssertFalse(outcome.notes.contains(.xcuitestTreeNoMatch), "\(outcome.notes)")
+    }
+}
+
 /// 操作(tap・type)の対象が in-app の木で解けないとき、キーボードを閉じる前に XCUITest の木を1回照会し、
 /// 見つかって XCUITest が押せると答えた要素だけ XCUITest で撃つ(DR-202)
 final class XCUITestTreeActionConsultTests: XCTestCase {

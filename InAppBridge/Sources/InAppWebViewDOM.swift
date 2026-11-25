@@ -116,12 +116,16 @@ enum InAppWebViewDOM {
                               webView: WKWebView, screen: CGRect) -> Captured {
         var elements: [ElementInfo] = []
         var frames: [CGRect] = []
+        let scrollView = webView.scrollView
+        let origin = WebViewDOM.contentOrigin(viewport: viewport, zoomScale: Double(scrollView.zoomScale),
+                                              contentOffsetX: Double(scrollView.contentOffset.x),
+                                              contentOffsetY: Double(scrollView.contentOffset.y))
 
         for node in payload.nodes ?? [] {
             guard let type = WebViewDOM.typeName(role: node.role) else { continue }
             let local = WebViewDOM.localRect(node, viewport: viewport)
             // ローカル → 画面。convert は親階層の transform も含めて正しく写す
-            let frame = webView.convert(CGRect(x: local.x, y: local.y,
+            let frame = webView.convert(CGRect(x: local.x + origin.x, y: local.y + origin.y,
                                                width: local.width, height: local.height),
                                         to: nil)
             // 画面外は a11y 経路と同じく落とす(落とさないと scrollTo が「スクロール前に見つかる」)

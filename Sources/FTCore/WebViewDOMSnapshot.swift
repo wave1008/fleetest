@@ -34,7 +34,9 @@ public enum WebViewDOM {
           offsetTop: vv ? vv.offsetTop : 0,
           scale: vv ? vv.scale : 1,
           width: vv ? vv.width : window.innerWidth,
-          height: vv ? vv.height : window.innerHeight
+          height: vv ? vv.height : window.innerHeight,
+          pageLeft: vv ? vv.pageLeft : window.scrollX,
+          pageTop: vv ? vv.pageTop : window.scrollY
         };
         // getBoundingClientRect はレイアウトビューポート基準。ピンチズーム中の可視範囲は
         // [offsetLeft, offsetLeft+width] × [offsetTop, offsetTop+height](width/height だけと比べると範囲がずれる)
@@ -231,6 +233,12 @@ public enum WebViewDOM {
                   node.checked = on && !mixed;
                   node.value = mixed ? "2" : (on ? "1" : "0");
                 }
+                // 選ばれているタブ(`role="tab"` + `aria-selected="true"`)は checked で出す = WebKit の a11y(XCUITest)と同じ形
+                // (Yahoo!ニュースのカテゴリのタブ: XCUITest は `button "主要" checked`、ここは checked 無しの button だった)
+                if (role === "button" && (el.getAttribute("role") || "").toLowerCase() === "tab"
+                    && (el.getAttribute("aria-selected") || "").toLowerCase() === "true") {
+                  node.checked = true;
+                }
                 nodes.push(node);
                 // リンクは a11y 経路が link + staticText の2要素で出す。ブリッジ間で見え方を
                 // 変えないため同じ形にする(片方だけにすると `.staticText&&…` が ブリッジ依存になる)
@@ -287,6 +295,9 @@ public enum WebViewDOM {
         public var scale: Double
         public var width: Double
         public var height: Double
+        /// 可視ビューポートの左上の文書座標(CSS px。`visualViewport.pageLeft/pageTop`)。`contentOrigin` の入力
+        public var pageLeft: Double = 0
+        public var pageTop: Double = 0
     }
 
     public struct Node: Decodable, Sendable {
@@ -320,6 +331,18 @@ public enum WebViewDOM {
                       y: (node.y - viewport.offsetTop) * scale,
                       width: node.width * scale,
                       height: node.height * scale)
+    }
+
+    /// `localRect`(可視ビューポートの左上が原点)の原点が WKWebView のローカル座標のどこにあるか(pt)。
+    /// **文書の点は scrollView の中身の座標で (page × zoom) にあり、表示はそこから contentOffset を引いた所**なので、
+    /// 可視ビューポートの左上 = pageLeft/pageTop × zoom − contentOffset。WKWebView が上下の覆いの下まで広がり
+    /// contentInset で中身を下げる形(Safari: 上 62pt・下 98pt)ではこれが inset ぶんになり、足さないと
+    /// 木の枠も合成タップも覆いの高さだけ上へずれる(Safari のウェザーニュースで 62pt 上のヘッダを押し、リンクが遷移しなかった)。
+    /// inset の無い WKWebView では 0。zoom は scrollView.zoomScale(中身の座標の倍率)を渡す
+    public static func contentOrigin(viewport: Viewport, zoomScale: Double,
+                                     contentOffsetX: Double, contentOffsetY: Double) -> (x: Double, y: Double) {
+        let zoom = zoomScale > 0 ? zoomScale : 1
+        return (viewport.pageLeft * zoom - contentOffsetX, viewport.pageTop * zoom - contentOffsetY)
     }
 
     /// **その WKWebView が interop 越しに埋め込まれているか**を祖先のクラス名から判定する。

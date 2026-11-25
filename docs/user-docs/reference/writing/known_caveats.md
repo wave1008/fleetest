@@ -75,6 +75,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### Gestures for maps and canvases (doubleTap, pinchIn, pinchOut, gesture, hold)
 - [`setPickerValue` turns exactly one wheel](../commands/gestures.md#notes) — name the wheel itself (`.pickerWheel[n]` or its `#id`), not the picker; several wheels or a non-wheel are refused before anything is sent.
+- [A slider may not move with `swipeBy`](../commands/gestures.md#notes) — `swipeBy` swipes across the element's centre, so the slider does not move unless the thumb is at the centre. Set the value with `setSliderValue`.
 - [`setSliderValue` may tap the slider's track](../commands/gestures.md#notes) — a slider that accessibility actions cannot move is set by tapping along its track (it passes through other values on the way).
 - [`setSliderValue` cannot set a slider whose value is not in the snapshot](../commands/gestures.md#notes) — Flutter sliders in iOS xcuitest mode are like this. The default inapp-boost mode sets them.
 - [Components whose result depends on the release speed can differ by mode](../commands/gestures.md#notes) — a partway swipe row may run to delete in inapp-boost but stop at the buttons in xcuitest (MCP's checks); check in the real run's mode and use a smaller ratio for the buttons.

@@ -49,7 +49,7 @@ final class MCPDraftScrollAndDurabilityNoteTests: XCTestCase {
         XCTAssertTrue(draft.contains("did not reach the element after 3 swipe(s)"), draft)
     }
 
-    /// OI-129 (sim F9): 覆う相手が居ない「描かれていないだけ」の要素でも、プラットフォームが hittable でないと答えたら
+    /// (探索 sim F9): 覆う相手が居ない「描かれていないだけ」の要素でも、プラットフォームが hittable でないと答えたら
     /// 「already on screen」と言わない(ゲートを通らない直接の問い合わせ)
     func testScrollToDoesNotSayOnScreenWhenThePlatformReportsNotHittable() async throws {
         let driver = FakeDriver()

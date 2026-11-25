@@ -437,7 +437,7 @@ enum InAppSnapshot {
         let enabled = !traits.contains(.notEnabled)
         let id = axIdentifier(node)
         // `accessibilityLabel` が空でも、OS が子から合成したラベルが `accessibilityAttributedLabel` にあることがある
-        // (リマインダーの行。XCUITest の木の label と同じ値 = OI-329 の測定)。空のときだけ落とす
+        // (リマインダーの行。XCUITest の木の label と同じ値 = 2026-11-24 の測定)。空のときだけ落とす
         let plain = node.accessibilityLabel
         let label = (plain?.isEmpty ?? true) ? node.accessibilityAttributedLabel?.string : plain
         return ElementInfo(

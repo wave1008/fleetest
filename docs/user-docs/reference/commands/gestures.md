@@ -161,6 +161,7 @@ keep in mind:
 ## Notes
 
 - **`setPickerValue` turns exactly one wheel.** Name the wheel itself (`.pickerWheel[n]` or its `#id`), not the picker; several wheels or a non-wheel are refused before anything is sent.
+- **Set a slider with `setSliderValue`, not `swipeBy`.** `swipeBy` swipes across the element's centre, so when the thumb is not at the centre the swipe starts off the thumb and the slider does not move (seen with SwiftUI sliders on iOS).
 - **`setSliderValue` may tap the slider's track.** A slider that accessibility actions cannot move is set by tapping along its track (it passes through other values on the way).
 - **A slider whose value does not appear in the snapshot cannot be set.** Flutter sliders in iOS xcuitest mode are like this (the step fails without touching anything). The default inapp-boost mode sets them.
 - **Components whose result depends on the release speed can differ by mode.** A row that shows action buttons when swiped partway and deletes itself when swiped far (custom swipe rows in Compose or Flutter) receives the release speed in iOS inapp-boost mode, so a larger ratio runs all the way to delete there, while xcuitest mode (and MCP's checks) may stop at the buttons with the same ratio (on a Compose row this split from `swipeBy(dxRatio: -0.5)`). Check in the same mode as the real run, and use a smaller ratio (around `-0.3`) when you only want the buttons.

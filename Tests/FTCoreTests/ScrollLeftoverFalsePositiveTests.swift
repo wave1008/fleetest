@@ -1,4 +1,4 @@
-// OI-129: `scroll-leftover`(TapTargetGeometry.outsideDeclaredScroller)の誤検知2形と、守る真陽性。
+// `scroll-leftover`(TapTargetGeometry.outsideDeclaredScroller)の誤検知2形と、守る真陽性。
 // ①間引きで繋がっただけの中間ノードが要素と交わらない鎖(Emulator の生の木)
 // ②画面から横にずれた旧画面の容器の後ろに新画面の要素が並ぶ遷移中の木(iOS Simulator)
 // ③横一列の容器(カルーセル)の後ろに、上下にだけ外れた要素が並ぶ木(Google マップ Android の経路一覧)
