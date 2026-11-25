@@ -27,12 +27,12 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 15 | OI-329・OI-345・OI-347・OI-358・OI-366・OI-376・OI-377・OI-378・OI-386・OI-388・OI-395・OI-396・OI-398・OI-399・OI-400 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 13 | OI-329・OI-345・OI-347・OI-358・OI-366・OI-376・OI-377・OI-378・OI-386・OI-396・OI-398・OI-399・OI-400 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
-| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 18 | OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-251・OI-279・OI-327・OI-387・OI-394 |
+| 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 17 | OI-129・OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-279・OI-327・OI-387・OI-394 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 44 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-220・OI-221・OI-226・OI-228・OI-229・OI-230・OI-231・OI-233・OI-234・OI-236・OI-250・OI-257・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-326・OI-345・OI-346・OI-358・OI-359・OI-366・OI-378・OI-385・OI-386・OI-396・OI-398 |
 | 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 12 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347・OI-358・OI-385 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 47 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-251・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370・OI-379・OI-385 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 46 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370・OI-379・OI-385 |
 
 ## 着手可
 
@@ -59,18 +59,6 @@
 出典: linkText のキーボードの門の陽性対照(E2E-iOS `_disabled/99_`)を作る途中(2026-11-25・手元 Sim -02・xcuitest)
 - 観測: `#field_above_keyboard` に焦点を置いた後の木で、キーボード `(0,573 402x301)` に対し `#field_under_keyboard (16,479 370x44)`(下端 523)= キーボードの上。容器 `scrollView (0,103 402x460)` の下端 563 もキーボードの上端より上。画面の題 `#txt_screen_title` は y=46(キーボードの無い他の画面では y=78〜98)= 画面ごと上へ寄っている(推測: SwiftUI がキーボードを避けて全体を持ち上げ、`.ignoresSafeArea(.keyboard)` が固定の高さ 460 の枠にしか効いていない)
 - 次の一手: キーボードの前後で容器と題の位置を測り、持ち上がりの仕組みを確かめてから SUT の配置を直す(最小サポート画面 375x667 でも潜ることを両方で確かめる = e2e-sut.md)
-### OI-388 iOS の xcuitest で、キーボード表示中に上端の帯へ寄った SwiftUI の戻るボタンへの tap が注記なしの ✅ で戻らない
-- 状態: 再現済み
-- 確認: 90fb61a66(2026-11-25)
-- 属性: 要測定
-- 運用: 要注意 — キーボードを閉じてから戻る
-- 優先度: 中 — 誤った成功(xcuitest モード)
-
-出典: 探索的テスト(2026-11-25・3周×7担当・`_work/explore-20261125/findings-r<周>-<担当>.md`)
-- 観測: E2E-iOS(SwiftUI)で入力の後キーボードが出たまま `tap("#btn_back")` が注記なしの ✅ で戻らない(DSL 2/2・MCP 7/7)。キーボードで中身が約 64pt 上へ寄り、戻るの中心 (44,45) が上端の帯(62pt)に入る。inapp-boost では戻れる。後段の失敗文は SwiftUI なのに Compose の窓の縮みを言う
-- 処理(2026-11-25): Android の形(View の全画面ダイアログの `#btn_fullscreen_close`・ステータスバーの窓が前面)は、帯の下に見えている部分へ撃つ点を寄せて直した(DSL・MCP の tap / 長押し / ダブルタップ。手元の Emulator で 5/5)。iOS の xcuitest は帯の高さ(`safeAreaTop`)が不明で、寄せが効かない
-- 次の一手: xcuitest の木で帯の高さを申告できるか(ランナーの安全領域)と、撃った点に何が当たったかを測る
-
 ### OI-398 Android の物理端末で、他のアプリを起こした後の `tapAppIcon` が「injectInputEvent was refused」(500)で赤
 - 状態: 再現済み
 - 確認: 作業ツリー(2026-11-25)
@@ -83,18 +71,6 @@
 - 材料不足: どの段(ホームの木の読み・ドロワーへの払い・縁で切れた行を戻すドラッグ・タップ)で断られたかが失敗文に無い
 - 次の一手: 出たら、断られた注入の種類と、そのときの前面の窓を記録に残す口を足して分ける
 
-
-### OI-395 iOS で自アプリが前面にあるのに `appIs("com.apple.springboard")` が ✅
-- 状態: 再現済み
-- 確認: 90fb61a66(2026-11-25)
-- 属性: 要測定
-- 運用: 要注意 — ホーム画面へ出たことを `appIs("com.apple.springboard")` で確かめない(自アプリの `appIs` が ❌ になることで確かめる)
-- 優先度: 中 — 誤った成功
-
-出典: 探索的テスト(2026-11-25・3周×7担当・`_work/explore-20261125/findings-r<周>-<担当>.md`)
-- 観測: E2E-CMP・iOS・Flutter・RN の4 SUT で 4/4。対照の `home()` の後の `appIs("<自アプリ>")` は ❌・別アプリ ID も ❌
-- 材料: `Runner/FleetestRunnerUITests/BridgeRouter.swift:1921` は `XCUIApplication(...).state == .runningForeground` を読む。SpringBoard の `state` が自アプリの前面中も `.runningForeground` を返すかは測っていない(手で撃った `/appstate` はセッション外で全部 false)
-- 次の一手: 自アプリの前面中に SpringBoard の `state` をランナーの中で読み、何を返すかを記録する
 
 ### OI-396 iOS(inapp-boost)で `openURL` の途中にアプリが落ちても ✅(次の操作で初めて赤)
 - 状態: 再現済み
@@ -277,18 +253,6 @@
 - 測定(11/19・評価のセッションのログ = MCP の XCUITest の木): 住所フォームの木は `scrollView scroll (0,0 402x874)`(画面全体)と `button "保存" id=btn_save (16,797 370x48)` = **XCUITest の木では保存ボタンが容器の中に収まって見え、「縁にまたがる」の判定(寄せ)の材料が無い**。切られている痕跡は子の文字の枠(`staticText "保存" (187,801 28x4)`)の高さだけ。inapp-boost の木は縁をまたいで見えるので寄せてから押せた
 - 次の一手: ②は子の文字の枠が親より大きく切られている形を「見えている部分」の材料にできるか(反例 = 文字が小さいだけのボタン を同じ材料で見分けられるか)を固定コーパスで確かめる。①は材料が出るまで据え置き(XCUITest の合成のタッチを CMP の欄が受け取らない理由をブリッジの側で測る口が要る)
 - 4回目の評価(11/19・`_work/scen-eval-20261119b/`): r8_order_ios・r7_sutstore_ios の住所の保存 `tap("#btn_save")` が XCUITest の作成ループで効かず(ボタン `(16,789 370x48)`・子の文字 `staticText "保存" (187,801 28x4)` = 高さ 4pt に切り詰め = 同じ材料)、AI は「サーバーの不具合」と誤って帰属させた(根拠の health 確認は実行されていない)。本番(inapp-boost)では同じ 3 本が 3 回とも緑
-
-### OI-251 xcuitest モードで、送りで隠れた上部バーのボタンへの tap が何も押さずに ✅(E2EY-iOS「スクロールで隠れるバー」)
-- 状態: 再現済み
-- 確認: 2026-11-17
-- 属性: 木に材料なし・据え置き
-- 運用: 要注意 — 押した後に結果の表示を検証すれば赤にできる。既定の inapp-boost は正しく「解決できない」の赤
-- 優先度: 中 — 既定のモードでは出ない
-
-出典: 60周目 im4 F4(M4Max・xcuitest 4/4)。`tap("#nav_hide_bars", scroll: .down)` → `scrollDown()` → `tap("#btn_top_action")` が 0.37 秒で ✅ → `textIs("hide=top_action")` が "hide=none" で赤。XCUITest の木は隠れたバーのボタンを画面内の枠のまま残し、行 `#row_h_12` の枠がボタンの中心を含む
-- 木に材料なし: 事後の添え書き(「its point was inside #row_h_12, which is in front of the target」)の「手前」は木の順(preorder で後ろ)からの推定で、XCUITest の木に塗り順は無い。撃つ前の断りに使うと塗り順の無い木で手前を補うことになる(fm-occlusion.md)。OI-211・OI-216 と同じ形
-- 測った(2026-11-25・手元 Sim -01・xcuitest モード・3/3 で再現): 隠れた後の XCUITest の木はバー `#bar_top_hiding (0,0 402x163)` と `#btn_top_action (322,127 64x20)` を元の位置に残し、一覧の容器は `scrollView (0,163 402x711)` = ボタンの上に描かれている行 `#row_h_12 (0,108 402x48)` は容器の上端の外(送り残し)と読まれて覆いの候補(`otherLayerCoverCandidates`)から外れる → `isHittable` を聞かずに撃つ。**`GET /hittable` は `#btn_top_action` に false と答えた(正しい)** = 材料はある。足りないのは「聞く」きっかけ: 候補の行が送り残しと読まれる形(対象の中心に容器の外へ出た行が重なる)でも聞くかは、撃つ前の照会の費用と DR-145(true は誤る)の範囲の判断が要る
-- 次の一手: 「対象の中心に、容器の窓の外へ出た押せる行が重なるときも `isHittable` を聞き、false なら断る」を、既存の SUT(隠れるバー・貼り付く見出し・縮むヘッダの xcuitest モード)で反例と照会の回数を数えてから入れる
 
 ### OI-238 Flutter の iOS で、back() の縁の払いが戻らないのに、注記付きの ✅ を返す(どの画面でも。inapp-boost 42/42・xcuitest 12/12)
 - 状態: 再現済み
@@ -1077,6 +1041,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 出典: `_work/explore-20261109b/findings-*.md`(42周目・11/9)。③iOS の CMP 検索バーで、value の説明文(「検索候補は次のとおりです」)を中身と読んで type の注記が「already held … Call clearInput first」と言う(amax F4)④Flutter の iOS で検索画面に置き換わった欄の clearInput の失敗文がキーボードのせいと言い、Back の 9pt 下を叩く(amax F6)⑤向きの戻しに失敗して再キューされた Simulator が以後「開始時の向き = 横」を戻し先にし続ける(amax F10・1回)⑥iPhone Duo: `rotateTo(.landscape)` が常に 422 で文言が事実と合わない(duo F1)・開いた状態で XCUITest の払いが動かない(duo F3・xcuitest モードと MCP)・`ft_fold degrees` が送る前の状態を言う(duo F6)・開いた状態で value が入力を映さない欄への打ち直しが二重に入る(duo F7)⑦hideKeyboard の文が inputAccessoryView の窓を「toast」と呼ぶ(im4 F4。in-app ブリッジの文)・横向きの replace に「キーボードを閉じた」が2回並ぶ(phys F4)⑧MCP: snapshotAfter 無しの ft_type の後の ft_clear_input が「unchanged」と言う(alocal F2)・容器の ref への ft_clear_input が「別の欄も消えた」と言う(alocal F4)⑨iPhone SE3 の inapp-boost で in-app ブリッジが応答せず供給から落ち、文がケーブル・iproxy に帰属する(phys F5 14回中4回。XCUITest は答え in-app の iproxy も生きていた)
 - 11/17(回帰): ③の形が E2EX-CMP の「検索バーで検索できること」S0030・S0040 を **M4Max でだけ**赤にする(`clearInput "#field_search"` が「12 character(s) still there」・`type(replace)` が「value remained: 検索候補は次のとおりです」)。M4Max の2台で一斉に回し直して 4/8 赤・手元の8台で 32/32 緑。11/9 の回帰でも M4Max でだけ同じ2本が赤。M4Max で欄の値が説明文になる理由(Simulator の設定か SUT のビルドの違いか)は未測定
 - 測った(2026-11-25): M4Max では今も S0030・S0040 が赤(`clearInput` が「12 character(s) still there」・`type(replace)`)。**M4Max でビルドした SUT(FTE2EX.app)を手元の 8 台へ入れて回すと 4/4 緑** = SUT のビルドの違いではない。Simulator の言語(`ja-JP, en-JP`・`ja_JP`)とランタイム(iOS 27.2 24B8117)も手元と同じ。測った中で違うのはホストの macOS(M4Max 26.7.3・手元 27.2.1)だけ = 原因の候補(確かめていない。M4Max の macOS を上げたら回し直す)
+- 実機(2026-11-25): iPhone SE3(iOS 26.6.2・手元の Mac に USB)へ実機用にビルドした E2EX-CMP を入れ、「検索バーで検索できること」4本を inapp-boost・xcuitest の両モードで回して 4/4・4/4 緑 = 実機では起きない。緑の Simulator のホストは全部 macOS 27.2.1(手元・M1Ultra・M1Max)、赤は 26.7.3 の M4Max だけ = ホストの macOS の候補と食い違う事実は無い
 
 ### OI-211 xcuitest モードで、SwiftUI の隠れるバーを送って戻した後の FAB への tap が「行が手前」と断られる
 - 状態: 再現済み
@@ -1106,7 +1071,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 優先度: 低 — 誤った赤・文言・MCP だけ
 
 出典: `_work/explore-20261109i/findings-*.md`(48周目・11/9)。①`this*` だけのシナリオが 28ms でステップ0件・失敗文なしの赤(ilocal F1 4回中1回。結果 JSON は passed:false・steps 0・workerAnomalies なし・クラッシュ報告なし。回し直すと緑)②値に改行を含む `this*` のステップの説明と失敗文が2行に割れる(ilocal F2 2/2)③MCP の `ft_batch` で単一行の欄へ type した直後に、上 39pt が見えている複数行の欄への type / clearInput / doubleTap を「中心がキーボードの下」と断る・対処文の ft_hide_keyboard ではこの画面のキーボードを閉じられない(duo F2 7/7)④「a b」の複数行の欄への type(replace) が「could not empty the field」で赤になり値が「 b」に壊れた(duo F3 1回の連鎖だけ・新しい状態からは 0/5)⑤ft_scroll_to が上端から一部はみ出た要素に2回払って何も動かなかったのに「scrolled to」と返す(duo F1 5/5)。ほかに、絵文字の扱いが部分一致(書記素の単位)と正規表現(UTF-16 の単位)で割れる(値 "👍🏽" に `textContains("👍")` は赤・`textMatches("👍")` は緑 = im4 の参考)
-- 2026-11-25(③の再確認・手元の iPhone Duo(iOS 27.2)-01・新しい fleetest-mcp を stdin で起こして): `ft_batch` の `type '#field_single' 'abc'` → `type '#field_multiline' 'x'` の2行目が「the target's centre (191, 375) is under the soft keyboard and the keyboard could not be closed without side effects (tapping (378, 344) above the keyboard did not close it) — nothing was typed」で断られる(キーボード (0,374 466x304) = 中心が上端の 1pt 下)。`ft_batch` は DSL と同じ StepExecutor を通るので、③は MCP だけの形ではない(DSL の type も同じ判定)。材料はある(キーボードの枠の申告と欄の枠 = 欄の上側は見えている)。直すなら「中心がキーボードの下でも、欄の見えている部分を押して焦点を立ててから打つ」で、入力の経路を触るので inapp-boost と xcuitest の両方で確かめる
+- 2026-11-25(③の再確認・手元の iPhone Duo(iOS 27.2)-01・新しい fleetest-mcp を stdin で起こして): `ft_batch` の `type '#field_single' 'abc'` → `type '#field_multiline' 'x'` の2行目が「the target's centre (191, 375) is under the soft keyboard and the keyboard could not be closed without side effects (tapping (378, 344) above the keyboard did not close it) — nothing was typed」で断られる(キーボード (0,374 466x304) = 中心が上端の 1pt 下)。`ft_batch` は DSL と同じ StepExecutor を通るので、③は MCP だけの形ではない(DSL の type も同じ判定)。**③は直した(2026-11-25)**: キーボードを副作用なく閉じられず、欄の上側が見えているときは、見えている部分を押して焦点が立ったのを確かめてから打つ・消す(焦点が立たなければ打たずに断る・押し直さない)。iPhone Duo の inapp-boost・xcuitest で type と clearInput が緑(注記「tapped its visible part above the keyboard and confirmed focus moved to it」)・通常の iPhone の Simulator の両モードは変わらず緑。材料はある(キーボードの枠の申告と欄の枠 = 欄の上側は見えている)。直すなら「中心がキーボードの下でも、欄の見えている部分を押して焦点を立ててから打つ」で、入力の経路を触るので inapp-boost と xcuitest の両方で確かめる
 - 据え置きの理由: ①④原因は材料不足 ②⑤文言・表示 ③MCP だけの判定。正規表現の照合は UTF-16 の単位(書記素の途中に一致の範囲が落ちても見つける)で、部分一致は書記素の単位のまま
 
 ### OI-208 正規表現の値の中の `&&` で切れる・キーボードの下と言い切る失敗文

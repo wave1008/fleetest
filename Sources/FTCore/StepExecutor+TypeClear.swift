@@ -576,7 +576,7 @@ extension StepExecutor {
     /// 市区町村の欄に住所が3回追記された)。in-app は座標を使わず焦点を当てるので、**人ができない操作が iOS だけ緑になっていた**。
     /// 判定は MCP の門(`MCPServer.keyboardRefusal`)と同じ `KeyboardOcclusion`。nil = 覆われていない
     func reachPastKeyboard(_ element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep, action: String,
-                           allowsVisiblePart: Bool,
+                           allowsVisiblePart: Bool, focusesVisiblePart: Bool = false,
                            priorTap: ElementInfo?, retapsFocusedField: Bool, snapshotSource: CoverLiftSnapshotSource,
                            phase: inout PhaseAccumulator) async throws -> KeyboardReach? {
         let occlusion = KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame, in: snapshot.elements,
@@ -606,6 +606,12 @@ extension StepExecutor {
                 return .visiblePart(visible, note: "the target's centre is under the soft keyboard and the keyboard could not be"
                     + " closed without side effects (\(tried)) — tapped its visible part above the keyboard")
             }
+            // 打つ・消すは、人と同じく見えている部分を押して焦点を立ててから撃つ。立ったと確かめられなければ撃たない
+            if focusesVisiblePart, let visible = occlusion.visibleAboveKeyboard(element, scale: driver.pointScale) {
+                return try await focusVisiblePart(visible, of: element, in: snapshot, step: step, nothing: nothing, tried: tried,
+                                                  retapsFocusedField: retapsFocusedField, snapshotSource: snapshotSource,
+                                                  phase: &phase)
+            }
             return .refused("the target's centre (\(Int(saturating: element.frame.centerX)), \(Int(saturating: element.frame.centerY))) is under"
                 + " the soft keyboard and the keyboard could not be closed without side effects (\(tried)) — \(nothing)."
                 + " The return key may close it, but it also fires the field's action (submit, search or moving to the"
@@ -631,6 +637,40 @@ extension StepExecutor {
             return .refused("\(note), but the target is still under the soft keyboard afterwards (\(nothing))")
         }
         return .reached(element: found, snapshot: after, note: note)
+    }
+
+    /// キーボードを閉じられない欄の見えている部分を押して焦点を立て、撮り直した木でその欄の焦点を確かめる(type / clearInput 用)。
+    /// 押すのは欄そのものなので、確かめに失敗しても撃ち直さない。焦点が立たなければ打鍵は前の欄へ流れ込むので断る。
+    /// in-app が焦点の欄を叩き直す構成は、叩き直しがキーボードより上の帯に当たる形のときだけ通す(`inAppLeavesFocusedFieldReachable`)
+    private func focusVisiblePart(_ visible: FTRect, of element: ElementInfo, in snapshot: SnapshotResponse, step: FlowStep,
+                                  nothing: String, tried: String, retapsFocusedField: Bool,
+                                  snapshotSource: CoverLiftSnapshotSource, phase: inout PhaseAccumulator) async throws -> KeyboardReach {
+        let head = "the target's centre is under the soft keyboard and the keyboard could not be closed without side effects (\(tried))"
+        let tapper: AppDriver
+        if case .driver(let other) = snapshotSource { tapper = other } else { tapper = driver }
+        let clock = ContinuousClock()
+        var start = clock.now
+        try await tapper.tap(x: visible.centerX, y: visible.centerY)
+        phase.actionMs += Self.ms(clock.now - start)
+        start = clock.now
+        let after: SnapshotResponse
+        switch snapshotSource {
+        case .primary: after = try await freshSnapshot(.afterOwnMove)
+        case .driver(let other): after = try await other.snapshot(bypassingCache: true)
+        }
+        phase.snapshotMs += Self.ms(clock.now - start)
+        guard let (found, _) = SameTargetResolution.resolve(step: step, original: element,
+                                                            originalElements: snapshot.elements, in: after) else {
+            return .refused("\(head) — tapped its visible part above the keyboard, but the target is not on the screen afterwards: \(step.locatorSummary) (\(nothing))")
+        }
+        guard found.focused == true, KeyboardWait.isShown(after) else {
+            return .refused("\(head) — tapped its visible part above the keyboard, but keyboard focus did not move to it, so typing would go to another field (\(nothing)). The tap was not repeated")
+        }
+        let keyboard = KeyboardOcclusion.resolve(reported: after.keyboardFrame, in: after.elements, screen: after.screen).frame
+        if retapsFocusedField, !inAppLeavesFocusedFieldReachable(found, keyboard: keyboard, elements: after.elements) {
+            return .refused("\(head) — tapped its visible part above the keyboard and focus moved to it, but the bridge would tap the field again at a point under the keyboard (\(nothing))")
+        }
+        return .focusedVisiblePart(element: found, snapshot: after, note: head + " — tapped its visible part above the keyboard and confirmed focus moved to it")
     }
 
     /// **窓がキーボードの上へ縮んで、下の要素が木から消えている**(Android の adjustResize)ときの解決。Android は
@@ -769,6 +809,8 @@ extension StepExecutor {
         case reached(element: ElementInfo, snapshot: SnapshotResponse, note: String)
         /// 閉じられなかったが上端が見えている(`allowsVisiblePart` の呼び手だけに返す)。撃つ先はこの矩形の中心
         case visiblePart(FTRect, note: String)
+        /// 閉じられないので見えている部分を押し、焦点が立ったと撮り直した木で確かめた(type / clearInput だけに返す)
+        case focusedVisiblePart(element: ElementInfo, snapshot: SnapshotResponse, note: String)
         case refused(String)
     }
 

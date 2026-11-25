@@ -1,4 +1,4 @@
-// OI-388(上端の帯の中心の撃つ点を帯の下の見えている部分へ寄せる)と、塗り順の木の祖先の数え方(塗り順が本物の木では z が大きい候補を祖先と数えない)の
+// 上端の帯の中心の撃つ点を帯の下の見えている部分へ寄せることと、塗り順の木の祖先の数え方(塗り順が本物の木では z が大きい候補を祖先と数えない)の
 // MCP 側の配線。判定は FTCore(`TapTargetGeometry.topBandTapY` / `OcclusionGeometry`)で DSL と共有、文言だけ MCP。
 // 木は OI389ScrimAncestorTests と同じ(RN の Android のボトムシートの幕)。
 

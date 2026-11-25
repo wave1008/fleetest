@@ -244,6 +244,74 @@ final class OtherLayerHitTestWiringTests: XCTestCase {
         }
     }
 
+    /// 隠れたバーのボタンの中心に、一覧の上端の外へ出た(送り残しと読まれる)行が重なる形
+    private func hiddenBarTree(rowOverlapsCentre: Bool = true) -> [ElementInfo] {
+        [element(1, "other", "bar_top", "bar_top", FTRect(x: 0, y: 0, width: 402, height: 163), depth: 1),
+         element(2, "button", "btn_top_action", "上アクション", FTRect(x: 322, y: 127, width: 64, height: 20), depth: 2),
+         element(3, "other", "list", "list", FTRect(x: 0, y: 163, width: 402, height: 711), depth: 1, scrollable: true),
+         element(4, "button", "row_h_12", "行 12",
+                 FTRect(x: 0, y: rowOverlapsCentre ? 108 : 60, width: 402, height: 48), depth: 2)]
+            + (0..<5).map { i in
+                element(5 + i, "button", "row_h_\(13 + i)", "行 \(13 + i)",
+                        FTRect(x: 0, y: 163 + Double(i) * 48, width: 402, height: 48), depth: 2)
+            }
+    }
+
+    private func runHidden(_ tree: [ElementInfo], answer: HitTestAnswer, lands: TouchLandsResponse? = nil)
+        async -> (FakeQueryDriver, StepOutcome) {
+        let driver = FakeQueryDriver(elements: tree, screen: screen, answer: answer, lands: lands)
+        let outcome = await StepExecutor(driver: driver, isAndroid: false, tunables: RunTunables())
+            .execute(FlowStep(action: "tap", locator: FlowLocator(label: "上アクション")))
+        return (driver, outcome)
+    }
+
+    func testOutsideWindowRowOverTheCentreIsNotACandidateButIsProbed() {
+        let tree = hiddenBarTree()
+        XCTAssertTrue(TapTargetGeometry.otherLayerCoverCandidates(tree[1], in: tree, screen: screen).isEmpty, "前提: 送り残しは候補から外れる")
+        XCTAssertEqual(TapTargetGeometry.outsideWindowOverlapProbe(tree[1], in: tree, screen: screen)?.identifier, "row_h_12")
+    }
+
+    func testOutsideWindowRowNotOverTheCentreIsNotProbed() {
+        let tree = hiddenBarTree(rowOverlapsCentre: false)
+        XCTAssertNil(TapTargetGeometry.outsideWindowOverlapProbe(tree[1], in: tree, screen: screen))
+    }
+
+    /// 送り残しの行が中心に重なり false → 撃たずに断る(名指さない)
+    func testOutsideWindowRowAndFalseRefusesWithoutNaming() async {
+        let (driver, outcome) = await runHidden(hiddenBarTree(), answer: .hittable(false))
+        XCTAssertTrue(driver.taps.isEmpty, "撃った: \(driver.taps)")
+        XCTAssertEqual(driver.queries.count, 1)
+        guard case .failed(let message) = outcome.status else { return XCTFail("\(outcome.status)") }
+        XCTAssertTrue(message.contains("cannot be hit"), message)
+        XCTAssertFalse(message.contains("row_h_12") || message.contains("行 12"), "手前だと名指さない: \(message)")
+    }
+
+    /// 同じ形で true・答えられない・引き当て不能は撃つ(1回だけ聞く)
+    func testOutsideWindowRowAndNonFalseAnswersFire() async {
+        for answer in [HitTestAnswer.hittable(true), .unavailable, .unresolvable] {
+            let (driver, outcome) = await runHidden(hiddenBarTree(), answer: answer)
+            XCTAssertEqual(driver.taps.count, 1, "\(answer): 撃たれなかった \(outcome.status)")
+            XCTAssertEqual(driver.queries.count, 1, "\(answer)")
+        }
+    }
+
+    /// 重ならない形では照会しない
+    func testOutsideWindowRowNotOverTheCentreNeverAsks() async {
+        let (driver, _) = await runHidden(hiddenBarTree(rowOverlapsCentre: false), answer: .hittable(false))
+        XCTAssertTrue(driver.queries.isEmpty, "\(driver.queries)")
+        XCTAssertEqual(driver.taps.count, 1)
+    }
+
+    /// inapp-boost: false でも本物のタッチが対象だけに届くなら撃つ(既存の false の扱いと同じ)
+    func testOutsideWindowRowAndFalseButTouchReachingOnlyTheTargetFires() async {
+        let (driver, outcome) = await runHidden(
+            hiddenBarTree(), answer: .hittable(false),
+            lands: TouchLandsResponse(receiver: "HostingView", lands: [2], unresolved: []))
+        XCTAssertEqual(driver.landsAsked, [[2, 4]])
+        XCTAssertEqual(driver.taps.count, 1, "\(outcome.status)")
+        XCTAssertTrue(outcome.notes.contains(.touchReachesTargetDespiteHitTest))
+    }
+
     /// 中心だけ別の層の帯(タブ)に覆われ、上に見えている部分が残る行
     private func rowUnderTabTree(z: Bool) -> [ElementInfo] {
         [element(1, "other", "list_main", "list_main", FTRect(x: 0, y: 0, width: 402, height: 874), depth: 1, scrollable: true, z: z ? 0 : nil),

@@ -218,10 +218,18 @@ extension MCPServer {
     /// 文言は DSL とは別に持つ(判定だけ共有)
     func otherLayerRefTouchRefusal(_ element: ElementInfo, in snapshot: SnapshotResponse?, ref: Int, operation: String,
                                    driver: AppDriver, args: [String: Any]) async -> String? {
-        guard let snapshot, Self.platformName(args) != "android",
-              let cover = TapTargetGeometry.otherLayerCoverSuspect(element, in: snapshot.elements, screen: snapshot.screen),
+        guard let snapshot, Self.platformName(args) != "android" else { return nil }
+        let cover = TapTargetGeometry.otherLayerCoverSuspect(element, in: snapshot.elements, screen: snapshot.screen)
+        // 候補が空でも、送り残しと読まれた行が中心に重なる形は聞く(手前とは言えないので名指さない)
+        guard cover != nil
+                || TapTargetGeometry.outsideWindowOverlapProbe(element, in: snapshot.elements, screen: snapshot.screen) != nil,
               (try? await driver.hitTest(ref: nativeRef(element.ref, args: args))) == .hittable(false)
         else { return nil }
+        guard let cover else {
+            return "refusing \(operation) [\(ref)]: the platform reports \(RefGuard.describe(element)) cannot be hit at its position"
+                + " (something else is drawn over it). Nothing was sent."
+                + " Dismiss or scroll away what covers it, then take a fresh ft_snapshot"
+        }
         return "refusing \(operation) [\(ref)]: the platform reports \(RefGuard.describe(element)) cannot be hit at its position —"
             + " \(RefGuard.describe(cover)) is drawn over it, so a touch would land there. Nothing was sent."
             + " Dismiss or scroll away what covers it, then take a fresh ft_snapshot"

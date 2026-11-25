@@ -163,7 +163,7 @@
 ### pressEnter, hideKeyboard
 - [pressEnter が改行か確定アクションかはフィールドが決める](../commands/press_enter_hide_keyboard_ja.md#注意点) — コマンド側では選べません。`type` の末尾 `\n` も同じです。
 - [iOS の hideKeyboard はフレームワークで閉じ方が違う](../commands/press_enter_hide_keyboard_ja.md#注意点) — 背景タップで閉じるか Enter で閉じるかが違います。React Native の inapp-boost は Enter を送りません。閉じなければ失敗します。
-- [キーボードの下にある対象は先にキーボードを閉じてから操作される](../commands/press_enter_hide_keyboard_ja.md#注意点) — `tap` / `type` / `clearInput` は先に副作用のない手段で閉じます。閉じられないと `type` / `clearInput` は触らず失敗し、`tap` は見えている部分だけを押します。リターンキーが要るなら先に `pressEnter()` を呼びます。探索の MCP `ft_tap` / `ft_type` も同じく Enter を送らずに閉じてから操作します。
+- [キーボードの下にある対象は先にキーボードを閉じてから操作される](../commands/press_enter_hide_keyboard_ja.md#注意点) — `tap` / `type` / `clearInput` は先に副作用のない手段で閉じます。閉じられないと、上端が見えていれば見えている部分を押し(`type` / `clearInput` は焦点が立ったと確かめてから打つ・消す)、見えていなければ触らず失敗します。リターンキーが要るなら先に `pressEnter()` を呼びます。探索の MCP `ft_tap` / `ft_type` も同じく Enter を送らずに閉じてから操作します。
 - [検証はキーボードを閉じない](../commands/press_enter_hide_keyboard_ja.md#注意点) — 閉じるのは `tap` / `type` / `clearInput` と、スクロールして探すときだけです。入力の後にキーボードより下の要素を検証するなら、先に `hideKeyboard()` を呼びます(探索の MCP の操作は手順によって閉じるので、作成中は再現しないことがあります)。
 - [キーボードが出ているかの検証は別のコマンド](../commands/press_enter_hide_keyboard_ja.md#注意点) — `keyboardIsShown` / `keyboardIsNotShown` を使います。
 - [settle: false は操作後の落ち着き待ちを省く](../commands/press_enter_hide_keyboard_ja.md#注意点) — 早く戻る代わりに、次のステップが動いている最中の画面を見ることがあります。

@@ -107,6 +107,7 @@ extension StepExecutor {
         case nil: break
         case .refused(let message)?: return .refused(message, kind: nil)
         case .visiblePart?: preconditionFailure("allowsVisiblePart is false for this action")
+        case .focusedVisiblePart?: preconditionFailure("focusesVisiblePart is false for this action")
         case .reached(let reached, let after, let note)?:
             element = reached
             snapshot = after
@@ -248,6 +249,21 @@ extension StepExecutor {
                     noteCodesThisStep.insert(.touchReachesTargetDespiteHitTest)
                 }
                 suspect = suspect ?? cover
+            } else if !isAndroid,
+                      let outside = TapTargetGeometry.outsideWindowOverlapProbe(element, in: snapshot.elements,
+                                                                               screen: snapshot.screen) {
+                // 送り残しと読まれた行(窓の外)が中心に重なる形: 手前かは木から言えないので名指さず、答えが false のときだけ断る
+                let hit = await driver.hitTest(query: HitTestQuery(element))
+                if hit == .hittable(false) {
+                    let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY,
+                                                        refs: [element.ref, outside.ref])
+                    guard TapTargetGeometry.touchClearsCovers(lands, target: element.ref, covers: [outside.ref]) else {
+                        return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position"
+                            + " (something else is drawn over it) — nothing was touched. "
+                            + Self.uncoverRemedy(cover: "what is drawn over it", step: nil))
+                    }
+                    noteCodesThisStep.insert(.touchReachesTargetDespiteHitTest)
+                }
             }
             // 容器の縁に貼り付いた見出しの下(木の並びでは見出しが奥 = 上の2つは拾わない)。塗り順の無い木では送り出しを撃たない
             // (`liftCoveredTarget`)ので、赤になったときに名指す(E2EX の sticky・xcuitest = OI-216)

@@ -38,6 +38,29 @@ extension TapTargetGeometry {
         return found
     }
 
+    /// `otherLayerCoverCandidates` が「送り残し」として外した行(容器の窓の外へ出た別の層の押せる要素)のうち、対象の中心に重なるもの
+    /// (木の順で最初)。無ければ nil。**手前だとは言わない**(窓の外の行は描かれていないかもしれない = 木から言えない)。
+    /// 対象を丸ごと包む行も拾う(候補の門の「包むラッパーは覆いでない」は外す: 窓の外の行がボタンを包む形が隠れたバーの実測)。
+    /// 使い道は `isHittable` を聞くきっかけだけ: 呼び手は候補が空のときにだけ使い、false の答えのときだけ撃たずに断る(名指さない)。
+    /// 隠れたバーのボタンの中心に、容器の上端の外へ出た行が重なる形(隠れたバーは木に元の位置のまま残る)
+    public static func outsideWindowOverlapProbe(_ element: ElementInfo, in elements: [ElementInfo],
+                                                 screen: FTRect) -> ElementInfo? {
+        guard elements.allSatisfy({ $0.z == nil }) else { return nil }
+        let cx = element.frame.centerX
+        let cy = element.frame.centerY
+        guard isPointOnScreen(x: cx, y: cy, screen: screen) else { return nil }
+        let lineage = lineage(of: element, in: elements)
+        let targetScroller = innermostScrollableAncestor(of: element, in: elements)
+        return elements.first { other in
+            other.ref != element.ref && !lineage.contains(other.ref)
+                && BridgeSnapshotThinning.operableTypes.contains(other.type)
+                && pointInside(cx, cy, other.frame)
+                && !contains(element.frame, other.frame)
+                && ContainerGeometry.isOutsideContainer(other, in: elements, screen: screen)
+                && innermostScrollableAncestor(of: other, in: elements)?.ref != targetScroller?.ref
+        }
+    }
+
     /// `isHittable` が false と答えた対象を、本物のタッチの当たり判定(in-app の `/touchlands`)で撃ってよいと言えるか。
     /// 言えるのは **全部の view を引けて、タッチが対象に届き、覆いの候補のどれにも届かない** ときだけ(nil・1つでも不明は false)。
     /// 自前描画(Flutter・CMP)は全要素が同じ view なので覆いにも「届く」= 常に false(断りのまま)。

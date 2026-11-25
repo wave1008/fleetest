@@ -8,7 +8,7 @@
   "watches": {
     "_comment": "変わったら検証を回し直すべきソース(Scripts/verification_watch.py が digest を取る)。common は陽性対照の全件に効く。各 control の watches はその対照の中心の実装だけ —— どの対照にも効く基盤(FTRuntime・ScenarioRunnerMain・RunOrchestrator・RunRecord・RunRecorder・StepExecutor.swift)は入れない(ほぼ毎回変わり、推奨が常に出る。そこの退行は本体の E2E が拾う)。回し方の Scripts/e2e-negative.sh も入れない(判定を決めるのは表・judge・実装。回し方が壊れれば次に回した時点で表に出る)。どの検証も既定では回さず、変わったら e2e.sh の終わりで推奨するだけ",
     "common": ["Scripts/negative_controls_judge.py", "Sources/FTCore/StepFailureKind.swift", "Sources/FTCore/StepNote.swift", "Sources/FTCore/ScenarioEvent.swift"],
-    "heal-verify": ["Scripts/heal-verify.sh", "TestProjects/E2E-CMP/scenarios/_disabled/94_指紋照合.swift", "TestProjects/E2E-CMP/scenarios/_disabled/95_指紋照合の前提切替.swift", "TestProjects/E2E-CMP/profiles/runs/ios-heal.json", "Sources/FTCore/LocatorFingerprint.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+StaleRef.swift", "Sources/FTCore/SelectorNaming.swift", "Sources/FTCore/StepNote.swift", "Sources/FTDSL/LocatorFingerprintCache.swift", "Sources/FTCore/HealSourceWriteBack.swift", "Sources/FTCore/HealWriteBack.swift", "Sources/FTCore/HealFixApplier.swift", "Sources/FTCore/ScenarioSourceEditor.swift"],
+    "heal-verify": ["Scripts/heal-verify.sh", "TestProjects/E2E-CMP/scenarios/_disabled/94_指紋照合.swift", "TestProjects/E2E-CMP/scenarios/_disabled/95_指紋照合の前提切替.swift", "TestProjects/E2E-CMP/profiles/runs/ios-heal.json", "Sources/FTCore/LocatorFingerprint.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+ActionHints.swift", "Sources/FTCore/StepExecutor+StaleRef.swift", "Sources/FTCore/SelectorNaming.swift", "Sources/FTCore/StepNote.swift", "Sources/FTDSL/LocatorFingerprintCache.swift", "Sources/FTCore/HealSourceWriteBack.swift", "Sources/FTCore/HealWriteBack.swift", "Sources/FTCore/HealFixApplier.swift", "Sources/FTCore/ScenarioSourceEditor.swift"],
     "fm-verify": ["Scripts/fm-verify.sh", "TestProjects/E2E-CMP/scenarios/_disabled/92_screenLooksLike.swift", "TestProjects/E2E-CMP/profiles/runs/ios-fm.json", "Sources/FTFoundationModels/**/*.swift", "Sources/FTCore/StepExecutor+AssertState.swift", "Sources/FTCore/FMServe.swift", "Sources/FTCore/FMHealth.swift", "Sources/FTCore/FMCallSlots.swift", "Sources/FTCore/FMCallAdmission.swift", "Sources/FTCore/FMVisionSupport.swift"]
   },
   "controls": [
@@ -28,7 +28,7 @@
       "project": "E2E-iOS", "file": "97_入力欄でないrefへのtype.swift", "profile": "ios-inapp-boost", "os": "ios",
       "class": "入力欄でないrefへのtype",
       "guards": "欄に焦点を残したまま入力欄でない要素へ type しても、前の欄へ打たずに撃つ前に断る(nonTextInputPreflightRefusal)。409 で XCUITest へ撃ち直さない門(nonTextInputFallbackRefusal)はボタン型の容器でしか届かず、この画面には無いので単体テスト(StepExecutorTests の buttonWrappingOneField を使う3本)が持つ",
-      "watches": ["Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+TypeClear.swift", "Sources/FTCore/TapTargetGeometry.swift", "Sources/FTCore/NonTextInputTarget.swift", "Sources/FTCore/TypeReadback.swift", "Sources/FTBridgeClient/HybridFallbackDriver.swift", "Sources/FTBridgeClient/HybridDriverComposition.swift", "InAppBridge/Sources/InAppBridge.swift", "InAppBridge/Sources/InAppSnapshot.swift"],
+      "watches": ["Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+ActionHints.swift", "Sources/FTCore/StepExecutor+TypeClear.swift", "Sources/FTCore/TapTargetGeometry.swift", "Sources/FTCore/NonTextInputTarget.swift", "Sources/FTCore/TypeReadback.swift", "Sources/FTBridgeClient/HybridFallbackDriver.swift", "Sources/FTBridgeClient/HybridDriverComposition.swift", "InAppBridge/Sources/InAppBridge.swift", "InAppBridge/Sources/InAppSnapshot.swift"],
       "scenarios": {
         "S0010": { "expect": "red", "command": "type", "detailContains": ["not a text field — refusing before anything is typed"] }
       }
@@ -52,7 +52,7 @@
       "class": "システムアラートの陽性対照",
       "resetPhotos": "com.ftester.e2e.ios",
       "guards": "OS の権限アラートが覆っている間は背面のアプリへの操作を撃たない(登録はあるがボタンが一致しない形)",
-      "watches": ["Sources/FTCore/SystemUIGate.swift", "Sources/FTCore/SystemAlertDismissal.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+SystemUIWait.swift", "Runner/FleetestRunnerUITests/InterruptionGuard.swift", "Sources/FTCore/StepExecutor+Assert.swift"],
+      "watches": ["Sources/FTCore/SystemUIGate.swift", "Sources/FTCore/SystemAlertDismissal.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+ActionHints.swift", "Sources/FTCore/StepExecutor+SystemUIWait.swift", "Runner/FleetestRunnerUITests/InterruptionGuard.swift", "Sources/FTCore/StepExecutor+Assert.swift"],
       "scenarios": {
         "S0010": { "expect": "red", "command": "tap", "failureKind": "system-ui-covered",
                    "detailContains": ["system UI is covering the app", "Buttons on this alert:"] }
@@ -63,7 +63,7 @@
       "class": "未登録のシステムアラート",
       "resetPhotos": "com.ftester.e2e.ios",
       "guards": "iosAlertHandler の登録が無いままアラートが前面にあるとき、注記を残し失敗文言に題名を添える",
-      "watches": ["Sources/FTCore/SystemUIGate.swift", "Sources/FTCore/SystemAlertDismissal.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+SystemUIWait.swift", "Runner/FleetestRunnerUITests/InterruptionGuard.swift", "Sources/FTCore/StepExecutor+JudgmentCapture.swift"],
+      "watches": ["Sources/FTCore/SystemUIGate.swift", "Sources/FTCore/SystemAlertDismissal.swift", "Sources/FTCore/StepExecutor+Actions.swift", "Sources/FTCore/StepExecutor+ActionHints.swift", "Sources/FTCore/StepExecutor+SystemUIWait.swift", "Runner/FleetestRunnerUITests/InterruptionGuard.swift", "Sources/FTCore/StepExecutor+JudgmentCapture.swift"],
       "scenarios": {
         "S0010": { "expect": "red", "command": "exist", "failureKind": "not-found",
                    "notesContains": ["system-alert-present"],

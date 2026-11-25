@@ -10,6 +10,7 @@ final class StepStateResetTests: XCTestCase {
         "resolvedViaSystemUIThisStep": ("StepExecutor+Assert.swift", "検証の入口(executeAssert)で戻し、検証の中でだけ読む"),
         "tapTargetBeforeThisStep": ("StepExecutor+Actions.swift", "操作の入口(executeAction)で毎回代入し、操作の中でだけ読む"),
         "tapStepTargetBeforeThisStep": ("StepExecutor+Actions.swift", "操作の入口(executeAction)で毎回代入し、操作の中でだけ読む"),
+        "typedFieldBeforeThisStep": ("StepExecutor+Actions.swift", "操作の入口(executeAction)で毎回代入し、type の焦点の確かめでだけ読む"),
     ]
 
     private static var coreDir: URL {

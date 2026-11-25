@@ -1317,6 +1317,62 @@ extension StepExecutorTests {
         }
     }
 
+    /// 閉じられないキーボードの下で、上側が見えている複数行の欄は、見えている部分を押して焦点を立て、立ったと確かめてから打つ・消す
+    private static let multilineHalfUnderKeyboard = ElementInfo(
+        ref: 1, type: "textView", identifier: "field_multiline", label: nil, value: nil, placeholder: nil, enabled: true,
+        frame: FTRect(x: 16, y: 420, width: 370, height: 300), depth: 1)
+
+    private func visiblePartFixture(focusLands: Bool) -> (FakeAppDriver, CallLog) {
+        let log = CallLog()
+        let field = Self.multilineHalfUnderKeyboard
+        var focused = field
+        focused.focused = true
+        let primary = FakeAppDriver(name: "primary", log: log, snapshotElements: [[field]])
+        primary.keyboardFrame = FTRect(x: 0, y: 538, width: 402, height: 336)
+        primary.tapProbeAnswer = TapProbeResponse(background: true, receiver: "UIView", reason: nil)
+        primary.afterCoordinateTap = {
+            // 1回目 = キーボードを閉じる試み(閉じない)。欄の見えている部分を押した2回目で焦点が立つ
+            if focusLands, primary.coordinateTaps.count >= 2 { primary.snapshotElements = [[focused]] }
+        }
+        return (primary, log)
+    }
+
+    func testTypeAndClearInputUnderAKeyboardThatWillNotCloseTapTheVisiblePartThenAct() async throws {
+        for action in ["type", "clearInput"] {
+            let (primary, log) = visiblePartFixture(focusLands: true)
+            let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2),
+                                        uiFramework: .compose)
+            let outcome = await executor.execute(FlowStep(action: action, locator: FlowLocator(id: "field_multiline"),
+                                                          text: action == "type" ? "hello" : nil))
+            guard case .passed = outcome.status else { XCTFail("\(action): \(outcome.status) \(log.entries)"); continue }
+            let last = try XCTUnwrap(primary.coordinateTaps.last)
+            XCTAssertEqual(primary.coordinateTaps.count, 2, "\(action): 閉じる試み + 見えている部分の1回だけのはず")
+            XCTAssertLessThan(last.y, 538, action)
+            XCTAssertGreaterThan(last.y, 420, action)
+            XCTAssertTrue(log.entries.contains { $0.hasPrefix("primary.\(action)(") }, "\(action): 撃っていない: \(log.entries)")
+            XCTAssertTrue(outcome.driverFallback?.contains("tapped its visible part above the keyboard") == true,
+                          "\(action): \(outcome.driverFallback ?? "nil")")
+        }
+    }
+
+    /// 焦点が立ったと確かめられなければ打たず・消さずに断る(打鍵は前の欄へ流れ込む)。焦点のタップは撃ち直さない
+    func testTypeAndClearInputRefuseWhenTheVisiblePartTapDidNotMoveFocus() async throws {
+        for action in ["type", "clearInput"] {
+            let (primary, log) = visiblePartFixture(focusLands: false)
+            let executor = StepExecutor(driver: primary, isAndroid: false, tunables: RunTunables(defaultTimeout: 0.2),
+                                        uiFramework: .compose)
+            let outcome = await executor.execute(FlowStep(action: action, locator: FlowLocator(id: "field_multiline"),
+                                                          text: action == "type" ? "hello" : nil))
+            guard case .failed(let message) = outcome.status else {
+                XCTFail("\(action): 焦点が立たないのに撃った \(outcome.status)"); continue
+            }
+            XCTAssertTrue(message.contains("keyboard focus did not move to it"), message)
+            XCTAssertEqual(primary.coordinateTaps.count, 2, "\(action): 焦点のタップを撃ち直した")
+            XCTAssertFalse(log.entries.contains { $0.hasPrefix("primary.type(") || $0.hasPrefix("primary.clearInput(") },
+                           "\(action): 撃った: \(log.entries)")
+        }
+    }
+
     /// Android の窓がキーボードの上へ縮んで対象が木に無いときは、見つからないと言う前に閉じて探し直す
     /// (矩形の無い `keyboardShown` だけの申告でも同じ = 実機の住所フォームの形)
     func testAndroidTargetBelowAShrunkenWindowIsReachedByHidingTheKeyboard() async throws {

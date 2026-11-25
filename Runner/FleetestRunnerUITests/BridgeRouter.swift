@@ -48,6 +48,9 @@ final class BridgeRouter {
     var refNodeLinks: [Int: NodeLink] = [:]
     /// `POST /renderer` の非公開属性の問い合わせが直近で通ったか(/status の `elementClassQuery`。nil = まだ問い合わせていない)
     var elementClassQueryOutcome: Bool?
+    /// 上端の帯の高さ(SpringBoard のステータスバーの枠の下端)を画面の大きさごとに控える(`SnapshotResponse.safeAreaTop`)。
+    /// 照会は1回約 90ms(2026-11-25 実測)なので向き・大きさが変わったときだけ聞き直す
+    var statusBarBottomByScreen: [String: SafeAreaTop] = [:]
     /// 直近の GET /snapshot で焦点を持っていた ref(キーボードが画面に出ていたときだけ)。**次の POST の1回だけ使える**
     /// (`handle` が POST の入口で `focusedRefForThisRequest` へ移して捨てる = 撮った後に操作が挟まった焦点は信じない)。
     /// /type・/clear が「焦点が既にある欄を押し直さない」ために読む(押し直すと短い間隔の2回押しになり iOS の編集メニューが出て残る)
@@ -377,9 +380,22 @@ final class BridgeRouter {
             overlayWindowFrames: cap.overlayWindowFrames.isEmpty ? nil : cap.overlayWindowFrames,
             truncatedTiers: cap.truncatedTiers.isEmpty ? nil : cap.truncatedTiers,
             bulkExemptCount: cap.bulkExempt > 0 ? cap.bulkExempt : nil,
-            // XCUITest はランナーの別プロセスで、アプリの safeAreaInsets を読む API も、ステータスバーの帯を
-            // 木に載せる経路も無い。推定の定数は置かず不明を申告する
-            safeAreaTop: .unknown)
+            safeAreaTop: statusBarBand(screen: cap.screen))
+    }
+
+    /// アプリの safeAreaInsets は別プロセスのランナーから読めないので、**SpringBoard のステータスバーの枠の下端**を帯の高さとして申告する
+    /// (ステータスバーの帯の中を撃つと、アプリでなくステータスバーに当たる = 戻るボタンが帯へ寄った形で何も押さずに ✅ だった)。
+    /// ステータスバーが無い(隠れた・横向き)・読めないときは不明(推定の定数は置かない)
+    private func statusBarBand(screen: CGRect) -> SafeAreaTop {
+        let key = "\(Int(screen.width))x\(Int(screen.height))"
+        if let known = statusBarBottomByScreen[key] { return known }
+        var band = SafeAreaTop.unknown
+        _ = FTCatchObjCException({
+            let bar = XCUIApplication(bundleIdentifier: "com.apple.springboard").statusBars.firstMatch
+            if bar.exists, bar.frame.height > 0, bar.frame.minY <= 1 { band = .measured(Double(bar.frame.maxY)) }
+        })
+        statusBarBottomByScreen[key] = band
+        return band
     }
 
     /// フォーカス中要素の申告(clearInput 事後検証用。ElementInfo.focused 参照)。
@@ -1918,6 +1934,11 @@ final class BridgeRouter {
         // 照会できる」性質(requireApp() を使わない理由)を壊さない
         let target = (req.bundleID == sessionBundleID ? app : nil)
             ?? XCUIApplication(bundleIdentifier: req.bundleID)
+        // **SpringBoard の state は他のアプリが前面でも常に runningForeground**(ホーム画面を描くプロセスとして走り続ける)。
+        // 前面と言うのはホーム画面のアイコンが木にあるときだけ(実測 iOS 27.2: 自アプリが前面 = icons 0・ホーム画面 = 36)
+        if req.bundleID == "com.apple.springboard" {
+            return .json(AppStateResponse(foreground: target.state == .runningForeground && target.icons.firstMatch.exists))
+        }
         return .json(AppStateResponse(foreground: target.state == .runningForeground))
     }
 
