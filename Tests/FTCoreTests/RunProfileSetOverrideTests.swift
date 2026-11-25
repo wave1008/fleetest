@@ -216,7 +216,10 @@ final class RunProfileSetOverrideKeysTests: XCTestCase {
             .union(byKind["int"] ?? [])
             .union(byKind["double"] ?? [])
             .union(byKind["string"] ?? [])
-        XCTAssertEqual(scalarFields, RunProfileDocument.overridableKeys)
+        XCTAssertEqual(scalarFields, RunProfileDocument.overridableKeys,
+                       "RunProfileDocument のスカラー欄と --set のキーが食い違う。左だけにある欄は --set に出ていない"
+                       + " —— RunProfile.swift の overridableKeyKinds と applyingOverrides の switch の両方に足す。"
+                       + "右だけにあるキーは欄が無い —— overridableKeyKinds から消す(.claude/rules/profile.md)")
         XCTAssertEqual(byKind["other"] ?? [], ["devices", "remoteControl", "variants"],
                        "配列/オブジェクト欄が増減した —— --set から弾く/受け付ける対応を決めて"
                        + " arrayOrObjectKeys かこのテストの期待値を更新する")

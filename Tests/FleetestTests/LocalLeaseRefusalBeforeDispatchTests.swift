@@ -140,15 +140,17 @@ final class LocalLeaseRefusalBeforeDispatchTests: XCTestCase {
                                encoding: .utf8)
         let guardCall = try XCTUnwrap(front.range(of: "try ProfileRunner.rejectIfLocalDevicesLeasedBeforeDispatch("))
         let prelock = try XCTUnwrap(front.range(of: "lock.acquireInOrder("))
-        XCTAssertLessThan(guardCall.lowerBound, prelock.lowerBound)
+        XCTAssertLessThan(guardCall.lowerBound, prelock.lowerBound,
+                          "MachineFanoutFrontHalf で rejectIfLocalDevicesLeasedBeforeDispatch が lock.acquireInOrder より後にある。手元の使用中の断りはリモートのロックを取る前に出す(.claude/rules/remote.md)")
         for (path, launch) in [("Sources/fleetest/DeviceMachineRunner.swift", "FleetRunner.runEntry("),
                                ("Sources/fleetest/ApiRunMachineFanout.swift", "await runChild("),
                                ("Sources/fleetest/MultiTargetRunner.swift", "coordinator.start()")] {
             let text = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
             let frontCall = try XCTUnwrap(text.range(of: "MachineFanoutFrontHalf.run("), "\(path) must use the front half")
             let launchCall = try XCTUnwrap(text.range(of: launch), "\(path): \(launch) not found")
-            XCTAssertLessThan(frontCall.lowerBound, launchCall.lowerBound, path)
-            XCTAssertFalse(text.contains("rejectIfLocalDevicesLeasedBeforeDispatch("), "\(path): 前段の外で呼んでいる")
+            XCTAssertLessThan(frontCall.lowerBound, launchCall.lowerBound,
+                              "\(path): MachineFanoutFrontHalf.run が子の起動(\(launch))より後にある。前段を起動より前へ移す(.claude/rules/remote.md)")
+            XCTAssertFalse(text.contains("rejectIfLocalDevicesLeasedBeforeDispatch("), "\(path): rejectIfLocalDevicesLeasedBeforeDispatch を前段の外で呼んでいる。呼ぶのは MachineFanoutFrontHalf だけ(経路ごとに呼ぶと二重になる)")
         }
     }
 }

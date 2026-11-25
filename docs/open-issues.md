@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 2 | OI-388・OI-402 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-402 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-345・OI-347・OI-358・OI-366・OI-378 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 16 | OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-279・OI-327・OI-386・OI-387 |
@@ -37,22 +37,6 @@
 低頻度の項目は、手順のシナリオが分かるものを `Scripts/soak.py` で空いた機械に回し続けて出た回を貯める(対象の表は `Scripts/soak-targets.json`・使い方は docs/verification/operations.md)。各ステップの判定の分かれ目は結果 JSON の `trace`(docs/results-json.md)に残る。
 
 ## 着手可
-
-### OI-388 規則を守るテストの失敗文が直し方を言わない
-- 状態: 経路確定
-- 確認: 1e2bf0e25(2026-11-26)
-- 属性: 着手可
-- 運用: 合否に響かない — テストは今も正しく落ちる。違反の直し方を規則ファイルから探す手間だけ
-- 優先度: 低 — 失敗文の不足だけで、取りこぼしは無い
-
-2026-11-26 の規則の棚卸し(`.claude/rules/` 全21ファイルと CLAUDE.md を、名指しのテストと突き合わせた)。直せば規則の文章を消せる・縮められる。
-① **失敗文が直し方を言わない**(差分だけ・文言なし・理由なし): docsIndex.test.mjs(索引の一致)・RunProfileSetOverrideKeysTests(主の等号)・
-DisplayFreezeWatchTests.testBaselineCarriesOverToTheNextRunsWatch・LocalLeaseRefusalBeforeDispatchTests(順序の assert)・
-BridgeLauncherRebuildTests.testRunnerProjectSharedSourcesMatchTheBridgeSourceSet・DeviceIndependentToolsIgnoreTargetTests(集合の固定・udid を畳まない集合)・
-CoordinateFrontAppWarningTests・HostRecordingProbeTests(「呼び出し数」だけ)・AXClassFixtureTests・CheckStatePreferDSLTests・PackageLinkageTests・
-MCPProfileExecutionDefaultsTests・RunHookRunnerSandboxWiringTests・TreeCoverageTests(Fires 系)・testScriptNoForceExit.test.mjs・i18n.test.mjs・
-releaseTrack.test.mjs・agentAdapters.test.mjs・agentIntegration.test.mjs(curl | bash)・installCurlFormToolRoot.test.mjs
-- 直し方: 失敗文に「何が違反か + どう直すか(どの関数を通す・どの表に足す)」を書き、規則ファイルの該当の句を縮める。変異で赤を確かめる
 
 ### OI-402 ft_batch が DSL の一部の引数(`containerInference`・スクロールの余白の比率・`select` の `requireVisible`)を受けない
 - 状態: 経路確定

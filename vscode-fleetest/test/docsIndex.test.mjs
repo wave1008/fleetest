@@ -64,13 +64,14 @@ export const isExampleId = (id) => /^[A-Z]{2,3}-0(?:\.|$)/.test(id);
 
 test("docs/README.md の索引と docs/ の保守者向け文書が一致する", () => {
   const listed = [...INDEX.split(/^## 書き方$/m)[0].matchAll(/^\| \[[^\]]+\]\(([^)#]+)\) \|/gm)].map((m) => m[1]);
-  assert.deepEqual([...new Set(listed)].sort(), maintainerDocs());
+  assert.deepEqual([...new Set(listed)].sort(), maintainerDocs(),
+    "docs/README.md の索引(「## 書き方」より前の表。1文書1行)と docs/ の保守者向け .md(user-docs・images 以外)が食い違う。+ は索引にだけある行(文書を作るか行を消す)・- は索引に無い文書(docs/README.md の該当する種別の表へ `| [名](パス) | 種別 | … |` の行を足す)");
 });
 
 test("接頭辞の表が読める", () => {
   const prefixes = prefixesFrom(INDEX);
-  assert.ok(prefixes.includes("MN") && prefixes.length >= 5, `接頭辞の表が読めない: ${prefixes}`);
-  assert.equal(new Set(prefixes).size, prefixes.length, "接頭辞が重複している");
+  assert.ok(prefixes.includes("MN") && prefixes.length >= 5, `docs/README.md「### 節の ID」の表(接頭辞ごとの行)が読めない: ${prefixes}`);
+  assert.equal(new Set(prefixes).size, prefixes.length, "docs/README.md「節の ID」の表で接頭辞が重複している(1接頭辞1行)");
 });
 
 test("節の ID は1回だけ定義され、参照された ID は全部定義がある", () => {
@@ -82,7 +83,7 @@ test("節の ID は1回だけ定義され、参照された ID は全部定義�
     }
   }
   const duplicated = [...defined].filter(([, docs]) => docs.length > 1).map(([id, docs]) => `${id}: ${docs.join(", ")}`);
-  assert.deepEqual(duplicated, [], "同じ ID を定義する見出しが複数ある");
+  assert.deepEqual(duplicated, [], "同じ ID を定義する見出しが複数ある(片方を未使用の番号へ振り直し、参照も直す。接頭辞と番号の規約は docs/README.md「節の ID」)");
 
   const dangling = [];
   // このファイル自身は検出器の入力例を持つので走査しない
@@ -92,7 +93,7 @@ test("節の ID は1回だけ定義され、参照された ID は全部定義�
       if (!defined.has(id) && !isExampleId(id)) dangling.push(`${file}: ${id}`);
     }
   }
-  assert.deepEqual([...new Set(dangling)], [], "定義の無い ID への参照(見出しを足すか参照を直す)");
+  assert.deepEqual([...new Set(dangling)], [], "定義の無い ID への参照(ファイル: ID)。定義の見出しは `## MN-n …` の形で docs/ の保守者向け文書に置く。消した節への参照なら参照側を書き直す(規約は docs/README.md「節の ID」)");
 });
 
 /** H1 の直後の冒頭の表の種別(無ければ null)。 */
@@ -121,8 +122,8 @@ test("open-issues の項目は属性の次に運用と優先度の行を持つ",
   const text = readFileSync(path.join(DOCS, "open-issues.md"), "utf8");
   const missing = [...text.matchAll(/^### (OI-\d+)[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n([^\n]*)\n([^\n]*)/gm)]
     .filter((m) => !/^- 運用: \S/.test(m[2]) || !/^- 優先度: [高中低] — \S/.test(m[3])).map((m) => m[1]);
-  assert.ok(text.match(/^### OI-\d+/gm).length > 0, "項目が読めない");
-  assert.deepEqual(missing, [], "運用・優先度の行が無い(docs/README.md「台帳の項目」)");
+  assert.ok(text.match(/^### OI-\d+/gm).length > 0, "docs/open-issues.md の項目(`### OI-n …`)が読めない");
+  assert.deepEqual(missing, [], "docs/open-issues.md の項目に `- 運用: …` / `- 優先度: 高|中|低 — 理由` の行が無い(属性の行の次に置く。書式は docs/README.md「台帳の項目」)");
 });
 
 test("open-issues の項目は表にある属性を持ち、一覧の件数と項目・置かれた節が属性と一致する", () => {
@@ -133,15 +134,16 @@ test("open-issues の項目は表にある属性を持ち、一覧の件数と�
   assert.ok(allowed.size >= 5, `属性の表が読めない: ${[...allowed]}`);
   const issues = issueAttributes(text);
   const bad = issues.filter((i) => i.values.length === 0 || i.values.some((v) => !allowed.has(v))).map((i) => i.id);
-  assert.deepEqual(bad, [], "属性の行が無い/表に無い値(docs/README.md「台帳の項目」)");
+  assert.deepEqual(bad, [], "docs/open-issues.md の項目の `- 属性: A・B` の行が無い、または冒頭の属性表に無い値がある(表へ行を足すか値を直す。docs/README.md「台帳の項目」)");
   for (const [, attribute, count, listed] of rows) {
     const ids = issues.filter((i) => i.values.includes(attribute)).map((i) => i.id)
       .sort((p, q) => Number(p.slice(3)) - Number(q.slice(3)));
-    assert.equal(ids.length, Number(count), attribute);
-    assert.deepEqual(listed.trim() === "" ? [] : listed.trim().split("・"), ids, attribute);
+    assert.equal(ids.length, Number(count), `docs/open-issues.md の属性表の「${attribute}」の件数 ${count} が、その属性を持つ項目の数と違う(表の件数と項目欄を直す)`);
+    assert.deepEqual(listed.trim() === "" ? [] : listed.trim().split("・"), ids,
+      `docs/open-issues.md の属性表の「${attribute}」の項目欄が、その属性を持つ項目(番号順)と違う(項目を足す・消す・属性を変えたら表の欄も直す)`);
     const section = text.split(new RegExp(`^## ${attribute}$`, "m"))[1]?.split(/^## /m)[0] ?? "";
     const placed = issueAttributes(section).filter((i) => i.values[0] !== attribute).map((i) => i.id);
-    assert.deepEqual(placed, [], `${attribute} の節に先頭の属性が違う項目がある`);
+    assert.deepEqual(placed, [], `docs/open-issues.md の「## ${attribute}」の節に、先頭の属性が違う項目がある(項目を先頭の属性の節へ移す)`);
   }
 });
 
@@ -153,14 +155,14 @@ test("各文書の冒頭に規約の表があり、種別が索引と一致す�
     const kind = headerKind(readFileSync(path.join(DOCS, doc), "utf8"));
     if (kind !== indexKinds.get(doc)) mismatched.push(`${doc}: 冒頭=${kind} 索引=${indexKinds.get(doc)}`);
   }
-  assert.deepEqual(mismatched, [], "冒頭の表が無い、または種別が索引と違う(docs/README.md「ファイルの冒頭」)");
+  assert.deepEqual(mismatched, [], "文書の冒頭の表(| 種別 | 範囲 | 読む場面 | 扱わないこと |)が無い、または種別が docs/README.md の索引と違う。文書の冒頭か索引の行のどちらかを直す(docs/README.md「ファイルの冒頭」)");
 });
 
 test("台帳の項目は状態と確認の行を持つ", () => {
   const ledgers = [...INDEX.split(/^## 書き方$/m)[0].matchAll(/^\| \[[^\]]+\]\(([^)#]+)\) \| 台帳 \|/gm)].map((m) => m[1]);
-  assert.ok(ledgers.includes("open-issues.md"), "索引から台帳が読めない");
+  assert.ok(ledgers.includes("open-issues.md"), "docs/README.md の索引から種別「台帳」の行(open-issues.md)が読めない");
   const bad = ledgers.flatMap((doc) => ledgerItemsMissingState(readFileSync(path.join(DOCS, doc), "utf8")).map((id) => `${doc}: ${id}`));
-  assert.deepEqual(bad, [], "状態・確認の行が無い/状態の値が規約外(docs/README.md「台帳の項目」)");
+  assert.deepEqual(bad, [], "台帳の項目の見出し直下に `- 状態: 推測|経路確定|再現済み|据え置き` と `- 確認: …` の2行が無い(文書: ID。docs/README.md「台帳の項目」)");
 });
 
 /** 文書名の無い `§N`(どの文書の節か grep で決まらない。docs/README.md「節の ID」)。 */
@@ -182,7 +184,7 @@ test("文書名の無い §N を書かない(ID で参照する)", () => {
   const hits = roots.flatMap(walk)
     .filter((f) => f !== self && !f.startsWith("docs/user-docs/"))
     .filter((f) => bareSectionRefs(readFileSync(path.join(ROOT, f), "utf8")) > 0);
-  assert.deepEqual(hits, [], "§N が残っている(MN-72 等の ID へ書き換える)");
+  assert.deepEqual(hits, [], "文書名の無い §N が残っているファイル。節の ID(`MN-72` 等。表は docs/README.md「節の ID」)へ書き換える。ID の無い節なら見出しへ ID を付ける");
 });
 
 test("文書は 1600 行以内で、1000 行を超えるものは目次を持つ", () => {
@@ -193,7 +195,7 @@ test("文書は 1600 行以内で、1000 行を超えるものは目次を持つ
     if (n > 1600) bad.push(`${doc}: ${n} 行(分割する)`);
     else if (n > 1000 && tocMissing(text).length) bad.push(`${doc}: 目次に無い見出し ${tocMissing(text).slice(0, 3).join(" / ")}`);
   }
-  assert.deepEqual(bad, [], "docs/README.md「大きさ」");
+  assert.deepEqual(bad, [], "保守者向け文書は 1600 行以内(超えたらサブフォルダへ分割しフォルダの README に目次を置く)・1000 行超は `## 目次` に全 `##` 見出しを載せる(docs/README.md「大きさ」)");
 });
 
 test("分割したフォルダの README はフォルダ内の全 ## ID を載せる", () => {
@@ -210,7 +212,7 @@ test("分割したフォルダの README はフォルダ内の全 ## ID を載�
       }
     }
   }
-  assert.deepEqual(missing, [], "フォルダの README(目次)に節が載っていない");
+  assert.deepEqual(missing, [], "分割フォルダの README.md に、フォルダ内の `## <ID> …` 見出しの目次行 `- <ID> …` が無い。ID ごとに1行足す(docs/README.md「大きさ」)");
 });
 
 /** 制約の節(`### `)のうち、冒頭の数行に `確認環境` の行を持たないもの(docs/README.md「正典と記録」の手順の書き方)。 */
@@ -227,8 +229,8 @@ export function constraintsMissingEnv(text) {
 
 test("制約と回避の各節は確認環境の行を持つ", () => {
   const text = readFileSync(path.join(DOCS, "verification/constraints.md"), "utf8");
-  assert.ok((text.match(/^### /gm) ?? []).length >= 5, "制約の節が読めない");
-  assert.deepEqual(constraintsMissingEnv(text), [], "確認環境の行が無い(版を上げたとき見直す対象を選べない)");
+  assert.ok((text.match(/^### /gm) ?? []).length >= 5, "docs/verification/constraints.md の制約の節(`### `)が読めない");
+  assert.deepEqual(constraintsMissingEnv(text), [], "docs/verification/constraints.md の制約の節の冒頭3行以内に `確認環境: …` の行が無い(OS・Xcode 等の版を書く。版を上げたとき見直す対象を選べない。docs/README.md「正典と記録」)");
   assert.deepEqual(constraintsMissingEnv("### A\n\n確認環境: 未記録\n### B\n本文\n"), ["B"]);
 });
 
@@ -298,13 +300,13 @@ function canonicalTexts() {
 
 test("正典と規則が名指しするコードの名前は実在する", () => {
   const corpus = codeCorpus();
-  assert.ok(corpus.has("StepExecutor") && corpus.has("ScenarioSandbox"), "照合先のコードが読めない");
+  assert.ok(corpus.has("StepExecutor") && corpus.has("ScenarioSandbox"), "コードの照合先(git ls-files の本文)が読めない。git 管理下で実行しているか確かめる");
   const files = canonicalTexts();
   assert.ok(files.includes("docs/design/profiles.md") && files.includes(".claude/rules/remote.md")
-    && !files.includes("docs/remote-runner/records.md"), `対象の文書が読めない: ${files.length}`);
+    && !files.includes("docs/remote-runner/records.md"), `正典・規則の対象文書の選び方が崩れている(索引の種別「記録」を除く): ${files.length} 件`);
   const bad = files.flatMap((f) => unknownCodeNames(readFileSync(path.join(ROOT, f), "utf8"), corpus, EXTERNAL_CODE_NAMES)
     .map((n) => `${f}: ${n}`));
-  assert.deepEqual(bad, [], "コードに無い名前(改名・撤去の後の残り。外部の名前なら EXTERNAL_CODE_NAMES に理由ごと足す)");
+  assert.deepEqual(bad, [], "正典・規則が backtick で名指しするコードの名前が Sources 等に無い(ファイル: 名前)。改名・撤去の後の残りなので文書側を新しい名前へ直す。OS・外部製品・Shirates 側の名前なら、このファイルの EXTERNAL_CODE_NAMES へ理由の区分つきで足す");
 });
 
 // ── 絞った e2e.sh の案内 ──

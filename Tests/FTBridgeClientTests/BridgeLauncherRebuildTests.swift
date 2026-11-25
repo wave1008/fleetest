@@ -137,8 +137,11 @@ final class BridgeLauncherRebuildTests: XCTestCase {
         walk(files, prefix: runner)
         let fromSourceSet = Set(try BridgeSourceSet.xcuitest.files(repoRoot: repo)
             .filter { $0.hasPrefix("Sources/FTCore/") })
-        XCTAssertFalse(found.isEmpty)
-        XCTAssertEqual(found, fromSourceSet)
+        XCTAssertFalse(found.isEmpty, "project.xcproj から FleetestRunnerUITests/compile-sources の FTCore ファイルを1件も読めない(走査の前提が壊れた)")
+        XCTAssertEqual(found, fromSourceSet,
+                       "Runner の project.xcproj と BridgeSourceSet.xcuitest の FTCore ファイルが食い違う。"
+                       + "左だけにある = BridgeSourceSet(Sources/FTCore/BridgeSourceSet.swift)へ足す。"
+                       + "右だけにある = project.xcproj の FleetestRunnerUITests/compile-sources へ足す(両方に足す。.claude/rules/bridge-provision.md)")
     }
 
     func testUnreadableInputsTriggerRebuild() throws {

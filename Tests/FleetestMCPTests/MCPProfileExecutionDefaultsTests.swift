@@ -61,22 +61,24 @@ final class MCPProfileExecutionDefaultsTests: XCTestCase {
             let source = try String(contentsOf: file, encoding: .utf8)
             if file.lastPathComponent != "DeviceSession.swift" {
                 XCTAssertFalse(source.contains("RunTunables()"),
-                               "\(file.lastPathComponent): executor に既定の RunTunables() を渡している(executionDefaults(args) を通す)")
+                               "\(file.lastPathComponent): executor に既定の RunTunables() を渡している。profile の設定が ft_batch に効かず run と食い違う —— executionDefaults(args).tunables を渡す(.claude/rules/executor.md)")
             }
             for site in source.components(separatedBy: "StepExecutor(driver:").dropFirst() {
                 executorSites += 1
                 let call = site.prefix(600)  // 引数(数行)が収まる長さ
-                XCTAssertTrue(call.contains("tunables: executionDefaults(args).tunables"), "\(file.lastPathComponent): \(call.prefix(120))")
+                XCTAssertTrue(call.contains("tunables: executionDefaults(args).tunables"),
+                              "\(file.lastPathComponent): StepExecutor の生成が tunables: executionDefaults(args).tunables を渡していない(セッションの profile 設定を通す。.claude/rules/executor.md): \(call.prefix(120))")
                 XCTAssertTrue(call.contains("containerInference: executionDefaults(args).containerInference"),
-                              "\(file.lastPathComponent): \(call.prefix(120))")
+                              "\(file.lastPathComponent): StepExecutor の生成が containerInference: executionDefaults(args).containerInference を渡していない(.claude/rules/executor.md): \(call.prefix(120))")
             }
         }
-        XCTAssertGreaterThanOrEqual(executorSites, 6)
+        XCTAssertGreaterThanOrEqual(executorSites, 6, "StepExecutor(driver: の生成箇所を6件未満しか見つけられない。走査が空振りしている(書式変更か移動)。走査の対象を直す")
         let driverSource = try String(contentsOf: dir.appendingPathComponent("MCPServer+Driver.swift"), encoding: .utf8)
-        XCTAssertTrue(driverSource.contains("rememberProfileExecution(ProfileExecutionDefaults(ScenarioExecutionSettings(resolvedProfile)), profileKey: key,"))
+        XCTAssertTrue(driverSource.contains("rememberProfileExecution(ProfileExecutionDefaults(ScenarioExecutionSettings(resolvedProfile)), profileKey: key,"),
+                      "MCPServer+Driver.swift の profile のドライバ生成が rememberProfileExecution で設定を覚えていない。覚えないと executionDefaults(args) が既定値に落ちる(.claude/rules/executor.md)")
         // 機の入れ替わりで捨てる(forgetDeviceState)より後に覚える
         let forget = try XCTUnwrap(driverSource.range(of: "forgetDeviceState(key)\n                    pendingWarnings[key, default: []].append("))
         let remember = try XCTUnwrap(driverSource.range(of: "rememberProfileExecution(ProfileExecutionDefaults("))
-        XCTAssertLessThan(forget.lowerBound, remember.lowerBound, "覚えた設定を機の入れ替わりの後始末が消す")
+        XCTAssertLessThan(forget.lowerBound, remember.lowerBound, "rememberProfileExecution が forgetDeviceState(key) より前にある。機の入れ替わりの後始末が覚えた設定を消すので、覚えるのは後始末の後に置く")
     }
 }

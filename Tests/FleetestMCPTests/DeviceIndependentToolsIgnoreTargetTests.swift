@@ -29,7 +29,8 @@ final class DeviceIndependentToolsIgnoreTargetTests: XCTestCase {
             "ft_list_devices", "ft_list_projects", "ft_list_scenarios",
             "ft_dsl_commands", "ft_dry_run", "ft_draft_scenario", "ft_doctor",
             "ft_start_run", "ft_run_status", "ft_stop_run", "ft_results", "ft_services",
-        ])
+        ], "宛先を取らないツールの集合が変わった。新ツールが udid/serial/port を宣言しないなら、この表へ足して toolAcceptsDeviceTarget の門が効くことを確かめる。"
+            + "宛先を取るべきなのに入ったなら、スキーマに udid 等を宣言する(予約名を別の用途に使わない。.claude/rules/mcp.md)")
     }
 
     /// ブリッジの居ない udid を添えても、宛先を取らないツールは「no running bridge」で落ちない。
@@ -55,7 +56,8 @@ final class DeviceIndependentToolsIgnoreTargetTests: XCTestCase {
                   MCPServer.toolAcceptsDeviceTarget(name), !MCPServer.toolFoldsUDID(name) else { return nil }
             return name
         })
-        XCTAssertEqual(noFold, ["ft_logs", "ft_release_device"])
+        XCTAssertEqual(noFold, ["ft_logs", "ft_release_device"],
+                       "udid を宣言するのに畳まないツールの集合が変わった。ブリッジが死んだ後に使うツールだけを toolsResolvingUDIDWithoutBridge に置き、udid を自分で解決する(.claude/rules/mcp.md)。それ以外は toolFoldsUDID で畳む側へ")
     }
 
     /// 逆向き: 宛先を取るツールは従来どおり udid を解決し、居なければ名指しで断る

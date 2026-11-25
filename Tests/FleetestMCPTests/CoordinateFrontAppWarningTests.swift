@@ -32,7 +32,7 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/fleetest-mcp/MCPServer+Hints.swift"), encoding: .utf8)
         XCTAssertEqual(source.components(separatedBy: "frontAppWarning(probed.verdict, launched: probed.launched, sent: false)").count - 1, 2,
-                       "ft_type / ft_clear_input と ft_batch の ref なし入力の断り")
+                       "ref なし入力の断りは ft_type / ft_clear_input と ft_batch の2か所で frontAppWarning(sent: false) を通す。増減したなら MCPServer+Hints.swift の断り経路が判定(PreFireGuard.refLessInputBlocked)と揃っているか確かめる")
     }
 
     /// **断る判定(`PreFireGuard.refLessInputBlocked`)と断り文の材料(`frontAppWarning`)が全ケースで一致する**。
@@ -46,7 +46,8 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
         ]
         for verdict in verdicts {
             let warning = MCPServer.frontAppWarning(verdict, launched: app, sent: false)
-            XCTAssertEqual(PreFireGuard.refLessInputBlocked(by: verdict), !warning.isEmpty, "\(verdict): \(warning)")
+            XCTAssertEqual(PreFireGuard.refLessInputBlocked(by: verdict), !warning.isEmpty,
+                           "\(verdict): 断る判定と frontAppWarning の空/非空が食い違う。新しい verdict の扱いは PreFireGuard.refLessInputBlocked と MCPServer.frontAppWarning の両方に足す。警告: \(warning)")
         }
     }
 
@@ -76,7 +77,7 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
         let code = source.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
         let calls = code.components(separatedBy: "await coordinateFrontAppWarning(").count - 1
-        XCTAssertEqual(calls, 10, "座標で撃つ経路と警告の配線の本数がずれた")
+        XCTAssertEqual(calls, 10, "coordinateFrontAppWarning の呼び出し本数が10でない。座標で撃つ経路を足したら発火の前で coordinateFrontAppWarning を呼び、この本数と下の (警告, 発火) の表へ足す(.claude/rules/mcp.md)")
         for (warning, fire) in [
             ("coordinateFrontAppWarning(d, args: args)", "try await d.tap(x: x, y: y)"),
             ("coordinateFrontAppWarning(swipeDriver, args: args)", "try await swipeDriver.swipe(direction)"),
@@ -90,7 +91,8 @@ final class CoordinateFrontAppWarningTests: XCTestCase {
             let asked = try XCTUnwrap(code.range(of: warning), warning)
             let fired = try XCTUnwrap(code.range(of: fire, range: asked.upperBound..<code.endIndex),
                                       "\(fire) が警告の取得より後に無い")
-            XCTAssertLessThan(asked.lowerBound, fired.lowerBound)
+            XCTAssertLessThan(asked.lowerBound, fired.lowerBound,
+                              "\(warning) が \(fire) より後にある。座標の操作は撃つ前に前面のアプリを確かめる(撃ったあとの警告では他のアプリへ届いた後になる)")
         }
     }
 }

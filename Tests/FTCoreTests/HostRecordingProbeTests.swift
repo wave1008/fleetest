@@ -73,8 +73,10 @@ final class HostRecordingProbeTests: XCTestCase {
             let code = try source(file)
             let call = "ProfileWorkerFactory.recoverStaleRecordingIOSWorkers("
             let triage = "BlankWorkerTriage.excludeBlankScreenWorkers("
-            XCTAssertEqual(code.components(separatedBy: call).count - 1, expected, "\(file) の呼び出し数")
-            XCTAssertEqual(code.components(separatedBy: triage).count - 1, expected, "\(file) の供給口の数")
+            XCTAssertEqual(code.components(separatedBy: call).count - 1, expected,
+                           "\(file) の recoverStaleRecordingIOSWorkers の呼び出し数が \(expected) 件でない。iOS の供給口は ProfileSupplyLanes.ios の1つで、凍結トリアージの直後に通す(bridge-provision.md の録画セッションの項)。直呼びを ProfileRunner / ApiRunCommand へ戻さず、供給口の側へ寄せる")
+            XCTAssertEqual(code.components(separatedBy: triage).count - 1, expected,
+                           "\(file) の BlankWorkerTriage.excludeBlankScreenWorkers の呼び出し数が \(expected) 件でない。トリアージを足す・動かすなら録画セッションの検査(recoverStaleRecordingIOSWorkers)も直後へ同じ数だけ置く。供給口は ProfileSupplyLanes.ios の1つ")
             var searchStart = code.startIndex
             while let triageRange = code.range(of: triage, range: searchStart..<code.endIndex) {
                 guard let callRange = code.range(of: call, range: triageRange.upperBound..<code.endIndex) else {

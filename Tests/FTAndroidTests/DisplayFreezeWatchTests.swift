@@ -104,10 +104,12 @@ final class DisplayFreezeWatchTests: XCTestCase {
         XCTAssertEqual(first, .healthy)
         probe.now += DisplayFreezeDetector.minSpanSeconds
         let next = await watch().check(worker(), restoring: "app") { _ in }  // 別の run = 別のインスタンス
-        guard case .frozen = next else { return XCTFail("前の run の基準と比べて疑うはず: \(next)") }
-        XCTAssertEqual(probe.repairs, 1)
+        guard case .frozen = next else {
+            return XCTFail("前の run の基準と比べて疑うはず: \(next)。DisplayFreezeWatch は last[key] が無いとき baseline.load(key) へ落とす(run をまたぐ基準。baseline.save を消さない)")
+        }
+        XCTAssertEqual(probe.repairs, 1, "凍結と判定したのに repair が1回でない")
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("emulator-5554.json").path),
-                       "回復の後は基準を捨てる")
+                       "回復の後は基準を捨てる(捨て忘れると直ったデバイスを次の run が古い基準で疑う。DisplayFreezeWatch が回復後に baseline.save(key, nil) を呼ぶ側)")
     }
 
     /// 確認の入力を撃てなかったら判定しない(時計の無い静止画面の健全なデバイスを再起動しない)・SUT にも触らない

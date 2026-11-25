@@ -107,7 +107,7 @@ test("update-check: release チャンネルで旧タグ → update-available(最
   const r = updateCheck(f);
   assert.equal(r.status, 3, r.stdout);
   assert.equal(r.kv.channel, "release");
-  assert.equal(r.kv.verdict, "update-available");
+  assert.equal(r.kv.verdict, "update-available", "release チャンネルで旧タグにいるのに update-available にならない(Scripts/update-check.sh の判定を見る)");
   assert.equal(r.kv.local_version, "0.9.0");
   assert.equal(r.kv.latest_version, "0.10.0", "0.10.0 > 0.9.0(文字列ソートにしない)");
   assert.equal(r.kv.remote_head, f.c10, "remote_head はタグオブジェクトでなくコミット(peeled)");
@@ -236,11 +236,12 @@ test("update.sh: 更新の後もまだ update-available なら失敗で止める
   const reexec = src.indexOf("exec bash \"$0\"");
   const check = src.indexOf("The update did not take effect");
   const sync = src.indexOf("==> fleetest project sync");
-  assert.ok(check > 0, "更新が効いたかの確かめがありません");
-  assert.ok(reexec < check && check < sync, "確かめの位置が再 exec の後・project sync の前にありません");
+  assert.ok(check > 0, "Scripts/update.sh から「The update did not take effect」の確かめが消えている。更新後もまだ update-available なら失敗で止める検査を戻す(止めないと古い版のまま project sync へ進む)");
+  assert.ok(reexec < check && check < sync, "Scripts/update.sh で更新の確かめの位置が崩れている。再 exec(exec bash \"$0\")の後・`==> fleetest project sync` の前に置く(前だと新しい update.sh が走る前に判定する)");
   const block = src.slice(src.lastIndexOf("if", check), sync);
-  assert.match(block, /channel=release"\*"verdict=update-available/);
-  assert.match(block, /exit 1/);
+  assert.match(block, /channel=release"\*"verdict=update-available/,
+    "Scripts/update.sh の更新の確かめが channel=release かつ verdict=update-available を見ていない(release チャンネルで更新が効かなかった判定を戻す)");
+  assert.match(block, /exit 1/, "Scripts/update.sh の更新の確かめが exit 1 で止めていない(失敗を黙って続行させない)");
 });
 
 test("install.sh --track-branch:リモートランナー向け。リリース追従をせずブランチのまま(channel も立てない)", (t) => {
@@ -296,7 +297,7 @@ test("install.sh --align-release-only: 作業フォルダが無いクローン(T
 function functionBody(file, name) {
   const source = readFileSync(file, "utf8");
   const begin = source.indexOf(`\n${name}() {`);
-  assert.ok(begin >= 0, `${path.basename(file)} に ${name} が無い`);
+  assert.ok(begin >= 0, `${path.basename(file)} に関数 ${name}() が無い(関数の名前を変えたらこのテストの名指しと、複製先のスクリプトも揃える。.claude/rules/installer-agents.md)`);
   const end = source.indexOf("\n}\n", begin);
   assert.ok(end > begin, `${name} の終端が見つからない`);
   return source.slice(begin + 1, end + 3);
@@ -304,9 +305,9 @@ function functionBody(file, name) {
 
 test("latest_release_tag / semver_newer は install.sh と update-check.sh で同一本文(片方だけ変えない)", () => {
   for (const name of ["latest_release_tag", "semver_newer"]) {
-    assert.equal(functionBody(INSTALL_SH, name), functionBody(UPDATE_CHECK_SH, name), `${name} が食い違っている`);
+    assert.equal(functionBody(INSTALL_SH, name), functionBody(UPDATE_CHECK_SH, name), `Scripts/install.sh と Scripts/update-check.sh の ${name} の本文が食い違っている。install.sh は単体で scp されるため関数を複製している(.claude/rules/installer-agents.md)。片方を直したら他方へ同じ本文を写す`);
   }
-  assert.equal(functionBody(INSTALL_SH, "semver_newer"), functionBody(UPDATE_SH, "semver_newer"), "update.sh の semver_newer が食い違っている");
+  assert.equal(functionBody(INSTALL_SH, "semver_newer"), functionBody(UPDATE_SH, "semver_newer"), "Scripts/update.sh の semver_newer が install.sh の本文と食い違っている。複製した関数は片方だけ変えない(.claude/rules/installer-agents.md)。直した本文を3つのスクリプトへ揃える");
 });
 
 test("latest_release_tag: semver 最大を選ぶ(X.Y.Z 以外と ^{} 行は無視)", () => {
@@ -316,12 +317,12 @@ test("latest_release_tag: semver 最大を選ぶ(X.Y.Z 以外と ^{} 行は無�
     "ddd\trefs/tags/0.2.0", "eee\trefs/tags/v9.0.0", "fff\trefs/tags/1.0.0-rc1", "",
   ].join("\n");
   const r = spawnSync("bash", ["-c", `${body}\nlatest_release_tag`], { input: lines, encoding: "utf8" });
-  assert.equal(r.stdout.trim(), "0.10.0");
+  assert.equal(r.stdout.trim(), "0.10.0", "latest_release_tag が semver の数値順の最大を選んでいない(文字列ソートにしない。Scripts/install.sh と update-check.sh の両方を直す)");
   const none = spawnSync("bash", ["-c", `${body}\nlatest_release_tag`], { input: "aaa\trefs/tags/v1\n", encoding: "utf8" });
-  assert.equal(none.stdout.trim(), "");
+  assert.equal(none.stdout.trim(), "", "latest_release_tag が X.Y.Z 以外のタグを拾っている(Scripts/install.sh と update-check.sh の両方を直す)");
   const sv = functionBody(INSTALL_SH, "semver_newer");
   const newer = (a, b) => spawnSync("bash", ["-c", `${sv}\nsemver_newer ${a} ${b}`]).status;
-  assert.equal(newer("0.10.0", "0.9.0"), 0);
-  assert.equal(newer("0.9.0", "0.10.0"), 1);
-  assert.equal(newer("0.9.0", "0.9.0"), 1);
+  assert.equal(newer("0.10.0", "0.9.0"), 0, "semver_newer が数値順になっていない(0.10.0 は 0.9.0 より新しい)");
+  assert.equal(newer("0.9.0", "0.10.0"), 1, "semver_newer が逆転している");
+  assert.equal(newer("0.9.0", "0.9.0"), 1, "semver_newer が同じ版を新しいと言っている");
 });

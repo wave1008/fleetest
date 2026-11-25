@@ -92,6 +92,8 @@ final class CheckStatePreferDSLTests: XCTestCase {
         return (core.finalRecord.passed, steps.last?.description ?? "")
     }
 
+    private static let fixHint = "DSL の写像(prefer: → FlowStep.preferCheckStateClassifier)か executeAssertChecked の決定(ステップ指定 > プロファイル)を確かめる(vision.md)"
+
     func testPreferReachesTheExecutorFromBothCallForms() throws {
         let root = try Self.makeProject()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -100,33 +102,33 @@ final class CheckStatePreferDSLTests: XCTestCase {
         let chained = run(projectRoot: root, profilePrefersClassifier: false) {
             select("#cb", requireVisible: false).checkIsON(prefer: .classifier, waitSeconds: 0)
         }
-        XCTAssertTrue(chained.passed, chained.description)
-        XCTAssertTrue(chained.description.contains("(prefer: classifier)"), chained.description)
+        XCTAssertTrue(chained.passed, "checkIsON(prefer: .classifier) が画像の判定へ届いていない。"+Self.fixHint+": "+chained.description)
+        XCTAssertTrue(chained.description.contains("(prefer: classifier)"), "説明に prefer の印が無い。"+Self.fixHint+": "+chained.description)
 
         // プロファイルは分類器優先。`.accessibility` の指定で a11y(オフ)が判定する = checkIsON は落ちる
         let toA11y = run(projectRoot: root, profilePrefersClassifier: true) {
             select("#cb", requireVisible: false).checkIsON(prefer: .accessibility, waitSeconds: 0)
         }
-        XCTAssertFalse(toA11y.passed, "a11y はオフなので落ちるはず: \(toA11y.description)")
-        XCTAssertTrue(toA11y.description.contains("(prefer: accessibility)"), toA11y.description)
+        XCTAssertFalse(toA11y.passed, "prefer: .accessibility が a11y(オフ)の判定へ届いていない(プロファイルの分類器優先に負けている)。"+Self.fixHint+": \(toA11y.description)")
+        XCTAssertTrue(toA11y.description.contains("(prefer: accessibility)"), "説明に prefer の印が無い。"+Self.fixHint+": \(toA11y.description)")
 
         // 暗黙形(自由関数)も同じ引数を運ぶ
         let implicitOff = run(projectRoot: root, profilePrefersClassifier: true) {
             select("#cb", requireVisible: false)
             checkIsOFF(prefer: .accessibility, waitSeconds: 0)
         }
-        XCTAssertTrue(implicitOff.passed, implicitOff.description)
+        XCTAssertTrue(implicitOff.passed, "暗黙形(自由関数)の checkIsOFF(prefer:) が引数を運んでいない。"+Self.fixHint+": \(implicitOff.description)")
         let implicitOn = run(projectRoot: root, profilePrefersClassifier: false) {
             select("#cb", requireVisible: false)
             checkIsON(prefer: .classifier, waitSeconds: 0)
         }
-        XCTAssertTrue(implicitOn.passed, implicitOn.description)
+        XCTAssertTrue(implicitOn.passed, "暗黙形(自由関数)の checkIsON(prefer:) が引数を運んでいない。"+Self.fixHint+": \(implicitOn.description)")
 
         // 省略時は実行プロファイルに従う(説明に印を足さない)
         let byProfile = run(projectRoot: root, profilePrefersClassifier: false) {
             select("#cb", requireVisible: false).checkIsON(waitSeconds: 0)
         }
-        XCTAssertFalse(byProfile.passed)
-        XCTAssertFalse(byProfile.description.contains("prefer:"), byProfile.description)
+        XCTAssertFalse(byProfile.passed, "prefer 省略時は実行プロファイル(a11y 優先 = オフ)に従うはず。"+Self.fixHint)
+        XCTAssertFalse(byProfile.description.contains("prefer:"), "省略時に説明へ prefer の印を足してはいけない: \(byProfile.description)")
     }
 }

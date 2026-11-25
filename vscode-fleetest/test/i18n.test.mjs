@@ -135,12 +135,12 @@ function collectStringLiteralJapanese(absFile) {
 test("辞書: ja/en が非空でプレースホルダ集合が一致する", () => {
   for (const { name, dict } of DICTS) {
     for (const [key, entry] of Object.entries(dict)) {
-      assert.ok(entry && typeof entry.ja === "string" && entry.ja.length > 0, `${name}: ${key} の ja が空`);
-      assert.ok(entry && typeof entry.en === "string" && entry.en.length > 0, `${name}: ${key} の en が空`);
+      assert.ok(entry && typeof entry.ja === "string" && entry.ja.length > 0, `${name}: ${key} の ja が空(src/i18n/strings/${name}.ts の該当キーに日本語の表示文字列を書く)`);
+      assert.ok(entry && typeof entry.en === "string" && entry.en.length > 0, `${name}: ${key} の en が空(src/i18n/strings/${name}.ts の該当キーに英訳を書く。ja と en は両方必須)`);
       assert.deepEqual(
         placeholders(entry.ja),
         placeholders(entry.en),
-        `${name}: ${key} の ja/en でプレースホルダ集合が不一致`,
+        `${name}: ${key} の ja/en でプレースホルダ集合が不一致(src/i18n/strings/${name}.ts で {name} 形式の名前を ja と en で同じ集合にする。.claude/rules/vscode-i18n.md)`,
       );
     }
   }
@@ -149,7 +149,7 @@ test("辞書: ja/en が非空でプレースホルダ集合が一致する", () 
 test("辞書: キーが所属ファイルの namespace で始まる", () => {
   for (const { name, prefix, dict } of DICTS) {
     for (const key of Object.keys(dict)) {
-      assert.ok(key.startsWith(prefix), `${name}: キー "${key}" が prefix "${prefix}" で始まっていない`);
+      assert.ok(key.startsWith(prefix), `${name}: キー "${key}" が prefix "${prefix}" で始まっていない(辞書はファイルと namespace が1対1。キー名を直すか、正しい辞書ファイルへ移す。.claude/rules/vscode-i18n.md)`);
     }
   }
 });
@@ -158,7 +158,7 @@ test("辞書: ファイル横断でキーが重複しない", () => {
   const seen = new Map();
   for (const { name, dict } of DICTS) {
     for (const key of Object.keys(dict)) {
-      assert.ok(!seen.has(key), `キー "${key}" が ${seen.get(key)} と ${name} で重複`);
+      assert.ok(!seen.has(key), `キー "${key}" が ${seen.get(key)} と ${name} で重複(キーは全辞書で一意。片方を別名にして参照も直す)`);
       seen.set(key, name);
     }
   }
@@ -171,7 +171,7 @@ test("辞書: src/i18n/strings/ の全ファイルが DICTS に登録されて�
   const files = readdirSync(path.join(ROOT, "src", "i18n", "strings"))
     .filter((f) => f.endsWith(".ts"));
   const missing = files.filter((f) => !registered.has(f));
-  assert.deepEqual(missing, [], `DICTS 未登録の辞書: ${missing.join(", ")}(test/i18n.test.mjs に追加)`);
+  assert.deepEqual(missing, [], `DICTS 未登録の辞書: ${missing.join(", ")}(test/i18n.test.mjs の import と DICTS に { name, prefix, dict, side } を足す。side は ext/webview/lane。.claude/rules/vscode-i18n.md)`);
 });
 
 test("残存日本語: 文字列/テンプレートリテラルに未変換の日本語が無い", () => {
@@ -191,7 +191,7 @@ test("残存日本語: 文字列/テンプレートリテラルに未変換の�
       }
     }
   }
-  assert.equal(offenders.length, 0, `未変換の日本語リテラル:\n${offenders.join("\n")}`);
+  assert.equal(offenders.length, 0, `未変換の日本語リテラル(UI 文字列は src/i18n/strings/ の辞書へ移し t()/tLane() で引く。ログ・内部 throw など UI に出ないものだけこのテストの RESIDUAL_ALLOWLIST へ理由つきで足す。.claude/rules/vscode-i18n.md):\n${offenders.join("\n")}`);
 });
 
 test("webview: t('...') のキーが webview 辞書に存在する", () => {
@@ -219,7 +219,8 @@ test("webview: t('...') のキーが webview 辞書に存在する", () => {
       }
     }
   }
-  assert.equal(missing.length, 0, missing.join("\n"));
+  assert.equal(missing.length, 0,
+    `webview の t('…') のキーが webview 側の辞書に無い(該当キーを webview 側の辞書(side: "webview")へ { ja, en } で足すか、キー名を直す。ext 側の辞書のキーは webview から引けない):\n${missing.join("\n")}`);
 });
 
 test("lane: tLane('...') のキーが lane 辞書に存在する", () => {
@@ -235,13 +236,15 @@ test("lane: tLane('...') のキーが lane 辞書に存在する", () => {
       }
     }
   }
-  assert.equal(missing.length, 0, missing.join("\n"));
+  assert.equal(missing.length, 0,
+    `tLane('…') のキーが src/i18n/strings/lane.ts に無い(lane.* のキーを { ja, en } で足すか、キー名を直す):\n${missing.join("\n")}`);
 });
 
 // lane.ts は vscode 非依存の別ランタイム(自前 dict のみに依存する契約)なので deviceOps の
 // 辞書を import できず、手元の呼び名だけを同じ訳で持っている。**片方だけ変えない**。
 test("lane: 手元の機械の呼び名は deviceOps.machineLocalLabel と同じ1つ", () => {
-  assert.deepEqual(laneStrings["lane.machineLocal"], deviceOpsStrings["deviceOps.machineLocalLabel"]);
+  assert.deepEqual(laneStrings["lane.machineLocal"], deviceOpsStrings["deviceOps.machineLocalLabel"],
+    "lane.machineLocal(src/i18n/strings/lane.ts)と deviceOps.machineLocalLabel(deviceOps.ts)の訳が食い違う。lane.ts は vscode 非依存で import できないため、片方を変えたら他方も同じ ja/en に揃える");
 });
 
 test("package.nls: %参照% が両 nls に存在しキー集合が一致・contributes に日本語なし", () => {
@@ -254,20 +257,20 @@ test("package.nls: %参照% が両 nls に存在しキー集合が一致・contr
   for (const m of pkgRaw.matchAll(/%([\w.]+)%/g)) {
     refs.add(m[1]);
   }
-  assert.ok(refs.size > 0, "package.json に %参照% が見つからない");
+  assert.ok(refs.size > 0, "package.json に %key% 参照が見つからない(contributes の表示文字列は %key% + package.nls*.json で書く。.claude/rules/vscode-i18n.md)");
   for (const key of refs) {
-    assert.ok(key in en, `package.nls.json に "${key}" が無い`);
-    assert.ok(key in ja, `package.nls.ja.json に "${key}" が無い`);
+    assert.ok(key in en, `package.nls.json に "${key}" が無い(package.json の %${key}% に対応する英語の値を足す)`);
+    assert.ok(key in ja, `package.nls.ja.json に "${key}" が無い(package.json の %${key}% に対応する日本語の値を足す)`);
   }
   assert.deepEqual(
     Object.keys(en).sort(),
     Object.keys(ja).sort(),
-    "package.nls.json と package.nls.ja.json のキー集合が不一致",
+    "package.nls.json と package.nls.ja.json のキー集合が不一致(+ は ja にだけ・- は en にだけあるキー。足りない側へ訳を足す。両 nls は同じキー集合)",
   );
 
   const walkValues = (node, jsonPath) => {
     if (typeof node === "string") {
-      assert.ok(!CJK.test(node), `contributes に日本語が残存: ${jsonPath} = ${JSON.stringify(node)}`);
+      assert.ok(!CJK.test(node), `contributes に日本語が残存: ${jsonPath} = ${JSON.stringify(node)}(package.json の contributes は %key% 参照にし、英語を package.nls.json・日本語を package.nls.ja.json へ置く)`);
     } else if (Array.isArray(node)) {
       node.forEach((v, i) => walkValues(v, `${jsonPath}[${i}]`));
     } else if (node && typeof node === "object") {

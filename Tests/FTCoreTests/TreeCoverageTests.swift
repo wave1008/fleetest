@@ -52,13 +52,14 @@ final class TreeCoverageTests: XCTestCase {
     func testGapFiresOnExactlyTheKnownBrowserScreens() throws {
         let fired = Set(try corpus().filter { TreeCoverage.gap(in: $0.snapshot) != nil }.map(\.name))
         XCTAssertEqual(fired, expectedGapFixtures,
-                       "webView の空白帯が発火する画面が変わった。増分を1件ずつ検分すること")
+                       "webView の空白帯(TreeCoverage.gap)の発火集合が固定コーパスの期待と違う。余分な画面は木を1件ずつ見て、真陽性なら expectedGapFixtures と NoteCoverageTests の webViewGapNote の baseline の両方へ足し、誤検知なら TreeCoverage.gap を直す。足りない画面は判定が緩んでいるので TreeCoverage.gap を戻す(selector-snapshot.md「木が画面を代表していない」)")
     }
 
     func testMissingPageContentFiresOnExactlyTheKnownScreen() throws {
         let fired = Set(try corpus().filter { TreeCoverage.missingPageContent(in: $0.snapshot) }
             .map(\.name))
-        XCTAssertEqual(fired, expectedMissingContentFixtures)
+        XCTAssertEqual(fired, expectedMissingContentFixtures,
+                       "ページ本体なしの判定(TreeCoverage.missingPageContent)の発火集合が固定コーパスの期待と違う。余分な画面は木を1件ずつ見て、真陽性なら expectedMissingContentFixtures と NoteCoverageTests の missingPageContentNote の baseline の両方へ足し、誤検知なら判定を直す。足りない画面は判定が緩んでいる(selector-snapshot.md「木が画面を代表していない」)")
     }
 
     /// **誤検知0**: 自前 SUT とネイティブ画面は1枚も疑われない。ここが破れると
@@ -107,7 +108,8 @@ final class TreeCoverageTests: XCTestCase {
     /// **モーダル形の発火集合を等号で固定する**(ネイティブを含む)
     func testCollapsedTreeFiresOnExactlyTheKnownScreens() throws {
         let fired = Set(try corpus().filter { TreeCoverage.collapsedTree(in: $0.snapshot) }.map(\.name))
-        XCTAssertEqual(fired, expectedCollapsedFixtures)
+        XCTAssertEqual(fired, expectedCollapsedFixtures,
+                       "モーダル形(TreeCoverage.collapsedTree)の発火集合が固定コーパスの期待と違う。余分な画面は木を1件ずつ見て、真陽性なら expectedCollapsedFixtures へ足し、誤検知(疎いだけの健全なネイティブ画面等)なら TreeCoverage.collapsedTree を直す。足りない画面は判定が緩んでいる(selector-snapshot.md「木が画面を代表していない」)")
     }
 
     /// **健全な疎いネイティブ画面は疑われない**(2026-09-07 の witness)。`sut-e2e_noid` は
@@ -320,7 +322,7 @@ final class TreeCoverageTests: XCTestCase {
                                     screen: FTRect(x: 0, y: 0, width: 1080, height: 2424),
                                     elements: [container, top, bottom], truncatedCount: 0)
         XCTAssertNotNil(TreeCoverage.gap(in: tree),
-                        "実測の取りこぼし(302px)が長辺基準の床でも発火しなくなった")
+                        "実測の取りこぼし(302px)が TreeCoverage.gap で発火しなくなった。縦向きでは長辺 = 高さなので、長辺基準の床を変えた変更が縦向きの効きを落としている。床を戻すか、縦向きの真陽性が残る値にする")
     }
 
     /// **上端に接する帯は数えない**(容器の余白はどのページにもある)。

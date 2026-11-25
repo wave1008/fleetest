@@ -45,7 +45,7 @@ final class PackageLinkageTests: XCTestCase {
 
     func testFTServicesDependsOnYams() throws {
         let block = try XCTUnwrap(Self.blocks().first { $0.name == "FTServices" }, "FTServices target not found")
-        XCTAssertTrue(block.body.contains("\"Yams\""))
+        XCTAssertTrue(block.body.contains("\"Yams\""), "FTServices ターゲットが Yams に依存していない。compose.yaml の解釈は FTServices が持つ(executor.md のサービスの項)。依存を戻すか、解釈の置き場を移したならこのテストを直す")
     }
 
     func testScenarioSideTargetsDoNotDependOnFTServicesOrYams() throws {
@@ -55,10 +55,11 @@ final class PackageLinkageTests: XCTestCase {
                 || $0.name.hasPrefix("fleetest-scenarios-")
         }
         // 走査が空振りしていないこと: 3つの名前つきターゲットは必ずある
-        XCTAssertTrue(["FTCore", "FTDSL", "FTScenarioRunner"].allSatisfy { name in scenarioSide.contains { $0.name == name } })
+        XCTAssertTrue(["FTCore", "FTDSL", "FTScenarioRunner"].allSatisfy { name in scenarioSide.contains { $0.name == name } },
+                      "Package.swift の走査が FTCore / FTDSL / FTScenarioRunner のいずれかを見つけられない。ターゲットの宣言形(.target( 等の行頭)か名前を変えたなら、blocks() の走査を合わせる")
         for block in scenarioSide {
-            XCTAssertFalse(block.body.contains("FTServices"), "\(block.name) must not depend on FTServices")
-            XCTAssertFalse(block.body.contains("Yams"), "\(block.name) must not depend on Yams")
+            XCTAssertFalse(block.body.contains("FTServices"), "\(block.name) が FTServices に依存している。シナリオ実行バイナリへ Yams ごとリンクさせない。FTServices を使う処理は fleetest CLI / fleetest-mcp 側へ置き、FTCore へは broker に方針を差し込む口だけ置く(executor.md のサービスの項)")
+            XCTAssertFalse(block.body.contains("Yams"), "\(block.name) が Yams に依存している。シナリオ実行バイナリへ Yams をリンクさせない。YAML を読む処理は FTServices(fleetest CLI / fleetest-mcp 側)へ置く")
         }
     }
 }

@@ -27,9 +27,9 @@ const INSTALL_SH = path.join(ROOT, "Scripts/install.sh");
 function toolRootBlock() {
   const source = readFileSync(INSTALL_SH, "utf8");
   const start = source.indexOf("# ---- 0.5 TOOL_ROOT(");
-  assert.ok(start > 0, "install.sh の TOOL_ROOT 解決ブロックが見つからない(走査の前提が崩れた)");
+  assert.ok(start > 0, "Scripts/install.sh から `# ---- 0.5 TOOL_ROOT(` の見出しが見つからない。ブロックの見出しを変えたらこのテストの切り出しも直す(解決規則は install.sh / preflight.sh / update.sh / update-check.sh / toolRootResolve.ts で同じ。.claude/rules/installer-agents.md)");
   const end = source.indexOf('\nif [ -d "$TOOL_ROOT_RAW/.git"', start);
-  assert.ok(end > start, "TOOL_ROOT 解決ブロックの終端が見つからない");
+  assert.ok(end > start, "Scripts/install.sh の TOOL_ROOT 解決ブロックの終端(`if [ -d \"$TOOL_ROOT_RAW/.git\"`)が見つからない。切り出しの終端を直す");
   return source.slice(start, end);
 }
 
@@ -49,7 +49,7 @@ function resolveCurlForm({ workDir, toolRootArg = "" }) {
     'printf \'%s\' "$TOOL_ROOT_RAW"',
   ].join("\n");
   const res = spawnSync("bash", ["-s", "--"], { input: script, encoding: "utf8" });
-  assert.equal(res.status, 0, `resolution block failed (status=${res.status}): ${res.stderr}`);
+  assert.equal(res.status, 0, `curl 形で Scripts/install.sh の TOOL_ROOT 解決ブロック(ステップ0.5)が失敗した(status=${res.status}): ${res.stderr}`);
   return res.stdout;
 }
 
@@ -72,7 +72,7 @@ function resolveOnDiskForm({ selfCloneDir, workDir, toolRootArg = "", isGitClone
   ].join("\n");
   writeFileSync(scriptPath, script);
   const res = spawnSync("bash", [scriptPath], { encoding: "utf8" });
-  assert.equal(res.status, 0, `resolution block failed (status=${res.status}): ${res.stderr}`);
+  assert.equal(res.status, 0, `on-disk 形で Scripts/install.sh の TOOL_ROOT 解決ブロック(ステップ0.5)が失敗した(status=${res.status}): ${res.stderr}`);
   return res.stdout;
 }
 
@@ -94,7 +94,8 @@ test("curl 形: WORK_DIR/Package.swift が宣言する既存 TOOL_ROOT を既定
 
   const resolved = resolveCurlForm({ workDir });
   // install.sh は宣言をそのまま WORK_DIR に連結するだけで正規化しない(abspath は後段の役目)。
-  assert.equal(resolved, `${workDir}/../custom-tool-root`);
+  assert.equal(resolved, `${workDir}/../custom-tool-root`,
+    "curl 形(BASH_SOURCE が空)で WORK_DIR/Package.swift の .package(path:) 宣言が既定の隣(../fleetest)より優先されていない。宣言を見ずに既定へ倒すと導入済みの受け手が別の場所へ clone し直す。Scripts/install.sh のステップ0.5 を preflight.sh / update.sh / toolRootResolve.ts と同じ規則に揃える");
 });
 
 test("curl 形: --tool-root 明示は Package.swift の宣言より優先される", (t) => {
@@ -108,7 +109,8 @@ test("curl 形: --tool-root 明示は Package.swift の宣言より優先され�
   writeFileSync(path.join(workDir, "Package.swift"), '.package(path: "../declared-tool-root")\n');
 
   const resolved = resolveCurlForm({ workDir, toolRootArg: explicitToolRoot });
-  assert.equal(resolved, explicitToolRoot);
+  assert.equal(resolved, explicitToolRoot,
+    "--tool-root の明示が Package.swift の宣言より優先されていない(Scripts/install.sh ステップ0.5)");
 });
 
 test("curl 形: 宣言も既存クローンも無ければ既定の隣へ倒す(フォールバックは維持)", (t) => {
@@ -118,7 +120,8 @@ test("curl 形: 宣言も既存クローンも無ければ既定の隣へ倒す(
   mkdirSync(workDir, { recursive: true }); // Package.swift 無し
 
   const resolved = resolveCurlForm({ workDir });
-  assert.equal(resolved, `${workDir}/../fleetest`);
+  assert.equal(resolved, `${workDir}/../fleetest`,
+    "宣言も既存クローンも無いとき既定の隣(../fleetest)へ倒れていない(Scripts/install.sh ステップ0.5)");
 });
 
 test("on-disk 形: 自分自身(SELF_ROOT)が Package.swift の宣言より優先される", (t) => {
@@ -132,7 +135,8 @@ test("on-disk 形: 自分自身(SELF_ROOT)が Package.swift の宣言より優�
   writeFileSync(path.join(workDir, "Package.swift"), '.package(path: "../declared-tool-root")\n');
 
   const resolved = resolveOnDiskForm({ selfCloneDir, workDir });
-  assert.equal(resolved, selfCloneDir);
+  assert.equal(resolved, selfCloneDir,
+    "on-disk 形で自分自身(SELF_ROOT)が Package.swift の宣言より優先されていない(Scripts/install.sh ステップ0.5)");
 });
 
 // スキルはプラグインのキャッシュにある Scripts/install.sh を実行する。キャッシュはリポジトリ全体を
@@ -149,7 +153,8 @@ test("on-disk 形: .git の無い置き場(プラグインのキャッシュ)か
   writeFileSync(path.join(workDir, "Package.swift"), '.package(path: "../declared-tool-root")\n');
 
   const resolved = resolveOnDiskForm({ selfCloneDir: pluginCacheDir, workDir, isGitClone: false });
-  assert.equal(resolved, `${workDir}/../declared-tool-root`);
+  assert.equal(resolved, `${workDir}/../declared-tool-root`,
+    "SELF_ROOT の判定が .git を条件にしていない。git でない複製(プラグインのキャッシュ等)を TOOL_ROOT にするとキャッシュの中でビルドし .mcp.json がそこを指す。Scripts/install.sh の SELF_ROOT に .git の有無を条件へ戻す(.claude/rules/installer-agents.md)");
 });
 
 test("on-disk 形: .git の無い置き場から未導入の WORK_DIR へは既定の隣へ倒す", (t) => {
@@ -159,16 +164,17 @@ test("on-disk 形: .git の無い置き場から未導入の WORK_DIR へは既�
   mkdirSync(workDir, { recursive: true });
 
   const resolved = resolveOnDiskForm({ selfCloneDir: path.join(dir, "plugin-cache"), workDir, isGitClone: false });
-  assert.equal(resolved, `${workDir}/../fleetest`);
+  assert.equal(resolved, `${workDir}/../fleetest`,
+    ".git の無い置き場から未導入の WORK_DIR へ実行したとき既定の隣へ倒れていない(Scripts/install.sh ステップ0.5)");
 });
 
 /** 物理化と包含拒否のブロックを切り出す(die はスタブ)。 */
 function containmentBlock() {
   const source = readFileSync(INSTALL_SH, "utf8");
   const start = source.indexOf('  TOOL_ROOT="$(cd "$TOOL_ROOT" && pwd -P)"');
-  assert.ok(start > 0, "install.sh の物理化ブロックが見つからない(走査の前提が崩れた)");
+  assert.ok(start > 0, "Scripts/install.sh から TOOL_ROOT の物理化(pwd -P)の行が見つからない。書き方を変えたらこのテストの切り出しも直す");
   const end = source.indexOf("  # ---- /包含拒否 ----", start);
-  assert.ok(end > start, "包含拒否ブロックの終端が見つからない");
+  assert.ok(end > start, "Scripts/install.sh の包含拒否ブロックの終端マーカー `# ---- /包含拒否 ----` が見つからない。マーカーを残す");
   return source.slice(start, end);
 }
 
@@ -192,7 +198,7 @@ test("WORK_DIR = クローンのサブフォルダ → die する(未追跡資�
   const sub = path.join(clone, "TestProjects");
   mkdirSync(sub, { recursive: true });
   const res = runContainment({ workDir: sub, toolRoot: clone });
-  assert.equal(res.status, 7, `die しなかった: ${res.stdout}${res.stderr}`);
+  assert.equal(res.status, 7, `WORK_DIR がクローンのサブフォルダなのに die しなかった: ${res.stdout}${res.stderr}。受け手の未追跡の資産をクローンの更新で破棄させないため、Scripts/install.sh の包含拒否を戻す`);
   assert.match(res.stdout, /DIE: clone WORK_DIR .*inside the fleetest clone/);
 });
 
@@ -205,7 +211,7 @@ test("WORK_DIR = クローンへのシンボリックリンク経由のサブフ
   const link = path.join(dir, "alias");
   symlinkSync(clone, link);
   const res = runContainment({ workDir: path.join(link, "sub"), toolRoot: clone });
-  assert.equal(res.status, 7, `シンボリックリンク経由がすり抜けた: ${res.stdout}${res.stderr}`);
+  assert.equal(res.status, 7, `シンボリックリンク経由のサブフォルダがすり抜けた: ${res.stdout}${res.stderr}。Scripts/install.sh の包含拒否は物理パス(pwd -P)で比べる`);
 });
 
 test("WORK_DIR = クローンの最上位 / 隣のフォルダ / 名前だけ前方一致する兄弟 は die しない", (t) => {
@@ -219,6 +225,6 @@ test("WORK_DIR = クローンの最上位 / 隣のフォルダ / 名前だけ前
   mkdirSync(receiver, { recursive: true });
   for (const workDir of [clone, sibling, receiver]) {
     const res = runContainment({ workDir, toolRoot: clone });
-    assert.equal(res.status, 0, `${workDir} を誤って拒否した: ${res.stdout}${res.stderr}`);
+    assert.equal(res.status, 0, `${workDir} を誤って拒否した: ${res.stdout}${res.stderr}。包含拒否はクローンの子孫だけを対象にする(文字列の前方一致で比べない。Scripts/install.sh)`);
   }
 });
