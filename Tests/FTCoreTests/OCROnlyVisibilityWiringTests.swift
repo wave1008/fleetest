@@ -18,7 +18,7 @@ final class OCROnlyVisibilityWiringTests: XCTestCase {
     private func body(from startMarker: String, to endMarker: String, in text: String) throws -> String {
         guard let start = text.range(of: startMarker),
               let end = text.range(of: endMarker, range: start.upperBound..<text.endIndex)
-        else { throw XCTSkip("マーカーが見つからない(書式が変わった): \(startMarker)") }
+        else { throw ScanBroken("マーカーが見つからない(書式が変わった): \(startMarker)") }
         return String(text[start.lowerBound..<end.lowerBound])
     }
 
@@ -100,4 +100,10 @@ final class OCROnlyVisibilityWiringTests: XCTestCase {
         XCTAssertFalse(undeterminedBody.contains(".failed("), "判定不能は赤にしない")
         XCTAssertTrue(undeterminedBody.contains("if countsAsSkipped { noteCodesThisStep.insert(.visibilityGuardSkipped) }"))
     }
+}
+
+/// 目印が見つからない = 走査が壊れた。XCTSkip にすると書式を変えた日に緑のまま検査をやめるので、投げて赤にする
+private struct ScanBroken: Error, CustomStringConvertible {
+    let description: String
+    init(_ description: String) { self.description = description }
 }

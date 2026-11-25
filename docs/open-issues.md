@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-388 |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-345・OI-347・OI-358・OI-366・OI-378 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 16 | OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-279・OI-327・OI-386・OI-387 |
@@ -37,6 +37,27 @@
 低頻度の項目は、手順のシナリオが分かるものを `Scripts/soak.py` で空いた機械に回し続けて出た回を貯める(対象の表は `Scripts/soak-targets.json`・使い方は docs/verification/operations.md)。各ステップの判定の分かれ目は結果 JSON の `trace`(docs/results-json.md)に残る。
 
 ## 着手可
+
+### OI-388 規則を守るテストの失敗文が直し方を言わない・検査の形が規則の記述より狭い
+- 状態: 経路確定
+- 確認: 1e2bf0e25(2026-11-26)
+- 属性: 着手可
+- 運用: 合否に響かない — テストは今も正しく落ちる。違反の直し方を規則ファイルから探す手間と、狭い検査の取りこぼし(下の②)だけ
+- 優先度: 低 — ②は取りこぼしが沈黙なので②から
+
+2026-11-26 の規則の棚卸し(`.claude/rules/` 全21ファイルと CLAUDE.md を、名指しのテストと突き合わせた)。直せば規則の文章を消せる・縮められる。
+① **失敗文が直し方を言わない**(差分だけ・文言なし・理由なし): docsIndex.test.mjs(索引の一致)・RunProfileSetOverrideKeysTests(主の等号)・
+DisplayFreezeWatchTests.testBaselineCarriesOverToTheNextRunsWatch・LocalLeaseRefusalBeforeDispatchTests(順序の assert)・
+BridgeLauncherRebuildTests.testRunnerProjectSharedSourcesMatchTheBridgeSourceSet・DeviceIndependentToolsIgnoreTargetTests(集合の固定・udid を畳まない集合)・
+CoordinateFrontAppWarningTests・HostRecordingProbeTests(「呼び出し数」だけ)・AXClassFixtureTests・CheckStatePreferDSLTests・PackageLinkageTests・
+MCPProfileExecutionDefaultsTests・RunHookRunnerSandboxWiringTests・TreeCoverageTests(Fires 系)・testScriptNoForceExit.test.mjs・i18n.test.mjs・
+releaseTrack.test.mjs・agentAdapters.test.mjs・agentIntegration.test.mjs(curl | bash)・installCurlFormToolRoot.test.mjs
+② **検査が規則の記述より狭い**(新しい経路を足しても緑のまま): ParentDeathWatchWiringTests・ProvisionLockStartupPathsSyncTests(手書きの表のファイルだけを見る。
+表に無い起こし元を走査しない)・OverlayWindowOcclusionWiringTests / KeyboardOcclusionWiringTests(名指しの2ファイル)・
+NoteCoverageTests.testSnapshotBodyEmitsOnlyCatalogNotes(既存9関数の固定表)・StreamingHelperAutoreleaseScanTests(sleep が pool の外かを見ない)・
+userDocsIntegrity.test.mjs(末尾の `### Link` を見ない)・BatchLineParserTests(`tap` だけ)・LiveWatchdogProgressScanTests・RunTunablesWiringTests(8定数の固定表)・
+uiContractSync.test.mjs(一方向)・JudgmentCaptureTests(固定の5ファイル)・AdbPolicyBuilderSyncTests(adb だけ)
+- 直す順: ②の表の型(Sources を走査して等号で比べる形へ)→ ①。直したら規則ファイルの該当の句を縮め、変異で赤を確かめる
 
 ## 要測定
 

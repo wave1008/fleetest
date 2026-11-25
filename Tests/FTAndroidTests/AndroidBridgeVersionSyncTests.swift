@@ -28,7 +28,7 @@ final class AndroidBridgeVersionSyncTests: XCTestCase {
                 .first(where: { $0.hasPrefix(prefix) }),
               let value = Int(line.dropFirst(prefix.count)
                 .trimmingCharacters(in: .whitespaces)) else {
-            throw XCTSkip("AndroidRunner/build.sh から VERSION_CODE を読めません")
+            throw ScanBroken("AndroidRunner/build.sh から VERSION_CODE を読めません")
         }
         return value
     }
@@ -50,7 +50,7 @@ final class AndroidBridgeVersionSyncTests: XCTestCase {
         guard let match = text.range(of: pattern, options: .regularExpression),
               let value = Int(text[match].replacingOccurrences(
                 of: #"[^\d]"#, with: "", options: .regularExpression)) else {
-            throw XCTSkip("BridgeInstrumentation.java から TTL_DEFAULT_SECONDS を読めません")
+            throw ScanBroken("BridgeInstrumentation.java から TTL_DEFAULT_SECONDS を読めません")
         }
         XCTAssertEqual(value, BridgeAPI.bridgeTTLSecondsDefault,
                        "TTL の既定値は BridgeAPI.bridgeTTLSecondsDefault と "
@@ -63,7 +63,7 @@ final class AndroidBridgeVersionSyncTests: XCTestCase {
         let expected = AndroidDriver.expectedBridgeVersionCode
         let apk = repoRoot.appendingPathComponent("AndroidRunner/prebuilt/ftbridge.apk")
         guard FileManager.default.fileExists(atPath: apk.path) else {
-            throw XCTSkip("prebuilt/ftbridge.apk がありません(AndroidRunner/build.sh で生成する)")
+            throw ScanBroken("prebuilt/ftbridge.apk がありません(AndroidRunner/build.sh で生成する)")
         }
         let manifest = try binaryAndroidManifest(inAPK: apk)
         let strings = try axmlStringPool(manifest)
@@ -88,7 +88,7 @@ final class AndroidBridgeVersionSyncTests: XCTestCase {
         let result = try Shell.runData(["/usr/bin/unzip", "-p", apk.path, "AndroidManifest.xml"], timeout: 30)
         let data = result.data
         guard result.status == 0, !data.isEmpty else {
-            throw XCTSkip("APK から AndroidManifest.xml を取り出せません(unzip 失敗)")
+            throw ScanBroken("APK から AndroidManifest.xml を取り出せません(unzip 失敗)")
         }
         return data
     }
@@ -98,18 +98,18 @@ final class AndroidBridgeVersionSyncTests: XCTestCase {
     /// flags, stringsStart, stylesStart, オフセット配列…]。UTF-16 なら各要素は u16 長 + UTF-16LE。
     private func axmlStringPool(_ data: Data) throws -> [String] {
         func u16(_ at: Int) throws -> Int {
-            guard at + 2 <= data.count else { throw XCTSkip("AXML が壊れています") }
+            guard at + 2 <= data.count else { throw ScanBroken("AXML が壊れています") }
             return Int(data[at]) | Int(data[at + 1]) << 8
         }
         func u32(_ at: Int) throws -> Int {
-            guard at + 4 <= data.count else { throw XCTSkip("AXML が壊れています") }
+            guard at + 4 <= data.count else { throw ScanBroken("AXML が壊れています") }
             return Int(data[at]) | Int(data[at + 1]) << 8
                  | Int(data[at + 2]) << 16 | Int(data[at + 3]) << 24
         }
 
-        guard try u16(0) == 0x0003 else { throw XCTSkip("AXML のマジックが不正です") }
+        guard try u16(0) == 0x0003 else { throw ScanBroken("AXML のマジックが不正です") }
         let pool = 8                                   // 文字列プールチャンクの先頭
-        guard try u16(pool) == 0x0001 else { throw XCTSkip("文字列プールが先頭にありません") }
+        guard try u16(pool) == 0x0001 else { throw ScanBroken("文字列プールが先頭にありません") }
         let count = try u32(pool + 8)
         let isUTF8 = (try u32(pool + 16)) & (1 << 8) != 0
         let stringsStart = try u32(pool + 20)
@@ -121,11 +121,11 @@ final class AndroidBridgeVersionSyncTests: XCTestCase {
             let p = base + (try u32(pool + 28 + 4 * i))
             if isUTF8 {
                 let length = Int(data[p + 1])
-                guard p + 2 + length <= data.count else { throw XCTSkip("AXML が壊れています") }
+                guard p + 2 + length <= data.count else { throw ScanBroken("AXML が壊れています") }
                 result.append(String(decoding: data[(p + 2)..<(p + 2 + length)], as: UTF8.self))
             } else {
                 let length = try u16(p)
-                guard p + 2 + length * 2 <= data.count else { throw XCTSkip("AXML が壊れています") }
+                guard p + 2 + length * 2 <= data.count else { throw ScanBroken("AXML が壊れています") }
                 let units = stride(from: p + 2, to: p + 2 + length * 2, by: 2).map {
                     UInt16(data[$0]) | UInt16(data[$0 + 1]) << 8
                 }
@@ -134,4 +134,10 @@ final class AndroidBridgeVersionSyncTests: XCTestCase {
         }
         return result
     }
+}
+
+/// 読めない = 前提が壊れた(APK はコミット済み)。XCTSkip にすると APK を消しても緑のまま検査をやめるので、投げて赤にする
+private struct ScanBroken: Error, CustomStringConvertible {
+    let description: String
+    init(_ description: String) { self.description = description }
 }
