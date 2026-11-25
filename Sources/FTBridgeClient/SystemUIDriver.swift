@@ -209,6 +209,7 @@ public final class SystemUIDriver: AppDriver {
     }
     public func foregroundAppID() async -> Probe<String> { await client.foregroundAppID() }
     public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await client.systemAlert() }
+    public func systemUITree() async -> Probe<SnapshotResponse> { await client.systemUITree() }
     public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await client.systemUICovering() }
     public var lastActionNote: String? { client.lastActionNote }
     public var lastTapHitAreaMiss: TapHitAreaMiss? { client.lastTapHitAreaMiss }

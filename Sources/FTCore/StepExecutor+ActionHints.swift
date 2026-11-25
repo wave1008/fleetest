@@ -48,6 +48,18 @@ extension StepExecutor {
         return Self.ownDialogHint(windows: lines(lastLaunchedAppBundleID))
     }
 
+    /// アプリを覆う SpringBoard のシート(`SystemUIGate.springBoardSheet`)の名指し。iOS で SpringBoard を読む口(`fallbackDriver`)が居て、
+    /// アプリの木の上端の帯が測れているときだけ読む(測れなければ帯の境が決まらない = 言わない)。失敗の経路だけで撃つ(SpringBoard の読み1回)
+    func springBoardSheetHint(_ app: SnapshotResponse?) async -> String? {
+        guard !isAndroid, let fb = fallbackDriver, let app, case .measured(let top) = app.safeAreaTop,
+              let tree = try? await fb.snapshot(),
+              let sheet = SystemUIGate.springBoardSheet(in: tree, statusBandBottom: top) else { return nil }
+        return " — \(SystemUIGate.sheetPhrase(sheet)) is in front of the app: it is not a system alert and not in the app's"
+            + " element list, and touches land on it. iOS shows sheets like this after some permission prompts are answered with"
+            + " their continue button (contacts); answer such a prompt with its deny button (iosAlertHandler) or close the sheet"
+            + " on the device before this step"
+    }
+
     func leftForegroundHint() async -> String? {
         guard isAndroid, appMayHaveLeft, let prober = foregroundProber, let bundleID = lastLaunchedAppBundleID else { return nil }
         let candidates = [bundleID] + [appUnderTestBundleID].compactMap { $0 }.filter { $0 != bundleID }

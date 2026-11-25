@@ -167,6 +167,7 @@ public final class ActionCountingDriver: AppDriver {
     public func screenshot() async throws -> Data { try await base.screenshot() }
     public func isAppForeground(bundleID: String) async throws -> Bool { try await base.isAppForeground(bundleID: bundleID) }
     public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await base.systemAlert() }
+    public func systemUITree() async -> Probe<SnapshotResponse> { await base.systemUITree() }
     public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await base.systemUICovering() }
     public func keyguardShowing() async -> Probe<Bool> { await base.keyguardShowing() }
     public func systemUIHoldsInputFocus() async -> Probe<Bool> { await base.systemUIHoldsInputFocus() }

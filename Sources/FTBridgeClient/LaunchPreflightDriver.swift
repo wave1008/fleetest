@@ -68,6 +68,7 @@ public final class LaunchPreflightDriver: AppDriver {
     }
     public func foregroundAppID() async -> Probe<String> { await base.foregroundAppID() }
     public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await base.systemAlert() }
+    public func systemUITree() async -> Probe<SnapshotResponse> { await base.systemUITree() }
     public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await base.systemUICovering() }
     public var lastActionNote: String? { base.lastActionNote }
     public var reachedEdgeOnLastSwipe: Bool? { base.reachedEdgeOnLastSwipe }

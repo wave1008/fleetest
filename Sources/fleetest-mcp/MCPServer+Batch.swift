@@ -1255,7 +1255,7 @@ extension MCPServer {
                 + " also be legitimate: the screen was already at the target state, or the steps"
                 + " went somewhere and came back."
                 + Self.unrepresentedScreenCaveat(rereadSnapshot)
-                + (await Self.systemDialogHint(bridge: bridge, probe: probeSystemAlert())) + "\n", rereadSnapshot)
+                + (await Self.systemDialogHint(bridge: bridge, probe: probeSystemAlert(), sheet: nil)) + "\n", rereadSnapshot)
         }
         return ("note: the tree looked unchanged right after the last step, so it was re-read once"
             + " after a short wait — the tree below is the re-read, not the tree right after the"

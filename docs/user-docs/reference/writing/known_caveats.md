@@ -100,6 +100,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [The same title can be registered several times with different buttons](../commands/ios_alert_handler.md#notes) — the one matching a button on the alert shown is pressed.
 - [Empty or all-wildcard alternative fails at declaration](../commands/ios_alert_handler.md#notes) — an empty alternative or one of only `*` and invisible characters would match any alert, so declare concrete text.
 - [The permission alerts while writing and in the run can differ](../commands/ios_alert_handler.md#notes) — each device remembers the answers, so register every permission the app may ask for, one call per alert.
+- [Continuing the contacts permission alert shows a sharing sheet that covers the app](../commands/ios_alert_handler.md#notes) — it is not an alert, so `iosAlertHandler` cannot close it. Answer the contacts permission with the deny button.
 
 ### irregularHandler
 - [Fires during operation and assertion waits](../commands/irregular_handler.md#notes) — assertions poll the current tree, so a modal opening during `exist` / `textIs` is closed too.

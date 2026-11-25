@@ -64,6 +64,49 @@ public enum SystemUIGate {
         }
     }
 
+    /// SpringBoard が `SBSwitcherWindow` の中にアプリを覆う画面(シート)を出しているときの、その画面の文と押せる項目。
+    /// iOS 27 の連絡先の限定共有の画面(連絡先の権限のアラートで「続ける」を押すと続けて出る)はアラートではないので
+    /// `/systemalert` は「無い」、`/systemui/covering` は「覆っていない」と答える(アプリスイッチャーの窓はカードがあるときだけ覆いと見る)。
+    /// 判定: アプリのカード(`BridgeAPI.appSwitcherCardPrefix`)が無い `SBSwitcherWindow` の部分木に、アプリの上端の帯(`statusBandBottom`)
+    /// より下のラベル付きの button が1つ以上ある。帯より上はステータスバーの部品(時刻・breadcrumb・Wi-Fi・電池)で、前面のアプリ・横向き・
+    /// ホームボタン機(SE3 の実機)では部分木はそれだけだった(コントロールセンターの間は窓自体が木に出ない)。nil = その形ではない
+    public struct SpringBoardSheet: Equatable, Sendable {
+        public let texts: [String]
+        public let buttons: [String]
+        public init(texts: [String], buttons: [String]) {
+            self.texts = texts
+            self.buttons = buttons
+        }
+    }
+
+    public static func springBoardSheet(in springBoard: SnapshotResponse, statusBandBottom: Double) -> SpringBoardSheet? {
+        let elements = springBoard.elements
+        guard let start = elements.firstIndex(where: {
+            $0.type == "window" && ($0.identifier ?? "").hasPrefix(BridgeAPI.appSwitcherMarkerPrefix)
+        }) else { return nil }
+        let depth = elements[start].depth
+        let subtree = elements[(start + 1)...].prefix { $0.depth > depth }
+        guard !subtree.contains(where: { ($0.identifier ?? "").hasPrefix(BridgeAPI.appSwitcherCardPrefix) }) else { return nil }
+        func labelled(_ type: String) -> [ElementInfo] {
+            subtree.filter { $0.type == type && $0.frame.y >= statusBandBottom && !($0.label ?? "").isEmpty }
+        }
+        func unique(_ labels: [String]) -> [String] {
+            var seen = Set<String>()
+            return labels.filter { seen.insert($0).inserted }
+        }
+        // 項目は幅の広い順(画面の操作のボタンは横いっぱい・写真などの小さな項目は後ろ)。同じラベルは1つに
+        let buttons = unique(labelled("button").sorted { $0.frame.width > $1.frame.width }.compactMap(\.label))
+        guard !buttons.isEmpty else { return nil }
+        return SpringBoardSheet(texts: unique(labelled("staticText").compactMap(\.label)), buttons: buttons)
+    }
+
+    /// シートの名指し(「a SpringBoard sheet ("題", buttons: "A" / "B")」)。文と項目は先頭から数個だけ
+    public static func sheetPhrase(_ sheet: SpringBoardSheet) -> String {
+        let title = sheet.texts.first { $0.count >= 2 }.map { "\"\($0)\", " } ?? ""
+        let buttons = sheet.buttons.prefix(3).map { "\"\($0)\"" }.joined(separator: " / ")
+        return "a SpringBoard sheet (\(title)buttons: \(buttons))"
+    }
+
     /// 前面のシステムアラートの名指し(「a system alert (…)」)。**出ていない・答えが無いなら nil**。
     /// MCP の `systemAlertNote` と DSL の tapAppIcon が共有する判定(文言の続きは呼び手が持つ)
     public static func frontAlertPhrase(_ probe: SystemAlertProbeResponse?) -> String? {

@@ -139,6 +139,7 @@ public final class SessionRecoveryDriver: AppDriver {
     }
     public func foregroundAppID() async -> Probe<String> { await base.foregroundAppID() }
     public func systemAlert() async -> Probe<SystemAlertProbeResponse> { await base.systemAlert() }
+    public func systemUITree() async -> Probe<SnapshotResponse> { await base.systemUITree() }
     public func systemUICovering() async -> Probe<SystemUICoveringResponse> { await base.systemUICovering() }
     /// a11y の一時停止で撃ち直したことは**必ず見せる**(黙って遅くなるだけだと、
     /// 8 秒級の遅れの理由が読めない)。base の注記があればそちらを優先する

@@ -749,6 +749,10 @@ public final class BridgeClient: AppDriver, Sendable {
         await Probe.of { try await fetchSystemAlert() }
     }
 
+    public func systemUITree() async -> Probe<SnapshotResponse> {
+        await Probe.of { try await systemUISnapshot() }
+    }
+
     /// `systemAlert()` の投げる口。**エラーの型で分ける呼び手(`RunnerAccessibilityHealth` の bridgeUnreachable)だけが使う**
     public func fetchSystemAlert() async throws -> SystemAlertProbeResponse? {
         do {

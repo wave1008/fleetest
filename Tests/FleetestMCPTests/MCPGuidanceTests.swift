@@ -85,7 +85,7 @@ final class MCPGuidanceTests: XCTestCase {
     /// 読む口を出す。評価者はここで詰まり、座標でダイアログを叩いていた
     func testUnchangedTreeMentionsTheSystemDialogEscapeHatch() {
         for bridge in [nil, "xcuitest"] {
-            let hint = MCPServer.systemDialogHint(bridge: bridge, probe: nil)
+            let hint = MCPServer.systemDialogHint(bridge: bridge, probe: nil, sheet: nil)
             XCTAssertTrue(hint.contains("com.apple.springboard"), "bridge=\(bridge ?? "nil"): \(hint)")
             XCTAssertTrue(hint.contains("SpringBoard"), hint)
         }
@@ -95,20 +95,29 @@ final class MCPGuidanceTests: XCTestCase {
     /// 掴めず、Android は木のセッションごと移るので switchedAppNote が捕まえる
     func testSystemDialogHintIsIOSXCUITestOnly() {
         for bridge in ["inapp", "android"] {
-            XCTAssertEqual(MCPServer.systemDialogHint(bridge: bridge, probe: nil), "",
+            XCTAssertEqual(MCPServer.systemDialogHint(bridge: bridge, probe: nil, sheet: nil), "",
                            "bridge=\(bridge) にシステムダイアログの案内を出してはいけない")
         }
     }
 
     /// 聞いた答えで出し分ける: 「無い」と答えたのに SpringBoard のダイアログを疑わせない。在るなら名指しする
     func testSystemDialogHintFollowsTheProbeAnswer() {
-        let none = MCPServer.systemDialogHint(bridge: "xcuitest", probe: SystemAlertProbeResponse(present: false))
+        let none = MCPServer.systemDialogHint(bridge: "xcuitest", probe: SystemAlertProbeResponse(present: false), sheet: nil)
         XCTAssertFalse(none.contains("If a system dialog is up"), none)
         XCTAssertTrue(none.contains("No system alert is in front"), none)
         let up = MCPServer.systemDialogHint(bridge: "xcuitest",
-                                            probe: SystemAlertProbeResponse(present: true, title: "Allow Location?"))
+                                            probe: SystemAlertProbeResponse(present: true, title: "Allow Location?"), sheet: nil)
         XCTAssertTrue(up.contains("Allow Location?") && up.contains("ft_tap alertButton:"), up)
         XCTAssertFalse(up.contains("by ref"), "SpringBoard を開いて ref で押す古い3手を案内しない: \(up)")
+    }
+
+    /// アラートは無いが SpringBoard のシートが覆っているなら、「SpringBoard の画面ではない」と言い切らずにシートを名指す
+    func testSystemDialogHintNamesASpringBoardSheet() {
+        let sheet = SystemUIGate.SpringBoardSheet(texts: ["どのように連絡先を共有しますか?"], buttons: ["連絡先を選択", "6件のすべての連絡先を共有"])
+        let hint = MCPServer.systemDialogHint(bridge: "xcuitest", probe: SystemAlertProbeResponse(present: false), sheet: sheet)
+        XCTAssertFalse(hint.contains("No system alert is in front"), hint)
+        XCTAssertTrue(hint.contains("A SpringBoard sheet (\"どのように連絡先を共有しますか?\", buttons: \"連絡先を選択\" / \"6件のすべての連絡先を共有\")"), hint)
+        XCTAssertTrue(hint.contains("com.apple.springboard"), hint)
     }
 
     /// 関係ない失敗(404・ネットワーク)に足さない = 誤誘導しない

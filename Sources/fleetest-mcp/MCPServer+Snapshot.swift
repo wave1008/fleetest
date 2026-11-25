@@ -729,7 +729,7 @@ extension MCPServer {
                 let unchangedSinceAction = !waited.found
                     && beforeAction.map { Self.looksUnchanged($0, snapshot) } == true
                 let dialogHint = unchangedSinceAction
-                    ? await Self.systemDialogHint(bridge: bridges[Self.sessionKey(args)], driver: snapshotDriver) : ""
+                    ? await Self.systemDialogHint(bridge: bridges[Self.sessionKey(args)], driver: snapshotDriver, app: snapshot) : ""
                 let explainMiss = waited.found ? false : firstTime("waitMissExplained")
                 waitNote = waited.found
                     ? Self.waitForAppearedNote(waitFor, in: snapshot,
@@ -775,7 +775,7 @@ extension MCPServer {
                         + " screen again before repeating the action."
                         + Self.unrepresentedScreenCaveat(reread)
                         + (await Self.systemDialogHint(bridge: bridges[Self.sessionKey(args)],
-                                                       driver: snapshotDriver)) + "\n"
+                                                       driver: snapshotDriver, app: reread)) + "\n"
                 } else {
                     settleNote = "note: the tree looked unchanged right after the action, so it"
                         + " was re-read once after a short wait — the tree below is the re-read.\n"

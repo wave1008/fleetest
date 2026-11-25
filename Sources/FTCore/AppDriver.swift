@@ -296,6 +296,9 @@ public protocol AppDriver {
     /// **プロトコル要件として宣言すること**(install(packagePath:) と同じ理由 ——
     /// 要件でないと存在型越しの呼び出しが静的ディスパッチで既定実装に落ち、黙って `.notAnswerable` になる)
     func systemAlert() async -> Probe<SystemAlertProbeResponse>
+    /// **SpringBoard の木**(セッションを触らない `/systemui/snapshot`)。アラートではない SpringBoard の画面(シート)を見分ける材料
+    /// (`SystemUIGate.springBoardSheet`)。`.notAnswerable` = 口が無い(in-app / Android / 旧ブリッジ)。**プロトコル要件として宣言すること**
+    func systemUITree() async -> Probe<SnapshotResponse>
     /// **SpringBoard の面がアプリを覆っているか**(iOS xcuitest だけが答えられる)。
     /// `.notAnswerable` = 答えられない(in-app / Android / 旧ブリッジ)。**プロトコル要件として宣言すること**
     /// (存在型越しの呼び出しは要件でなければ既定実装へ静的ディスパッチされる)
@@ -715,6 +718,7 @@ public extension AppDriver {
     /// 既定は「答えられない」。**答えられるのは XCUITest ランナーを包むドライバだけ**で、
     /// in-app は自プロセスしか見えず、Android は木の根が active window なので判定自体が要らない
     func systemAlert() async -> Probe<SystemAlertProbeResponse> { .notAnswerable }
+    func systemUITree() async -> Probe<SnapshotResponse> { .notAnswerable }
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ
     func systemUICovering() async -> Probe<SystemUICoveringResponse> { .notAnswerable }
     func keyguardShowing() async -> Probe<Bool> { .notAnswerable }

@@ -1195,10 +1195,20 @@ extension MCPServer {
     /// 見えないので springboard を掴めず、勧めても実行できない)
     /// `probe` は詰まった瞬間に `/systemalert` へ聞いた答え(nil = 聞けなかった)。**答えで出し分ける** ——
     /// 「無い」と答えたのに SpringBoard のダイアログを疑わせると、読み手は存在しないダイアログを探しに行く
-    static func systemDialogHint(bridge: String?, probe: SystemAlertProbeResponse?) -> String {
+    /// `sheet` は `/systemalert` が「無い」と答えたときに SpringBoard の木から読んだシート(`SystemUIGate.springBoardSheet`。nil = 無い・読んでいない)。
+    /// シートはアラートではないので、これを見ずに「SpringBoard の画面ではない」と言い切ると、読み手は覆いを探さない
+    /// (リマインダーの連絡先の限定共有の画面の上で、長押しが覆いに当たっているのに「No system alert is in front」と言った)
+    static func systemDialogHint(bridge: String?, probe: SystemAlertProbeResponse?,
+                                 sheet: SystemUIGate.SpringBoardSheet?) -> String {
         guard bridge == nil || bridge == "xcuitest" else { return "" }
         if let probe {
             guard probe.present else {
+                if let sheet {
+                    return " A" + SystemUIGate.sheetPhrase(sheet).dropFirst() + " is in front of the app — it is not a system alert"
+                        + " (so no alert was found), it is drawn by SpringBoard and not in this tree, and touches land on it."
+                        + " Read it with ft_launch bundleId: com.apple.springboard (non-destructive) and press one of its buttons"
+                        + " with ft_tap, then go back to the app."
+                }
                 return " No system alert is in front (checked just now), so this is not a SpringBoard"
                     + " prompt; a notification banner or another overlay this tree does not show can still"
                     + " cover the app — look at ft_screenshot."
@@ -1216,9 +1226,16 @@ extension MCPServer {
     }
 
     /// 詰まった瞬間だけ `/systemalert` に聞いてから `systemDialogHint` を作る(ゲート外の bridge では聞かない)
-    static func systemDialogHint(bridge: String?, driver: AppDriver) async -> String {
+    /// `app` はアプリの木(上端の帯の高さ = シートの判定の境)。アラートが無いと答えたときだけ SpringBoard の木を1回読む
+    static func systemDialogHint(bridge: String?, driver: AppDriver, app: SnapshotResponse) async -> String {
         guard bridge == nil || bridge == "xcuitest" else { return "" }
-        return systemDialogHint(bridge: bridge, probe: await driver.systemAlert().value)
+        let probe = await driver.systemAlert().value
+        var sheet: SystemUIGate.SpringBoardSheet?
+        if probe?.present == false, case .measured(let top) = app.safeAreaTop,
+           let tree = await driver.systemUITree().value {
+            sheet = SystemUIGate.springBoardSheet(in: tree, statusBandBottom: top)
+        }
+        return systemDialogHint(bridge: bridge, probe: probe, sheet: sheet)
     }
 
     /// home/appSwitcher 直後の XCUITest は「セッションはアプリのまま・画面は別」になり、次の

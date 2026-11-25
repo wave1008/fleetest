@@ -26,7 +26,7 @@
 
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
-| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 1 | OI-401 |
+| 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 5 | OI-345・OI-347・OI-358・OI-366・OI-378 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 17 | OI-156・OI-161・OI-163・OI-170・OI-173・OI-174・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-279・OI-327・OI-386・OI-387・OI-394 |
@@ -37,21 +37,6 @@
 低頻度の項目は、手順のシナリオが分かるものを `Scripts/soak.py` で空いた機械に回し続けて出た回を貯める(対象の表は `Scripts/soak-targets.json`・使い方は docs/verification/operations.md)。各ステップの判定の分かれ目は結果 JSON の `trace`(docs/results-json.md)に残る。
 
 ## 着手可
-
-### OI-401 SpringBoard の「連絡先をどのように共有しますか?」の画面がアプリを覆っても、システムのアラートとして検出されない
-- 状態: 再現済み
-- 確認: 作業ツリー(2026-11-25)
-- 属性: 着手可
-- 運用: 要注意 — 覆っている間の操作は覆いの画面に当たり、赤の理由は「見つからない」になる(覆いを名指さない)
-- 優先度: 中 — 赤の理由を誤る。評価 11回目のリマインダーの赤(長押しのメニューが出ない形に見えた)の本当の原因
-
-出典: 標準アプリのリマインダーの長押しのメニューが inapp-boost で出ない赤の測定(2026-11-25 夜・手元 Sim -08)
-- 観測: リマインダーの前に、iOS 27 の連絡先の限定共有の画面(「連絡先が6件あります。」「連絡先を選択」「6件のすべての連絡先を共有」)が出ていた。MCP の長押しの注記は「No system alert is in front (checked just now), so this is not a SpringBoard prompt」と言い、XCUITest のアプリの木(リマインダー)は裏のリストを返し、長押しも座標のタップも覆いに当たって何も起きなかった。SpringBoard の木では `window id=SBSwitcherWindow:Main` の中に画面の文と button「連絡先を選択」「6件のすべての連絡先を共有」が載っていた(「連絡先を選択」→「あとで連絡先を選択」で閉じた)。同じ端末のカレンダーの連絡先の権限は通常のアラートで出て、こちらは正しく検出された(`alertButton` で閉じられた)
-- 評価 11回目の本番(`_work/scen-eval-20261124c/` の s_reminders_ios・手元)の失敗時の画面写真も同じ画面(「連絡先を選択」の一覧)で、失敗文は `cannot resolve the locator: text=リストを削除` だけだった
-- 測定(2026-11-25 夜・手元 Sim -08): **きっかけ**は連絡先の権限のアラート(「“リマインダー”に連絡先へのアクセスを許可しますか?」= 通常のアラートで、検出される)で「続ける」を押すこと。押すと iOS 27 の連絡先の共有の画面が続けて出る(`xcrun simctl privacy <udid> reset contacts com.apple.reminders` の後にリマインダーを起動すると毎回アラートが出る)。画面が出ている間、ランナーの `/systemalert` は `{"present":false}`、`/systemui/covering` は `{"covering":false}`(`SBSwitcherWindow` はアプリのカードがあるときだけ覆いと見る = `BridgeAPI.appSwitcherMarkerPrefix` の規則)。MCP の `ft_launch resume` はリマインダーの裏の木を注記なしで返した
-- 見分けの材料(同日・`/systemui/snapshot`): 画面が無いときの `SBSwitcherWindow:Main` の中身はステータスバーの部品だけ(時刻・「FT E2E iOSへ戻る」の breadcrumb・Wi-Fi・電池 = どれも y<62)。画面が出ているときはその下に staticText(「どのように連絡先を共有しますか?」等)と button(「連絡先を選択」「6件のすべての連絡先を共有」)が載る
-- 反例の測定(同日・手元 Sim -08・`/systemui/snapshot`): ①アプリが前面(縦)= `SBSwitcherWindow:Main` の中は時刻・breadcrumb・Wi-Fi・電池だけ(どれも y<62)②アプリが前面(横)= 入れ物の scrollView だけ(ステータスバーも出ない)③コントロールセンター = SpringBoard の木に `SBSwitcherWindow` 自体が出ず、既存の目印 `cc-root-folder-view` で `covering:true` = どれも「カードの無い `SBSwitcherWindow` に帯の外の button・staticText がある」には当たらない(候補の規則は静か)。SpringBoard の木の応答は上端の帯を測らない(`safeAreaTop.measured: false`)ので、帯の境はアプリの側の帯(ランナーの答える上端の帯)から取る必要がある
-- 次の一手: ホームボタン機(SE3 の実機)の前面のアプリ・アプリスイッチャーの反例を同じ口で測り、静かなら「アプリのカードが無い `SBSwitcherWindow` に、アプリの上端の帯より下の button・staticText がある」を覆いの判定(`probeSystemUICovering` か、ホストの失敗の経路の `/systemui/snapshot` の読み)に足す。まず警告(DSL の not found の文言・MCP の「No system alert is in front」の注記を、覆いを名指す形へ)から入れる
 
 ## 要測定
 
