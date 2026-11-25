@@ -62,9 +62,7 @@ SUT は3系統 × UI フレームワーク5つ(CMP・SwiftUI・View/XML・Flutte
 grep やシェル(`cat`)で見るだけのとき・新しいファイルを読まずに書くとき・設計や方針を相談するとき。
 **そのときは該当する規則ファイルを先に Read する**。
 
-**リポジトリ直下の `AGENTS.md` は Codex など AGENTS.md を読むエージェント向けの入口**で、CLAUDE.md と
-規則ファイルへ誘導するだけ(規則の本文は書かない。Claude Code は CLAUDE.md があると既定では読まない。
-`claudeRulesIndex.test.mjs`)。
+**`AGENTS.md` は他のエージェント向けの入口で、規則の本文を書かない**(`claudeRulesIndex.test.mjs`)。
 
 **規則を足すときの置き場**: どの作業でも効く規則(検証の進め方・判断の規律・コメント規約・
 「どこであれ新しいものを足すとき」の規律)だけをこのファイルに置き、特定の領域のファイルを触るときに
@@ -121,8 +119,8 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
 - inapp-boost モードで XCUITest ブリッジへ回す問い合わせを足す → `AppAttachDriver` でランナーのセッションを確かめてから撃つ・
   「答えられない」に畳む経路は畳んだ事実を注記に残す・**inapp-boost のデバイス実行で1回通して効いたことを文言で確かめる**
   (偽ドライバの単体テストは通らない。bridge-provision.md)
-- DSL コマンドを足す・改名する → 索引 `CommandIndex`(`CommandIndexSyncTests`)・docs/commands.md と
-  user-docs の両方(`CommandDocsCoverageTests`)・docs/shirates-parity.md・`ft_batch` のキー・引数名は `waitSeconds:` 等の規律(dsl-commands.md)
+- DSL コマンドを足す・改名する → docs/shirates-parity.md・`ft_batch` のキー・引数名は `waitSeconds:` 等の規律(dsl-commands.md。
+  索引と docs の漏れは `CommandIndexSyncTests` / `CommandDocsCoverageTests` が追記先付きで落とす)
 - 受け手のフロー(install.sh・スキル)を変える → SKILL.md のステップ番号と 1:1(`installStepSync.test.mjs`)・
   受け手のファイルを書くのはステップ7.6 の入口だけ(installer-agents.md)
 - シナリオ実行バイナリを起こす経路・子が書く場所・子からの `simctl` / `devicectl` / `adb` の呼び出しを足す → サンドボックスの
@@ -346,8 +344,7 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   実アプリのコーパスで等価性を検証する**
 - **判定の関数を `StepExecutor` の static に置かない**(`.claude/rules/executor.md`)
 - **前面にあると観測しただけの相手へ、画面を動かす操作を撃たない**(activate を使わない。`.claude/rules/bridge-provision.md`・MN-40)
-- **FM の失敗トリアージ(分類・要約・修正案)と FM ヒール(ロケータ自己修復)・ヒールキャッシュは置かない**
-  (DR-6・DR-7。実測の誤りの率と見直す条件は DR に。`FMTriageRemovedTests` / `FMHealRemovedTests`)。
+- **FM の失敗トリアージ・FM ヒール・ヒールキャッシュは置かない**(DR-6・DR-7。`FMTriageRemovedTests` / `FMHealRemovedTests`)。
   **`heal` は指紋照合だけのスイッチで、FM のトグルと独立**
 - **共有するのは「判定」であって「文言」ではない**。正しい形は**①判定・順序・当たり判定を
   FTCore に1つ ②文言は呼び手ごとに持つ**。**呼び手は中核を呼んで写すだけ**にする。中核は `TapTargetGeometry.advisoryKind` /
@@ -419,8 +416,8 @@ Sources は `SourceFileLineBudgetTests` がラチェットで止める(超過分
 **「デバイスで動かした」と書きたくなった瞬間に、何の上で動かしたかを確認する**
 → MN-7
 
-**用語(iOS のモードとブリッジ)**: 利用者が選ぶ設定は**モード**(`inapp-boost` / `xcuitest`。`inapp-boost` = XCUITest ブリッジに
-in-app ブリッジを足し、in-app で撃てる操作はそちらで撃つ構成)、部品は**ブリッジ**(in-app / XCUITest。語は `IOSModeVocabularyTests`)。
+**用語(iOS のモードとブリッジ)**: 設定は**モード**(`inapp-boost` = XCUITest ブリッジに in-app ブリッジを足す構成 / `xcuitest`)、
+部品は**ブリッジ**(in-app / XCUITest。`IOSModeVocabularyTests`)。
 `bridge: "inapp"` はブリッジの種類の値でモード名ではない —— **モードの値を /status の `bridge` との比較へそのまま渡さない**
 (主ポートのブリッジは `IOSMode.primaryBridge(forMode:)`)
 
@@ -431,6 +428,5 @@ in-app ブリッジを足し、in-app で撃てる操作はそちらで撃つ構
 `UserFacingSpellingTests` が置き換え先付きで落とす(表は同テスト・DR-182)。保守者向けのコメント・docs は対象外
 
 **用語(陽性/陰性)**: **「陽性/陰性」は検知の語彙**(発火したかどうか)で、**判定の結果(緑/赤)には使わない**。
-**`偽陽性`・`偽陰性` は書かない**(代わりの語は `VocabularyPolarityTests` の失敗文・由来は MN-11)。**陽性対照**は1語の
-固有名詞として残す。occlusion guard の利用者向けの名前は**「テキストの可視性検証」**(キー `fmTextVisibilityCheck` /
-`ocrTextVisibilityCheck`)
+`偽陽性`・`偽陰性` は `VocabularyPolarityTests` が代わりの語付きで落とす(MN-11)。**陽性対照**は1語の固有名詞。
+occlusion guard の利用者向けの名前は**「テキストの可視性検証」**(`fmTextVisibilityCheck` / `ocrTextVisibilityCheck`)

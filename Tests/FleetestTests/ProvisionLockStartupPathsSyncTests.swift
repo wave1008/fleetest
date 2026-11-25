@@ -4,7 +4,7 @@ import XCTest
 /// 起動経路の集合を固定する。BridgeProvisioner.provision() 以外にも、ロックを取らずに
 /// freePort/startDetached を撃つ経路(XCUIBridgeResolver.start / LiveBridgeAutoStarter.launchBridge)
 /// があり、同時に走ると同じ空きポートを選んで bindFailed(48) で衝突していた。
-/// **新しい起動経路を足したら、ここへの追随を忘れずに**(等号照合なので追加漏れは落ちる)。
+/// **新しい起動経路を足したら表へ自分で足す**(表の各ファイルの参照を見るだけで、表に無い経路は走査しない = 足し忘れは落ちない)。
 final class ProvisionLockStartupPathsSyncTests: XCTestCase {
 
     /// ロックを取る(はずの)起動経路。ファイルパスは repo root からの相対

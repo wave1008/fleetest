@@ -129,7 +129,7 @@ paths:
   - **他のエージェント(Codex・Cline 等)向けの分岐をコードに戻さない**。案内は
     **docs/user-docs/reference/tools/other_agents(.md/_ja.md) の1箇所**に集約する → MN-2.1
   - **インストーラ(スクリプト)は受け手のグローバル設定(`~/.codex/config.toml` 等)に1バイトも書かない**
-    (`agentIntegration.test.mjs` / `agentAdapters.test.mjs` が落とす)。**エージェントは 🧑 の同意(依頼かダイアログの「はい」)があるときだけ、
+    (`agentIntegration.test.mjs` が落とす)。**エージェントは 🧑 の同意(依頼かダイアログの「はい」)があるときだけ、
     そのクライアントの CLI で MCP を登録してよい**(Codex は `codex mcp add`。同名は上書き・他は残る)。
     **設定ファイルを手で編集させない**(TOML は同じテーブルの重複でファイル全体が無効になる)。
     セットアップでは選択ダイアログで登録の同意を取り、「はい」のときだけ登録する。断られたら完了報告で

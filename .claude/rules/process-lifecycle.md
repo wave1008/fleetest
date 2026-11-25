@@ -136,7 +136,8 @@ paths:
   自分に SIGTERM を送るだけ(時限の `_exit` はしない = 後始末を打ち切らない)。**opt-in** = 端末のシェルから `fleetest run &` した親が閉じても run を
   巻き込まない。**opt-in の例外は fleetest-mcp**(印が無くても起動した親を見張る = `armOnLaunchingParent`。応答の読み手は親だけで、
   処理中は stdin を読まないので EOF では長い待ちの最中の親の死に気づけない)。`Process()` で `fleetest` / `fleetest-scenarios` を起こす経路を足したら
-  `ParentDeathWatch.childEnvironment()` を渡す —— `ParentDeathWatchWiringTests` が集合を等号で固定。
+  `ParentDeathWatch.childEnvironment()` を渡し、**`ParentDeathWatchWiringTests` の spawnSites へ自分で足す**(テストは表の各ファイルに
+  鍵があるかを見るだけで、新しい起こし元を走査で見つけない = 表へ足し忘れると緑のまま孤児が残る)。
   **例外は `compile-ocr` と背景の掃除(`RunCompletionSweep`)と FM の常駐プロセス(`api fm-serve`。`FMServeHost.serverEnvironment` が
   `FT_PARENT_PID` を消す)と録画の見張り(`api recorder-watch`。`IOSSimulatorVideoRecorder.watcherLaunch` が `FT_PARENT_PID` を消す)の4つ**:
   どれも親の死を生き延びないと目的を果たせない(コンパイルのコミット / 親の run は掃除より先に必ず終わる / run を跨いでモデルを載せたままにする /
@@ -178,8 +179,8 @@ paths:
   黙らない)。仕分けは `BridgeToolchainLedger.decide` の1箇所 → MN-3.8。
   採番は `ProvisionLock` の内側でだけ行う
   (`provision` / `XCUIBridgeResolver` / `LiveBridgeAutoStarter` / **`ApiLiveCommand`**(要求されたデバイスの
-  ブリッジがどこにも無いとき空きポートを充てる)の4経路。`ProvisionLockStartupPathsSyncTests` が
-  集合を固定する。**ライブ操作の1件は「選ぶだけで起動しない」= 予約ではない**ので、
+  ブリッジがどこにも無いとき空きポートを充てる)の4経路。`ProvisionLockStartupPathsSyncTests` は
+  表の各ファイルが `ProvisionLock` を参照するかを見るだけ(新しい起動経路は見つけない = **足したら表へ自分で足す**)。**ライブ操作の1件は「選ぶだけで起動しない」= 予約ではない**ので、
   起動までに埋まったら `LiveBridgeAutoStarter` が占有者を名指しして諦め、**自動起動を待つ間も毎コマンドの
   本人確認を撃ち**(placeholder の期待ブリッジを nil にしない)、別のデバイスが答えたら解決し直して別の空きポートへ移る
   (`LivePlaceholderIdentityScanTests` → MN-73.1))。拡張の孤児掃除(`orphanSweep.ts`)は配信

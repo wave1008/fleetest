@@ -1,8 +1,8 @@
 // ParentDeathWatch の配線をソース走査で固定する。
 //
-// **武装するのは spawn 側が `FT_PARENT_PID` を渡した子だけ**(既定は no-op)。この集合を
-// 等号で固定するのは、新しい spawn 元(`Process()` で fleetest / fleetest-scenarios を
-// 子に持つ経路)を足したときに「渡し忘れて孤児のまま残る」を検出するため。
+// **武装するのは spawn 側が `FT_PARENT_PID` を渡した子だけ**(既定は no-op)。表の各ファイルが鍵を書くかを
+// 見るだけで、表に無い新しい spawn 元(`Process()` で fleetest / fleetest-scenarios を子に持つ経路)は
+// 走査で見つけない —— 足したら spawnSites へ自分で足す。
 
 import XCTest
 @testable import FTCore

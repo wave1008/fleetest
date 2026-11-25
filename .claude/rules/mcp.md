@@ -125,7 +125,7 @@ paths:
   `forgetDeviceState` はセッションを丸ごと捨てる。**並列の `[String: …]` / `Set<String>` を戻さない**
   (束ねる前は集合型の2つが後始末から漏れていた。`DeviceStateInvalidationTests` が落とす)。
   **udid → port の畳み込みはスキーマに `udid` を宣言したツールでだけ撃つ**(`toolFoldsUDID`)。
-  **`ft_logs` は udid を宣言するが畳まない**(`toolsResolvingUDIDWithoutBridge`。ブリッジが死んだ後に読むツールなので
+  **`ft_logs` と `ft_release_device` は udid を宣言するが畳まない**(`toolsResolvingUDIDWithoutBridge`。`ft_release_device` は止めた後に手放す。`ft_logs` はブリッジが死んだ後に読むツールなので
   走査で落とさない)—— udid は `ftLogs` がセッションの記憶(`rememberedPort(forUDID:)`)と `BridgeDeviceRecord` だけで
   解決する。**入口で畳まないツールは sessionKey がポート無しになる**ので、ポート入りの鍵で持つ記憶
   (`connectedPorts` / `launchedBundleIDs`)を引く前に自分でポートを載せる → MN-60.1

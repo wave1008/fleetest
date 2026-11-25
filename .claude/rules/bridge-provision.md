@@ -130,7 +130,7 @@ paths:
   `WorkspaceAppStaging.installPath(declared:)` = 宣言文字列の名前空間(絶対パスから導かない)
 - **録画ありの run は供給段階で「端末側に残った録画セッション」を解く**(DR-172。`HostRecordingProbe` →
   `ProfileWorkerFactory.recoverStaleRecordingIOSWorkers`。凍結の回復と同じ再起動・デバイスは外さない・不明は撃たない)。
-  **iOS の供給口3つ全部で凍結トリアージの直後に通す**(`HostRecordingProbeTests` が固定)。
+  **iOS の供給口(`ProfileSupplyLanes.ios` の1つ)で凍結トリアージの直後に通す**(`HostRecordingProbeTests` が呼び出し数と順序を固定)。
   **検査も録画も recordVideo は SIGINT でしか止めない**(SIGKILL/SIGTERM がこの状態を作る)。
   **止めるときは `IOSSimulatorVideoRecorder.interruptRecorder` を通す** —— recordVideo は "Recording started" より前の
   SIGINT を無視するので、撮り始めるまで送り直す(1回だけ送ると、負荷で起動が遅れた録画が何時間も撮り続けてデバイスを塞いだ)。
