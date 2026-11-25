@@ -50,8 +50,11 @@ final class InputInjectorEditableIdUniquenessTests: XCTestCase {
     func testIdMatchingWalkDoesNotReturnOnFirstHit() throws {
         let source = try inputInjectorSource()
         let bodies = classLevelBlockBodies(source)
-        guard let idWalkBody = bodies.first(where: { $0.contains("getViewIdResourceName(") }) else {
-            return XCTFail("resource-id を読む走査本体が見つからない(getViewIdResourceName 呼び出し)")
+        // resource-id を読む関数は他にもある(焦点の移り先の事実・取り直しの事実)ので、**自分を子へ再帰で呼ぶ**本体を採る
+        guard let idWalkBody = bodies.first(where: {
+            $0.contains("getViewIdResourceName(") && $0.contains("collectEditableById(node.getChild(")
+        }) else {
+            return XCTFail("resource-id で入力欄を集める走査本体(collectEditableById の再帰)が見つからない")
         }
         // 走査中の `return node;` は包含判定 contains(x, y) の同行〜直前2行に限る。
         // ガード無しの return が現れたら「一意性を見ない旧実装」への退行。

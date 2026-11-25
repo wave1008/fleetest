@@ -88,7 +88,7 @@ final class FMLivenessProbeThresholdTests: XCTestCase {
         XCTAssertTrue(code.contains("FMHistory.recordFailure(path: path, source: .probe"), "プローブの失敗を履歴に書いていない")
         XCTAssertTrue(code.contains("let observed = FMLiveness.Stamp.now()"), "応答の直後に刻印を採っていない")
         // 期限切れは常駐プロセスが failed(「no answer within」)で返すので、失敗の道筋に含まれる
-        XCTAssertEqual(code.components(separatedBy: "return settle(path: path").count - 1, 2,
+        XCTAssertEqual(code.components(separatedBy: "ProbeObservation(verdict: settle(path: path").count - 1, 2,
                        "成功・失敗の2つが settle を通る")
     }
 }

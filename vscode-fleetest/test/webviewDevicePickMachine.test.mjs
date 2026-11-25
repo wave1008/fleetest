@@ -76,6 +76,12 @@ function openDevicePickModal(window, document) {
   document.getElementById("btn-run-profile-device-add-existing").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 }
 
+// 端末一覧の要求は1本ずつ(requestGate.js)= 前の要求に応答が届くまで次の要求は撃たれない。ホストは要求ごとに必ず
+// 1通返す(失敗の応答を含む)ので、テストも次の要求を見る前に応答を返す
+function answerInstalledDevices(window) {
+  post(window, { type: "installedDevices", ok: false, error: "test" });
+}
+
 function pickMachineOption(window, document, value) {
   const select = document.getElementById("device-pick-machine-select");
   select.value = value;
@@ -122,8 +128,10 @@ test("開くたびにローカルへリセットする(実行プロファイル�
 
   post(window, REMOTE_CONFIG_WITH_M1MAX);
   openDevicePickModal(window, document);
+  answerInstalledDevices(window);
   pickMachineOption(window, document, "M1Max");
   assert.equal(document.getElementById("device-pick-machine-select").value, "M1Max");
+  answerInstalledDevices(window);
   document.getElementById("device-pick-cancel").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 
   posted.length = 0;
@@ -142,6 +150,7 @@ test("ダイアログを開いたまま選び直すと installedDevicesRequest �
   openDevicePickModal(window, document);
   assert.equal(posted.filter((m) => m.type === "installedDevicesRequest").length, 1);
 
+  answerInstalledDevices(window);
   pickMachineOption(window, document, "M1Max");
   const requests = posted.filter((m) => m.type === "installedDevicesRequest");
   assert.equal(requests.length, 2, "選び直しで再要求する");

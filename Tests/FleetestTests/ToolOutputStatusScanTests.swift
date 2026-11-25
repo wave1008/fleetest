@@ -101,14 +101,8 @@ final class ToolOutputStatusScanTests: XCTestCase {
         // (exit 1・"Failure [...]")がそのまま利用者への理由になるので出力を捨てられない。
         // pull の失敗は次の install の失敗として表に出る(黙った成功にはならない)
         "ProfileSupplyLanes.updateWebViews",
-        // `adb shell "<cmd1>; echo <marker>; <cmd2> | grep …"` の終了コードは最後の grep に従うため、
-        // 正当な「一致なし」でも非ゼロで返る —— status では adb 自体の失敗と区別できない。
-        // マーカー文字列の有無・正規表現一致だけで値を作り、無ければ unavailable/nil(不明)に倒す
-        // (AndroidWebViewDOM.appSocketResolution / WebViewDOMFallback.parseProbe が判定側)
-        "AndroidDriver.webViewJumpToEdge",
-        "AndroidDriver.webViewComposited",
-        "AndroidDriver.warnBlankCaptureOnce",
-        "AndroidDriver.warnWebViewDOMFallbackOnce",
+        // 起動の失敗の後の診断: 出力に「system_server が起動中」の目印の文字列があるときだけ文言を替える(無ければ従来の失敗)。
+        // 失敗の出力から確定値を作っていない
         "AndroidBridge.startBridge",
         // `dumpsys package` の失敗出力は `versionCode=(\d+)` に一致しないため、素通りせず nil(不明)に倒す
         "AndroidBridge.installedBridgeVersionCode",

@@ -78,7 +78,7 @@ final class SameTargetResolutionTests: XCTestCase {
         }
         let counts: [(String, Int)] = [("StepExecutor+Actions.swift", 7), ("StepExecutor+KeyboardCover.swift", 1),
                                        ("StepExecutor+PreTouch.swift", 2),
-                                       ("StepExecutor+TypeClear.swift", 1), ("StepExecutor+Settle.swift", 3)]
+                                       ("StepExecutor+TypeClear.swift", 2), ("StepExecutor+Settle.swift", 3)]
         for (file, expected) in counts {
             XCTAssertEqual(try source(file).components(separatedBy: "SameTargetResolution.resolve(").count - 1, expected, file)
         }

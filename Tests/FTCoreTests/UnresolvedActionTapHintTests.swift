@@ -1,5 +1,5 @@
 // 操作の対象が解決できなかった失敗(`cannot resolve the locator`)にも、画面を変えなかった前のタップを名指しする
-// (sut-ec-mobile の xcuitest モード: 保存の tap が空振り → 戻る → 次の tap が解決できず、保存の空振りが文面に出なかった)
+// (失敗側の木がまだその tap の時点の木と同じときだけ = `stillUnchangedEarlierTaps`)
 
 import XCTest
 @testable import FTCore
@@ -43,7 +43,9 @@ final class UnresolvedActionTapHintTests: XCTestCase {
         FlowStep(action: "tap", locator: FlowLocator(id: id), timeout: 0)
     }
 
-    func testUnresolvedTapNamesTheEarlierTapThatChangedNothing() async {
+    /// 空振りした保存の後に戻るで画面が変わったら、保存は名指ししない(`stillUnchangedEarlierTaps`: 後で木が変わった tap は、
+    /// 遅れて効いたのか別の tap で移ったのかを木から見分けられない = 「飲まれたかも」と言い切らない側)
+    func testUnresolvedTapDoesNotNameAnEarlierTapOnceTheScreenMovedOn() async {
         let executor = StepExecutor(driver: FormDriver(), isAndroid: false, tunables: RunTunables())
         _ = await executor.execute(tap("btn_save"))
         _ = await executor.execute(tap("btn_back"))
@@ -51,10 +53,8 @@ final class UnresolvedActionTapHintTests: XCTestCase {
 
         guard case .failed(let message) = outcome.status else { return XCTFail("失敗するはず: \(outcome.status)") }
         XCTAssertTrue(message.contains("cannot resolve the locator"), message)
-        XCTAssertTrue(message.contains("unchanged between tap id=btn_save"), "空振りした保存を名指しする: \(message)")
-        XCTAssertFalse(message.contains("btn_back and"), "画面を変えた戻るは名指ししない: \(message)")
-        XCTAssertFalse(message.contains("was also unchanged"), "前置きの無い文で also を言わない: \(message)")
-        XCTAssertTrue(outcome.notes.contains(.unchangedTapBeforeFailure), "\(outcome.notes)")
+        XCTAssertFalse(message.contains("unchanged between"), "画面が移った後は前の tap を名指ししない: \(message)")
+        XCTAssertFalse(outcome.notes.contains(.unchangedTapBeforeFailure), "\(outcome.notes)")
     }
 
     /// 直前の tap が画面を変えなかったなら、この手の解決に使った木と比べて名指しする(まだ確定していない分)

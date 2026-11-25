@@ -15,6 +15,8 @@ final class RunnerQuiescenceCapCoverageTests: XCTestCase {
         "typeAndReadBack": "QuiescenceWait.capping(skipPostEvent: true) { try typeAndReadBack(body) }",
         "performTypeReadback": "QuiescenceWait.capping(skipPostEvent: true) { try typeAndReadBack(body) }",
         "clearFocusedInput": "QuiescenceWait.capping(skipPostEvent: false) { try clearFocusedInput(body) }",
+        // clearFocusedInput の中からだけ呼ぶ(チャンクごとに打ち切り予算を見る delete の送り)
+        "typeDeletes": "QuiescenceWait.capping(skipPostEvent: false) { try clearFocusedInput(body) }",
         "sendHomeGesture": "gestureQuiescence { sendHomeGesture(sb, attempt: attempt) }",
     ]
 

@@ -51,10 +51,10 @@ final class OI382FixTests: XCTestCase {
 
     func testBridgeOwnershipReadsOwnerPathWithSpaces() throws {
         let command = "/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building"
-            + " -xctestrun /Users/me/Library/Mobile Documents/fleetest/.fleetest/DerivedData/Build/Products/FleetestRunner-8125.xctestrun"
+            + " -xctestrun /Users/me/Library/Mobile Documents/ft clone/.fleetest/DerivedData/Build/Products/FleetestRunner-8125.xctestrun"
             + " -destination platform=iOS Simulator,id=B422AB58-6C79-45BC-92F0-BEF88061C8E1"
         let runner = try XCTUnwrap(BridgeOwnership.runnerProcess(fromCommand: command))
-        XCTAssertEqual(runner.ownerRepo, "/Users/me/Library/Mobile Documents/fleetest")
+        XCTAssertEqual(runner.ownerRepo, "/Users/me/Library/Mobile Documents/ft clone")
         XCTAssertEqual(runner.port, 8125)
     }
 

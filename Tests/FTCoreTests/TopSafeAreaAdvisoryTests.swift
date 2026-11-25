@@ -99,7 +99,10 @@ final class TopSafeAreaAdvisoryTests: XCTestCase {
 
     func testAllThreeBridgesAlwaysSendTheField() throws {
         XCTAssertTrue(try read("InAppBridge/Sources/InAppBridge.swift").contains("safeAreaTop: safeAreaTop"))
-        XCTAssertTrue(try read("Runner/FleetestRunnerUITests/BridgeRouter.swift").contains("safeAreaTop: .unknown"))
+        // ランナーは SpringBoard のステータスバーの下端を測って送る(測れなければ .unknown = 欄は常に送る)
+        let runner = try read("Runner/FleetestRunnerUITests/BridgeRouter.swift")
+        XCTAssertTrue(runner.contains("safeAreaTop: statusBarBand(screen: cap.screen))"))
+        XCTAssertTrue(runner.contains("var band = SafeAreaTop.unknown"))
         XCTAssertTrue(try read("AndroidRunner/src/com/example/ftbridge/SnapshotBuilder.java")
             .contains("response.put(\"safeAreaTop\", safeAreaTopJSON(context))"))
     }
