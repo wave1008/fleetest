@@ -20,10 +20,13 @@ struct ApiDeviceSettingsCommand: AsyncParsableCommand {
     var usePhysicalDevices: Bool?
 
     func run() async throws {
-        var config = try usePhysicalDevices != nil ? LocalConfig.loadForUpdate() : LocalConfig.load()
-        if let usePhysicalDevices {
-            Self.apply(usePhysicalDevices: usePhysicalDevices, to: &config)
-            try config.save()
+        let config = try LocalConfig.withUpdateLock(enabled: usePhysicalDevices != nil) { () throws -> LocalConfig in
+            var config = try usePhysicalDevices != nil ? LocalConfig.loadForUpdate() : LocalConfig.load()
+            if let usePhysicalDevices {
+                Self.apply(usePhysicalDevices: usePhysicalDevices, to: &config)
+                try config.save()
+            }
+            return config
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]

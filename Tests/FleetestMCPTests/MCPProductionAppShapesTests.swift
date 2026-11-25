@@ -48,7 +48,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
     func testSearchBarIsNotAnOccluderOfTheAvatarNestedInsideIt() {
         let elements = appleMapsHome()
         let avatar = elements.first { $0.identifier == "userProfileButton" }!
-        let hit = RefGuard.occluder(of: avatar, in: elements, screen: screen)
+        let hit = RefGuard.occluder(of: avatar, in: elements, screen: screen, paintOrderIsReal: false)
         XCTAssertNil(hit, "覆っていると報告された: \(hit?.identifier ?? "-")")
     }
 
@@ -57,7 +57,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
     func testCardIsNotAnOccluderWhenItAlsoEnclosesTheTargetsParent() {
         let elements = appleMapsHome()
         let field = elements.first { $0.identifier == "MapsSearchTextField" }!
-        let hit = RefGuard.occluder(of: field, in: elements, screen: screen)
+        let hit = RefGuard.occluder(of: field, in: elements, screen: screen, paintOrderIsReal: false)
         XCTAssertNil(hit, "覆っていると報告された: \(hit?.identifier ?? "-")")
     }
 
@@ -66,7 +66,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
     func testProfileSheetStillCountsAsAnOccluderOfTheTileBehindIt() {
         let elements = appleMapsHome()
         let tile = elements.first { $0.identifier == "PinnedTile" }!
-        let hit = RefGuard.overlayCovering(tile, in: elements, screen: screen)
+        let hit = RefGuard.overlayCovering(tile, in: elements, screen: screen, paintOrderIsReal: false)
         XCTAssertEqual(hit?.identifier, "UserProfileView")
     }
 
@@ -79,7 +79,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
             element(82, "FavoriteButton", depth: 12, 179, 797, 42, 36),
         ]
         let row = elements.first { $0.identifier == "TransitDepartureRow" }!
-        let hit = RefGuard.overlayCovering(row, in: elements, screen: screen)
+        let hit = RefGuard.overlayCovering(row, in: elements, screen: screen, paintOrderIsReal: false)
         XCTAssertEqual(hit?.identifier, "FavoriteButton")
     }
 
@@ -107,7 +107,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
         // ref 順だけを見ると 17 < 88 なので「シートは奥」= 見逃していた
         XCTAssertTrue(target.ref > 17)
         let hit = RefGuard.overlayCovering(target, in: elements,
-                                           screen: FTRect(x: 0, y: 0, width: 1080, height: 2424))
+                                           screen: FTRect(x: 0, y: 0, width: 1080, height: 2424), paintOrderIsReal: false)
         // 名指しは**最前面**(#recycler_view は z=78 でシート z=76 より手前)。
         // ここで問うているのは「シートの裏の chrome を覆われていると認識できるか」で、
         // どちらが名指しされるかは最前面の規則(testOccluderNamesTheFrontmost…)が別に固定する
@@ -139,7 +139,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
                     881, 1075, 199, 186, label: "現在地", z: 17),
         ]
         let target = elements.first { $0.identifier == "mylocation_button" }!
-        XCTAssertEqual(RefGuard.overlayCovering(target, in: elements, screen: screen1080)?
+        XCTAssertEqual(RefGuard.overlayCovering(target, in: elements, screen: screen1080, paintOrderIsReal: false)?
             .identifier, "ad_row", "包んでいるシートではなく最前面を名指しすること")
     }
 
@@ -238,7 +238,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
         let screen1080 = FTRect(x: 0, y: 0, width: 1080, height: 2424)
         let elements = directionsDriveMode()
         let tab = elements.first { $0.ref == 42 }!
-        XCTAssertNil(RefGuard.overlayCovering(tab, in: elements, screen: screen1080))
+        XCTAssertNil(RefGuard.overlayCovering(tab, in: elements, screen: screen1080, paintOrderIsReal: false))
     }
 
     /// **容器の中身が実際にその点にあるなら言う**(除外が「スクロール容器は常に覆わない」に広がらないこと)
@@ -249,7 +249,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
                     label: "1 時間 32 分", z: 112),
         ])
         let tab = elements.first { $0.ref == 42 }!
-        XCTAssertNotNil(RefGuard.overlayCovering(tab, in: elements, screen: screen1080))
+        XCTAssertNotNil(RefGuard.overlayCovering(tab, in: elements, screen: screen1080, paintOrderIsReal: false))
     }
 
     /// 中心が子の上にあるふつうの容器では黙る
@@ -391,7 +391,7 @@ final class MCPProductionAppShapesTests: XCTestCase {
         ]
         let row = elements.first { $0.identifier == "row_03" }!
         let hit = RefGuard.overlayCovering(row, in: elements,
-                                           screen: FTRect(x: 0, y: 0, width: 1080, height: 2424))
+                                           screen: FTRect(x: 0, y: 0, width: 1080, height: 2424), paintOrderIsReal: false)
         XCTAssertEqual(hit?.identifier, "app_bar")
     }
 }

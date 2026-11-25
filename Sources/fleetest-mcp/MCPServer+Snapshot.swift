@@ -1421,6 +1421,7 @@ extension MCPServer {
             return (found.ref, originNote + retarget
                 + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
                                         suppressKeyboardWarning: Self.typesWithoutTouching(found, in: fresh.elements),
+                                        clearsTopBand: Self.operationClearsTopBand(operation),
                                         overlayWindows: overlayWindows,
                                         safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen,
@@ -1445,6 +1446,7 @@ extension MCPServer {
             let overlap = originNote
                 + RefGuard.preTapWarnings(found, keyboardOcclusion: keyboardOcclusion,
                                         suppressKeyboardWarning: Self.typesWithoutTouching(found, in: fresh.elements),
+                                        clearsTopBand: Self.operationClearsTopBand(operation),
                                         overlayWindows: overlayWindows,
                                         safeAreaTop: fresh.safeAreaTop, screen: fresh.screen)
                 + RefGuard.overlapWarning(found: found, in: fresh.elements, screen: fresh.screen,

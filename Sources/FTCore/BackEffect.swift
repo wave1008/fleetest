@@ -20,6 +20,15 @@ public enum BackEffect {
     public static let pollCount = 4
     public static let pollIntervalSeconds: Double = 0.3
 
+    /// **直前のステップが back() だったときだけ**、before を読む前に木の整定を待つか(`afterBackAtStepCount` =
+    /// `StepExecutor.backFiredAtStepCount`、`stepsRecorded` = 記録済みのステップ数)。
+    /// pop した直後は約 0.7 秒、抜けた画面の戻るボタンが木に残り、before が after より1要素多いせいで
+    /// 「木が違う = 効いた」になり注記が欠ける(OI-394)。待ちは時間ではなく既存の整定(`settleBeforeBackObservation`)で、
+    /// それ以外の back() には払わせない
+    public static func shouldSettleBeforeRead(afterBackAtStepCount: Int?, stepsRecorded: Int) -> Bool {
+        afterBackAtStepCount == stepsRecorded
+    }
+
     /// 木が同一かどうかの唯一の判定。指紋は StaleFrameDetector.treeFingerprint を使う
     /// (2つ目の指紋実装を作らない)
     public static func treesAreIdentical(before: [ElementInfo], after: [ElementInfo]) -> Bool {
@@ -118,4 +127,13 @@ public enum BackEffect {
         + " first screen, or in front of a dialog that ignores back, there may be nothing for back() to go back to)"
 
     public static func note(advice: String) -> String { "\(summary); \(advice)" }
+}
+
+extension StepExecutor {
+    /// 直前が back() のときの before の読みの前に、木が2回続けて同じになるまで待つ(`settledSignature` = 上限つきの既存の整定。
+    /// 新しい待ちの定数は足さない)。読めなければ待たずに進む(判定材料が無いのに止めない)
+    public func settleBeforeBackObservation() async {
+        var phase = PhaseAccumulator()
+        _ = try? await settledSignature(phase: &phase)
+    }
 }

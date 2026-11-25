@@ -33,12 +33,15 @@ struct ApiRetentionCommand: AsyncParsableCommand {
 
     func run() async throws {
         let roots = try RetentionSweeper.Roots.resolve()
-        var config = try importJSON != nil ? LocalConfig.loadForUpdate() : LocalConfig.load()
-        if let importJSON {
-            let update = try Self.decode(importJSON)
-            try Self.validateMinimums(update)
-            config.retention = Self.merge(config.retention, with: update)
-            try config.save()
+        let config = try LocalConfig.withUpdateLock(enabled: importJSON != nil) { () throws -> LocalConfig in
+            var config = try importJSON != nil ? LocalConfig.loadForUpdate() : LocalConfig.load()
+            if let importJSON {
+                let update = try Self.decode(importJSON)
+                try Self.validateMinimums(update)
+                config.retention = Self.merge(config.retention, with: update)
+                try config.save()
+            }
+            return config
         }
         let policy = config.retention ?? RetentionPolicy()
         let usage = withUsage ? RetentionSweeper.usage(roots: roots) : nil

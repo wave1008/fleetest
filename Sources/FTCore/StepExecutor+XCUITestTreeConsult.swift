@@ -17,20 +17,7 @@ extension StepExecutor {
             noteCodesThisStep.insert(.xcuitestTreeNotConsulted)
             return nil
         }
-        // XCUITest の snapshot は対象を activate する = 前面を離れたアプリを引き戻すので、activate しない /appstate で前面を確かめてから読む
-        let foreground: Bool
-        do { foreground = try await xcuitest.isAppForeground(bundleID: bundleID) } catch {
-            noteCodesThisStep.insert(.xcuitestTreeUnread)
-            return nil
-        }
-        guard foreground else { return nil }
-        let clock = ContinuousClock()
-        let start = clock.now
-        guard let tree = try? await xcuitest.snapshot() else {
-            noteCodesThisStep.insert(.xcuitestTreeUnread)
-            return nil
-        }
-        phase.snapshotMs += Self.ms(clock.now - start)
+        guard let tree = await readAppXCUITestTree(xcuitest: xcuitest, bundleID: bundleID, phase: &phase) else { return nil }
         guard let (element, _) = LocatorResolver.resolve(step: step, in: tree, strictForAssert: true) else {
             noteCodesThisStep.insert(.xcuitestTreeNoMatch)
             return nil
@@ -65,15 +52,10 @@ extension StepExecutor {
         return element
     }
 
-    /// 操作(tap・type 等)の対象が in-app の木で解けなかったとき、キーボードを閉じる・赤にする前にアプリの XCUITest の木を1回照会する。
-    /// 見つかって **XCUITest が押せる(`isHittable`)と答えた**ときだけ、その木とドライバで撃つ(XCUITest の木はモーダルの裏の要素も残す =
-    /// 見つかっただけでは採らない。押せるかの判定はデバイスの答えに任せる)。標準アプリのリマインダーの新規行の入力欄は in-app の木に
-    /// 出ず、XCUITest の木にだけ出た。前面の確かめは `appXCUITestTreeMatch` と同じ(XCUITest の木の読みは activate する)
-    func appXCUITestTreeActionTarget(step: FlowStep, action: String,
-                                     phase: inout PhaseAccumulator) async -> (element: ElementInfo, usedFallback: FlowLocator?,
-                                                                             snapshot: SnapshotResponse, driver: AppDriver)? {
-        guard !isAndroid, let xcuitest = typeDriver, let bundleID = launchedBundleID,
-              PreFireGuard.keyboardSensitiveActions.contains(action) else { return nil }
+    /// アプリの XCUITest の木を1回読む(DR-199・DR-202・OI-390 の照会が共有する読み口)。
+    /// XCUITest の snapshot は対象を activate する = 前面を離れたアプリを引き戻すので、activate しない /appstate で前面を確かめてから読む。
+    /// 前面に無い → 注記なしの nil / 確認が答えない・木を読めない → `xcuitestTreeUnread` を立てた nil
+    func readAppXCUITestTree(xcuitest: AppDriver, bundleID: String, phase: inout PhaseAccumulator) async -> SnapshotResponse? {
         let foreground: Bool
         do { foreground = try await xcuitest.isAppForeground(bundleID: bundleID) } catch {
             noteCodesThisStep.insert(.xcuitestTreeUnread)
@@ -87,6 +69,55 @@ extension StepExecutor {
             return nil
         }
         phase.snapshotMs += Self.ms(clock.now - start)
+        return tree
+    }
+
+    /// 否定形(notExist / waitForClose)が in-app の木で「無い」と結論する直前の照会の答え(OI-390)
+    enum ScopedAbsenceVerdict: Equatable {
+        /// 照会の条件に当たらない(スコープの容器が子を持つ・スコープ無し・Android・xcuitest モード)
+        case notApplicable
+        /// 条件には当たったが答えられなかった(前面に無い・木を読めない)= 従来どおり「無い」を結論する(注記 `xcuitest-tree-unread` が残る)
+        case unanswered
+        case absent
+        case stillThere
+    }
+
+    /// セレクタ(主・フォールバック)のスコープ(`>>`)の容器が in-app の木で解決できたのに子孫が空か。
+    /// iOS の Compose の ScrollableTabRow・PullToRefreshBox は容器の直後に同じ枠の `other` が兄弟で並び子が浅い depth になるので
+    /// `scopeDescendants` が空を返し、居る要素が「無い」に見える(OI-390)。**全ての notExist に照会を足すと遅い**ので、この形だけに絞る
+    static func scopeContainerIsChildless(_ step: FlowStep, in elements: [ElementInfo]) -> Bool {
+        ([step.locator] + (step.fallbacks ?? []).map { Optional($0) }).contains { locator in
+            guard let locator else { return false }
+            return LocatorResolver.childlessScopeContainer(of: locator, in: elements) != nil
+        }
+    }
+
+    /// 否定形が in-app の木で不在と見たとき、スコープの容器が空の形だけアプリの XCUITest の木を1回照会し、居れば `.stillThere`。
+    /// 費用: 前面の確認 `/appstate` 1回 + XCUITest の snapshot 1回(数百 ms〜1 秒台)を、条件に当たる notExist が不在を結論する周ごとに払う。
+    /// 見えているかは見ない(notExist は「木に無い」を確かめる = 可視性検証を掛けない。DR-199 の肯定側とは判定軸が逆)
+    func scopedAbsenceConsult(step: FlowStep, snapshot: SnapshotResponse,
+                              phase: inout PhaseAccumulator) async -> ScopedAbsenceVerdict {
+        guard !isAndroid, let xcuitest = typeDriver, let bundleID = launchedBundleID,
+              Self.scopeContainerIsChildless(step, in: snapshot.elements) else { return .notApplicable }
+        guard let tree = await readAppXCUITestTree(xcuitest: xcuitest, bundleID: bundleID, phase: &phase) else { return .unanswered }
+        guard LocatorResolver.resolve(step: step, in: tree, strictForAssert: true) != nil else {
+            noteCodesThisStep.insert(.xcuitestTreeNoMatch)
+            return .absent
+        }
+        noteCodesThisStep.insert(.absenceContradictedByXCUITestTree)
+        return .stillThere
+    }
+
+    /// 操作(tap・type 等)の対象が in-app の木で解けなかったとき、キーボードを閉じる・赤にする前にアプリの XCUITest の木を1回照会する。
+    /// 見つかって **XCUITest が押せる(`isHittable`)と答えた**ときだけ、その木とドライバで撃つ(XCUITest の木はモーダルの裏の要素も残す =
+    /// 見つかっただけでは採らない。押せるかの判定はデバイスの答えに任せる)。標準アプリのリマインダーの新規行の入力欄は in-app の木に
+    /// 出ず、XCUITest の木にだけ出た。前面の確かめは `appXCUITestTreeMatch` と同じ(XCUITest の木の読みは activate する)
+    func appXCUITestTreeActionTarget(step: FlowStep, action: String,
+                                     phase: inout PhaseAccumulator) async -> (element: ElementInfo, usedFallback: FlowLocator?,
+                                                                             snapshot: SnapshotResponse, driver: AppDriver)? {
+        guard !isAndroid, let xcuitest = typeDriver, let bundleID = launchedBundleID,
+              PreFireGuard.keyboardSensitiveActions.contains(action) else { return nil }
+        guard let tree = await readAppXCUITestTree(xcuitest: xcuitest, bundleID: bundleID, phase: &phase) else { return nil }
         guard let (element, usedFallback) = LocatorResolver.resolve(step: step, in: tree),
               (try? await xcuitest.hitTest(ref: element.ref)) == .hittable(true) else { return nil }
         noteCodesThisStep.insert(.actedViaXCUITestTree)

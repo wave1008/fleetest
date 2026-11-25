@@ -495,7 +495,7 @@ extension MCPServer {
         var doubleTapResolvedRef: Int?
         if let ref = try Self.intArgument(args, "ref") {
             let (element, labelNote) = try await verifiedElement(ref, driver: doubleTapDriver, args: args)
-            var bandPoint: (x: Double, y: Double)?
+            var bandPoint: (x: Double, y: Double, note: String)?
             var coverPart: (x: Double, y: Double, note: String)?
             let doubleTapTree = lastSnapshots[Self.sessionKey(args)]
             switch Self.coveredRefTouch(element, in: doubleTapTree, scale: doubleTapDriver.pointScale, ref: ref,
@@ -511,12 +511,13 @@ extension MCPServer {
             case .refuse(let message): throw MCPError(message)
             case .part(let x, let y, let note): coverPart = (x, y, note)
             }
-            doubleTapPoint = coverPart.map { ($0.x, $0.y) } ?? bandPoint ?? (element.frame.centerX, element.frame.centerY)
+            doubleTapPoint = coverPart.map { ($0.x, $0.y) } ?? bandPoint.map { ($0.x, $0.y) } ?? (element.frame.centerX, element.frame.centerY)
             doubleTapWhat = "[\(ref)]"
             doubleTapResolvedRef = element.ref
             doubleTapNote = try await refGestureGuard(element, driver: doubleTapDriver, isAndroid: doubleTapDriver is AndroidDriver,
                                                        operation: "double tap", args: args)
-                + labelNote + (bandPoint != nil ? Self.bottomBandTouchNote : "") + (coverPart?.note ?? "")
+                + labelNote + (bandPoint?.note ?? "") + (coverPart?.note ?? "")
+                + (coverPart != nil ? suppressedTopBandWarning(ref: element.ref, args: args) : "")
             doubleTapSelector = reproductionNote(resolvedRef: element.ref, args: args)
         } else if let x = try Self.doubleArgument(args, "x"), let y = try Self.doubleArgument(args, "y") {
             if let offscreen = Self.offscreenCoordinateError(
@@ -932,7 +933,7 @@ extension MCPServer {
         if let ref = try Self.intArgument(args, "ref") {
             let pressTarget = try await verifiedRef(ref, driver: pressDriver, args: args, operation: "long press")
             // pressTarget.ref はセッション ref。ブリッジへ渡す直前にだけ native へ戻す。帯の中なら ft_tap と同じく座標で
-            var bandPoint: (x: Double, y: Double)?
+            var bandPoint: (x: Double, y: Double, note: String)?
             var coverPart: (x: Double, y: Double, note: String)?
             if let tree = lastSnapshots[Self.sessionKey(args)],
                let element = tree.elements.first(where: { $0.ref == pressTarget.ref }) {
@@ -961,7 +962,8 @@ extension MCPServer {
             // 長押しも ft_gesture と同じく、操作の後に前面を確かめる(画面の端での長押しがシェード・ホームに取られうる)
             let pressLeftAppNote = await leftAppAfterGestureNote(pressDriver, args: args, alreadyWarned: false)
             return text("press [\(ref)] done.\(pressTarget.note)"
-                + (bandPoint != nil ? Self.bottomBandTouchNote : "") + (coverPart?.note ?? "")
+                + (bandPoint?.note ?? "") + (coverPart?.note ?? "")
+                + (coverPart != nil ? suppressedTopBandWarning(ref: pressTarget.ref, args: args) : "")
                 + pressLeftAppNote
                 + reproductionNote(resolvedRef: pressTarget.ref, args: args)
                 + changedHintOnce(args)
@@ -1024,6 +1026,7 @@ extension MCPServer {
         return refFrontAppNote(snapshot, args: args) + RefGuard.preTapWarnings(
             element, keyboardOcclusion: keyboard,
             suppressKeyboardWarning: Self.typesWithoutTouching(element, in: snapshot?.elements ?? []),
+            clearsTopBand: Self.operationClearsTopBand(operation),
             overlayWindows: OverlayWindowOcclusion.resolve(reported: snapshot?.overlayWindowFrames),
             safeAreaTop: snapshot?.safeAreaTop ?? .unknown,
             screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0))

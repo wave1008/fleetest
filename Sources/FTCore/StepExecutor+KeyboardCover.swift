@@ -181,7 +181,7 @@ extension StepExecutor {
             let paintOrderKnown = paintOrderIsReal(currentSnapshot.elements)
             if jump == nil, paintOrderKnown,
                let over = TapTargetGeometry.overlayCoveringForUncover(
-                   current, in: currentSnapshot.elements, screen: currentSnapshot.screen) {
+                   current, in: currentSnapshot.elements, screen: currentSnapshot.screen, paintOrderIsReal: paintOrderKnown) {
                 jump = outsideContainer == nil
                     ? TapTargetGeometry.uncoverScrollJump(target: current, coveredBy: over,
                                                           container: container)
@@ -246,7 +246,7 @@ extension StepExecutor {
                     TapTargetGeometry.keyboardCoveredAdvisory(moved, keyboardFrame: $0)
                 } != nil)
                 || (paintOrderIsReal(after.elements) && TapTargetGeometry.overlayCoveringForUncover(
-                       moved, in: after.elements, screen: after.screen) != nil)
+                       moved, in: after.elements, screen: after.screen, paintOrderIsReal: true) != nil)
                 || (!isAndroid && TapTargetGeometry.bottomEdgeClipLift(moved, in: after.elements) != nil)
                 || (takesFocus && ownContainer != nil && TapTargetGeometry.topEdgeCentreLift(moved, container: container) != nil)
                 || (paintOrderIsReal(after.elements)

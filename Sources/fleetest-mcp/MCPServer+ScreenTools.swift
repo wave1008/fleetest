@@ -79,21 +79,34 @@ extension MCPServer {
             args: args))
     }
 
-    /// ref の要素の中心が Android の下端のジェスチャ帯の中なら、帯より上に出ている部分の中心(撃つ点)。
-    /// 判定は `BottomGestureBandTap`(DSL と共有)。木は verifiedRef / verifiedElement が撮った直近のもの(セッション ref)
-    func bottomBandPoint(sessionRef: Int, driver: AppDriver, args: [String: Any]) async -> (x: Double, y: Double)? {
+    /// ref の要素の中心が帯(Android の下端のジェスチャ帯 → 上端の安全領域の帯)の中なら、帯の外に出ている部分の中心(撃つ点)と注記。
+    /// 下端は `BottomGestureBandTap`・上端は `TapTargetGeometry.topBandTapY`(どちらも DSL の `bandClearedTap` と共有)。
+    /// 木は verifiedRef / verifiedElement が撮った直近のもの(セッション ref)
+    func bottomBandPoint(sessionRef: Int, driver: AppDriver, args: [String: Any]) async -> (x: Double, y: Double, note: String)? {
         guard let element = lastSnapshots[Self.sessionKey(args)]?.elements.first(where: { $0.ref == sessionRef })
         else { return nil }
         return await bottomBandPoint(frame: element.frame, driver: driver, args: args)
     }
 
-    /// 枠を既に持っている呼び手(verifiedElement が位置を合わせ直した要素)用。画面の大きさは直近の木から
-    func bottomBandPoint(frame: FTRect, driver: AppDriver, args: [String: Any]) async -> (x: Double, y: Double)? {
-        guard let screen = lastSnapshots[Self.sessionKey(args)]?.screen,
-              let y = await BottomGestureBandTap.tapY(for: frame, screen: screen,
-                                                      isAndroid: driver is AndroidDriver, driver: driver)
-        else { return nil }
-        return (frame.centerX, y)
+    /// 枠を既に持っている呼び手(verifiedElement が位置を合わせ直した要素)用。画面の大きさ・上端の帯は直近の木から
+    func bottomBandPoint(frame: FTRect, driver: AppDriver, args: [String: Any]) async -> (x: Double, y: Double, note: String)? {
+        guard let snapshot = lastSnapshots[Self.sessionKey(args)] else { return nil }
+        if let y = await BottomGestureBandTap.tapY(for: frame, screen: snapshot.screen,
+                                                   isAndroid: driver is AndroidDriver, driver: driver) {
+            return (frame.centerX, y, Self.bottomBandTouchNote)
+        }
+        if let y = TapTargetGeometry.topBandTapY(for: frame, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen) {
+            return (frame.centerX, y, Self.topBandTouchNote)
+        }
+        return nil
+    }
+
+    /// 帯の寄せ(`bottomBandPoint`)を通らずに撃った枝で、`verifiedRef` が消していた上端の帯の警告を言い直す(`RefGuard.suppressedTopBandWarning`)。
+    /// 木は直近のもの(verifiedRef / verifiedElement が撮ったセッション ref)
+    func suppressedTopBandWarning(ref sessionRef: Int, args: [String: Any]) -> String {
+        guard let snapshot = lastSnapshots[Self.sessionKey(args)],
+              let element = snapshot.elements.first(where: { $0.ref == sessionRef }) else { return "" }
+        return RefGuard.suppressedTopBandWarning(element, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen) ?? ""
     }
 
     /// 見えている部分の点を撃ったときの注記。**応答では警告(`target.note`)より前に置く**(打ち消す相手より先に読ませる。
@@ -122,10 +135,10 @@ extension MCPServer {
 
     /// ft_tap の ref 経路の応答の頭。見えている部分を撃ったなら、その注記を中心についての警告(`targetNote`)より前に置く
     static func tapRefLead(ref: Int, targetNote: String, visiblePoint: (x: Double, y: Double)?,
-                           bandTouched: Bool, visibleBandNote: String) -> String {
+                           bandNote: String, visibleBandNote: String) -> String {
         "tap [\(ref)] done."
             + (visiblePoint.map { visiblePartTapNote(x: $0.x, y: $0.y) } ?? "") + targetNote
-            + (bandTouched ? bottomBandTouchNote : "") + visibleBandNote
+            + bandNote + visibleBandNote
     }
 
     /// 手前の覆いに中心を覆われた ref の指の操作(tap・長押し・doubleTap・drag の始点)の扱い。
@@ -217,6 +230,15 @@ extension MCPServer {
     static let bottomBandTouchNote = " Its centre is inside the Android bottom gesture band (a touch there can go to"
         + " home / app switch), so the part of the element above the band was touched instead."
 
+    /// 上端の帯(安全領域の上端 = ステータスバー・ノッチ)の寄せの注記。DSL は `StepExecutor.topBandTapNote` で同じ事実を言う
+    static let topBandTouchNote = " Its centre is inside the top safe-area band (a touch there goes to the system status bar / notch,"
+        + " not to the element), so the part of the element below the band was touched instead."
+
+    /// 上端の帯へ寄せて撃つ操作(`bottomBandPoint` を通す tap・長押し・doubleTap)。この操作では寄せるので `topSafeAreaWarning` は言わない
+    static func operationClearsTopBand(_ operation: String) -> Bool {
+        operation == "tap" || operation == "long press" || operation == "double tap"
+    }
+
     func ftTap(_ args: [String: Any]) async throws -> [[String: Any]] {
         let d = try await driver(args)
         if let button = try Self.stringArgument(args, "alertButton") {
@@ -235,8 +257,8 @@ extension MCPServer {
                let element = tree.first(where: { $0.ref == target.ref }),
                let visible = TapTargetGeometry.visibleTapRect(for: element, in: tree, scale: d.pointScale) {
                 if let band = await bottomBandPoint(frame: visible, driver: d, args: args) {
-                    visiblePoint = band
-                    visibleBandNote = Self.bottomBandTouchNote
+                    visiblePoint = (band.x, band.y)
+                    visibleBandNote = band.note
                 } else {
                     visiblePoint = (visible.centerX, visible.centerY)
                 }
@@ -282,8 +304,10 @@ extension MCPServer {
             lastTapTargets[Self.sessionKey(args)] = treeBeforeTap?.first { $0.ref == target.ref }
             treesBeforeLastTap[Self.sessionKey(args)] = treeBeforeTap
             focusedBeforeLastTaps[Self.sessionKey(args)] = treeBeforeTap?.first { $0.focused == true }
-            return text(Self.tapRefLead(ref: ref, targetNote: (coverPart?.note ?? "") + target.note + keyboardNote,
-                                        visiblePoint: visiblePoint, bandTouched: bandPoint != nil, visibleBandNote: visibleBandNote)
+            return text(Self.tapRefLead(ref: ref, targetNote: (coverPart?.note ?? "") + target.note + keyboardNote
+                                            + ((visiblePoint != nil && visibleBandNote.isEmpty) || coverPart != nil
+                                               ? suppressedTopBandWarning(ref: target.ref, args: args) : ""),
+                                        visiblePoint: visiblePoint, bandNote: bandPoint?.note ?? "", visibleBandNote: visibleBandNote)
                 // ブリッジの /tap が返す note(例:
                 // 「activate 不発 → 合成タッチ」— BridgeClient.tap(ref:) の lastActionNote)を
                 // 捨てない。DSL は同じ note を StepExecutor+Actions.swift の driverFallback へ
@@ -891,7 +915,9 @@ extension MCPServer {
     /// 名指さない組(`OccluderNaming`)でも**断りは残す**(保存は永続)。文言から相手の名前と断言を外す(先頭の "nothing was saved" は保つ)
     static func captureCoverRefusal(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                     naming: OccluderNamingContext) -> String? {
-        guard let cover = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen) else { return nil }
+        guard let cover = OcclusionGeometry.overlayCovering(
+            element, in: elements, screen: screen,
+            paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: naming.isAndroid, framework: naming.framework)) else { return nil }
         guard naming.mayName(cover, element) else {
             return "nothing was saved: \(RefGuard.describe(element)) may be covered by another element on this screen"
                 + " (paint order is not known here), so its capture could show something else. Check with ft_screenshot"

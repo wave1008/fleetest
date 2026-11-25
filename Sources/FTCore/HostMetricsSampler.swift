@@ -476,7 +476,7 @@ public struct HostMetricsSample: Encodable {
 /// stdin 監視や DispatchSourceSignal を持たない常駐 Thread の停止フラグ
 /// (Sources/fleetest/ApiHostMetricsCommand.swift の StopFlag と同型。private のためファイル間で
 /// 共有できず複製)
-private final class StopGate: @unchecked Sendable {
+final class StopGate: @unchecked Sendable {  // 不変条件: flag は lock の内側でだけ読み書きする
     private let lock = NSLock()
     private var flag = false
 
@@ -487,6 +487,14 @@ private final class StopGate: @unchecked Sendable {
 
     func set() {
         lock.lock(); flag = true; lock.unlock()
+    }
+
+    /// 立てて、立てる前の値を返す(同時 stop のどちらか1つだけが false を受け取る)
+    func testAndSet() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        let previous = flag
+        flag = true
+        return previous
     }
 }
 
@@ -570,8 +578,7 @@ public final class HostMetricsRecorder: @unchecked Sendable {
     /// 2 回目以降の呼び出しは no-op(セマフォを二重に待つと永久ブロックするため)。
     /// HostMetricsLog が開けず未起動(hasThread=false)のときはフラグを立てるだけで即返す。
     public func stop() {
-        let alreadyRequested = stopFlag.isSet
-        stopFlag.set()
+        let alreadyRequested = stopFlag.testAndSet()
         guard hasThread, !alreadyRequested else { return }
         _ = exitSemaphore.wait(timeout: .now() + 2.0)
     }

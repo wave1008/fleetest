@@ -465,6 +465,22 @@ public enum FMServeHost {
         return env
     }
 
+    /// fm-serve.log を1世代(`fm-serve.prev.log`)だけ残して回す閾値。常駐の起動のたびに追記されるので
+    /// 無制限に伸びる。1 MiB = 起動の数百回ぶんの行(根拠は実測でなく、読む人間の事後調査に足りる量)。
+    /// 尽きたら(超えたら)次の起動で退避し、新しい空ファイルから書く
+    static let logRotationBytes: Int = 1 << 20
+
+    /// 回すべきか(純粋関数)
+    static func shouldRotateLog(size: Int) -> Bool { size > logRotationBytes }
+
+    private static func rotateLogIfNeeded(_ logURL: URL) {
+        let size = (try? FileManager.default.attributesOfItem(atPath: logURL.path)[.size] as? Int) ?? 0
+        guard shouldRotateLog(size: size) else { return }
+        let prev = logURL.deletingLastPathComponent().appendingPathComponent("fm-serve.prev.log")
+        try? FileManager.default.removeItem(at: prev)
+        try? FileManager.default.moveItem(at: logURL, to: prev)
+    }
+
     static func spawn(executable: URL, socketPath: String) -> Bool {
         let process = Process()
         process.executableURL = executable
@@ -473,13 +489,10 @@ public enum FMServeHost {
         process.standardInput = FileHandle.nullDevice
         let logURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/fleetest/fm-serve.log")
         try? FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if !FileManager.default.fileExists(atPath: logURL.path) {
-            FileManager.default.createFile(atPath: logURL.path, contents: nil)
-        }
-        let sink = (try? FileHandle(forWritingTo: logURL)).map { handle -> FileHandle in
-            handle.seekToEndOfFile()
-            return handle
-        }
+        rotateLogIfNeeded(logURL)
+        // O_APPEND: 退役中の旧プロセスと新プロセスが同じファイルへ書くので、各自のオフセットで上書きさせない
+        let logFD = Darwin.open(logURL.path, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o644)
+        let sink = logFD >= 0 ? FileHandle(fileDescriptor: logFD, closeOnDealloc: true) : nil
         process.standardOutput = sink ?? FileHandle.nullDevice
         process.standardError = sink ?? FileHandle.nullDevice
         process.qualityOfService = .utility

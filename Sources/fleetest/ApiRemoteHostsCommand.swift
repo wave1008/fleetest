@@ -39,39 +39,44 @@ struct ApiRemoteHostsCommand: AsyncParsableCommand {
 
     func run() async throws {
 
-        var config = try (importJSON != nil || remove != nil || order != nil) ? LocalConfig.loadForUpdate() : LocalConfig.load()
-        if let importJSON {
-            let incoming = try Self.decodeImportEntries(importJSON)
-            for raw in incoming {
-                // **"local" は登録簿に入れない**(予約名)。設定タブの固定行から来る FM 枠と「マシン有効」だけを
-                // LocalConfig へ流す。host は表示用なので無視する
-                if (raw.machine ?? "").trimmingCharacters(in: .whitespaces) == "local" {
-                    config.fmConcurrency = (raw.fmConcurrency ?? 0) > 0 ? raw.fmConcurrency : nil
-                    // キーが無ければ据え置く(登録簿の行と同じ規律)。保存するのは false だけ
-                    if let enabled = raw.enabled {
-                        config.localMachineEnabled = enabled ? nil : false
+        let writes = importJSON != nil || remove != nil || order != nil
+        // 読み→変更→保存を flock で直列化(同時に書く別プロセスの変更を消さない)
+        let config = try LocalConfig.withUpdateLock(enabled: writes) { () throws -> LocalConfig in
+            var config = try writes ? LocalConfig.loadForUpdate() : LocalConfig.load()
+            if let importJSON {
+                let incoming = try Self.decodeImportEntries(importJSON)
+                for raw in incoming {
+                    // **"local" は登録簿に入れない**(予約名)。設定タブの固定行から来る FM 枠と「マシン有効」だけを
+                    // LocalConfig へ流す。host は表示用なので無視する
+                    if (raw.machine ?? "").trimmingCharacters(in: .whitespaces) == "local" {
+                        config.fmConcurrency = (raw.fmConcurrency ?? 0) > 0 ? raw.fmConcurrency : nil
+                        // キーが無ければ据え置く(登録簿の行と同じ規律)。保存するのは false だけ
+                        if let enabled = raw.enabled {
+                            config.localMachineEnabled = enabled ? nil : false
+                        }
+                        continue
                     }
-                    continue
+                    try Self.validateColor(raw.color)
+                    let entry = raw.entry
+                    try RemoteHostRegistry.validateName(entry.machine)
+                    _ = try RemoteHostSpec.parse(entry.host)
+                    if let dir = entry.dir { try RemoteLayout.validateBase(dir) }
+                    try RemoteHostRegistry.validateUniqueHost(entry, in: config.remoteHosts ?? [])
+                    var merged = Self.mergingFMConcurrency(entry, sentKey: raw.fmConcurrency != nil,
+                                                           from: config.remoteHosts ?? [])
+                    merged = Self.mergingDeveloperDir(merged, sentKey: raw.developerDir != nil,
+                                                      from: config.remoteHosts ?? [])
+                    config.remoteHosts = RemoteHostRegistry.upsert(merged, into: config.remoteHosts ?? [])
                 }
-                try Self.validateColor(raw.color)
-                let entry = raw.entry
-                try RemoteHostRegistry.validateName(entry.machine)
-                _ = try RemoteHostSpec.parse(entry.host)
-                if let dir = entry.dir { try RemoteLayout.validateBase(dir) }
-                try RemoteHostRegistry.validateUniqueHost(entry, in: config.remoteHosts ?? [])
-                var merged = Self.mergingFMConcurrency(entry, sentKey: raw.fmConcurrency != nil,
-                                                       from: config.remoteHosts ?? [])
-                merged = Self.mergingDeveloperDir(merged, sentKey: raw.developerDir != nil,
-                                                  from: config.remoteHosts ?? [])
-                config.remoteHosts = RemoteHostRegistry.upsert(merged, into: config.remoteHosts ?? [])
+                try config.save()
+            } else if let name = remove {
+                config.remoteHosts = RemoteHostRegistry.remove(machine: name, from: config.remoteHosts ?? [])
+                try config.save()
+            } else if let order {
+                config.remoteHosts = RemoteHostRegistry.reorder(Self.orderNames(order), in: config.remoteHosts ?? [])
+                try config.save()
             }
-            try config.save()
-        } else if let name = remove {
-            config.remoteHosts = RemoteHostRegistry.remove(machine: name, from: config.remoteHosts ?? [])
-            try config.save()
-        } else if let order {
-            config.remoteHosts = RemoteHostRegistry.reorder(Self.orderNames(order), in: config.remoteHosts ?? [])
-            try config.save()
+            return config
         }
 
         Self.emit(config.remoteHosts ?? [])

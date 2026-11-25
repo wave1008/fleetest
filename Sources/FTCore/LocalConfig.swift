@@ -167,6 +167,25 @@ public struct LocalConfig: Codable, Sendable, Equatable {
         }
     }
 
+    /// 書き手の read-modify-write(`loadForUpdate` → 変更 → `save`)を機械全体で直列化する flock(`<config>.lock`)。
+    /// 2プロセスが同時に書くと後勝ちで片方の変更が消える。**`body` の中で load から save まで済ませること**
+    /// (外で読むと意味が無い)。`enabled: false` は排他なしで素通し(読むだけの経路を同じ関数で書くため)。
+    /// ロックを開けない・取れないときは排他なしで続ける(従来どおり。設定の書き込みを止めない)。
+    /// ロックファイルは消さない(消すと別の待ち手が別の inode を握って排他が崩れる)
+    public static func withUpdateLock<T>(url: URL = Self.url(), enabled: Bool = true,
+                                         _ body: () throws -> T) throws -> T {
+        guard enabled else { return try body() }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let fd = open(url.path + ".lock", O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard fd >= 0 else { return try body() }
+        defer { close(fd) }
+        while flock(fd, LOCK_EX) != 0 {
+            if errno == EINTR { continue }
+            return try body()
+        }
+        return try body()
+    }
+
     public func save(to url: URL = Self.url()) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

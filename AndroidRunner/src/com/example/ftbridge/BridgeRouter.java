@@ -367,7 +367,19 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         return BridgeHttpServer.Response.json(200, result.json);
     }
 
+    /**
+     * /hold の指が下りている間は他の指の注入を断る(409。2本目の DOWN が別のジェスチャに化けて、押している間の
+     * 部品の検証も壊す)。**断るのは指(タッチ)を注入する要求だけ**。木・スクリーンショット・キー・a11y のアクションは通す。
+     * 409 はこのブリッジでは一時的競合(ホストの分岐契約 = DS-4.3)
+     */
+    private static void rejectWhileHolding() {
+        if (InputInjector.isHolding()) {
+            throw new BridgeException(409, "a finger placed by an earlier hold is still down; wait for it to lift");
+        }
+    }
+
     private BridgeHttpServer.Response handleTap(JSONObject body) {
+        rejectWhileHolding();
         long t0 = SystemClock.uptimeMillis();
         double[] point = resolvePoint(body);
         InputInjector.tap(ua(), point[0], point[1]);
@@ -393,6 +405,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         }
         String text = body.optString("text");
         if (body.has("ref")) {
+            rejectWhileHolding();   // ref 経路は欄を実タップする
             int ref = body.optInt("ref");
             double[] center = centerOf(ref, body);
             android.view.accessibility.AccessibilityNodeInfo focusBeforePress = InputInjector.focusedEditableNow(ua());
@@ -442,6 +455,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
      *  対象なし/SET_TEXT 拒否は 409(ホストの typeDriver フォールバックの合図。500 にしない) */
     private BridgeHttpServer.Response handleClear(JSONObject body) {
         if (body.has("ref")) {
+            rejectWhileHolding();
             int ref = body.optInt("ref");
             double[] center = centerOf(ref, body);
             tapUnlessAlreadyFocused(center, refIds.get(ref));
@@ -455,6 +469,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
     }
 
     private BridgeHttpServer.Response handleSwipe(JSONObject body) {
+        rejectWhileHolding();
         String direction = body.optString("direction");
         Rect screen = screenRect();
         double w = screen.width();
@@ -468,6 +483,11 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         // ホストの指定が黙って無視される)
         double span = body.optDouble("distance", vertical ? 0.4 : 0.6);
         long strokeMs = body.optLong("durationMs", SWIPE_DEFAULT_STROKE_MS);
+        // ホストが決める値の最後の砦: 0 以下は MOVE が作れず(steps=1 の即離し)、上限超えは単スレッドの accept スレッドを塞ぐ
+        if (strokeMs <= 0 || strokeMs > (long) (GESTURE_SECONDS_CEILING * 1000)) {
+            throw new BridgeException(400, "durationMs must be between 1 and "
+                    + (long) (GESTURE_SECONDS_CEILING * 1000) + " (received: " + strokeMs + ")");
+        }
         boolean syntheticUp = body.optBoolean("fling", false);
         // 向きの検出が目的の払い(gesture = scroll 無し)とフリングは最後の MOVE の直後に離す(InputInjector.swipe の doc)
         boolean liftImmediately = syntheticUp || !body.optBoolean("scroll", false);
@@ -987,6 +1007,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
 
     /** ダブルタップ(ref または x/y。iOS ブリッジと同じ受理形) */
     private BridgeHttpServer.Response handleDoubleTap(JSONObject body) {
+        rejectWhileHolding();
         double[] point = resolvePoint(body);
         InputInjector.doubleTap(ua(), point[0], point[1]);
         settle();
@@ -1066,6 +1087,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
      * 要素を掴むしかない)で、こちらは読まない。
      */
     private BridgeHttpServer.Response handlePinch(JSONObject body) {
+        rejectWhileHolding();
         double scale = body.optDouble("scale", 0);
         if (!(scale > 0) || scale == 1 || Double.isInfinite(scale)) {
             throw new BridgeException(400, "scale must be positive and not 1 (received: " + scale + ")");
@@ -1092,6 +1114,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
      * 点の間の補間・タッチの合成は InputInjector.gesture に委ねる(ここは検査と JSON→配列の変換だけ)。
      */
     private BridgeHttpServer.Response handleGesture(JSONObject body) {
+        rejectWhileHolding();
         double[][][] fingers = parseFingers(body.optJSONArray("fingers"));
         double totalSeconds = totalSeconds(fingers);
         if (totalSeconds > GESTURE_SECONDS_CEILING) {
@@ -1104,6 +1127,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
     }
 
     private BridgeHttpServer.Response handlePress(JSONObject body) {
+        rejectWhileHolding();
         // ref または x/y(iOS ブリッジと同じ受理形。ホストは ref を自前解決して x/y で送る)
         double[] center = resolvePoint(body);
         double duration = body.optDouble("duration", PRESS_DEFAULT_SECONDS);

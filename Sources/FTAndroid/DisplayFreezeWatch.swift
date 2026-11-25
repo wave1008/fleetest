@@ -291,18 +291,30 @@ public actor DisplayFreezeWatch {
         }
         log("🔁 \(label): \(reason) — restarting the guest (adb reboot;"
             + " waiting up to \(Int(ProfileWorkerFactory.blankRebootTimeoutSeconds))s for boot)")
-        if await ProfileWorkerFactory.rebootGuest(serial: serial, timeout: ProfileWorkerFactory.blankRebootTimeoutSeconds) {
+        let guest = await ProfileWorkerFactory.rebootGuestOutcome(
+            serial: serial, timeout: ProfileWorkerFactory.blankRebootTimeoutSeconds)
+        if guest == .booted {
             log("✅ \(label): the guest restarted")
             return .deviceRestart
         }
+        let guestFired = guest != .notIssued
         guard let avdID = EmulatorControl.avdName(serial: serial) else {
             log("⚠️ \(label): could not confirm the guest restart, and the AVD name is unknown — not restarting the emulator")
-            // 消えたデバイスに「再起動した」を返さない(呼び手が回復済み・マシンの再起動の案内を作る)
-            return deviceIsGone(serial: serial) ? nil : .deviceRestart
+            return emulatorRepairResult(guestRebootFired: guestFired, emulatorRestarted: false,
+                                        deviceGone: deviceIsGone(serial: serial))
         }
         log("🔁 \(label): could not confirm the guest restart — stopping and starting the emulator (\(avdID))")
         let restarted = await ProfileWorkerFactory.stopAndStartEmulator(serial: serial, avd: avdID, label: label, locale: locale, log: log)
-        return restarted == nil && deviceIsGone(serial: serial) ? nil : .deviceRestart
+        return emulatorRepairResult(guestRebootFired: guestFired, emulatorRestarted: restarted != nil,
+                                    deviceGone: restarted == nil && deviceIsGone(serial: serial))
+    }
+
+    /// Emulator の回復の戻り値(純粋関数)。**撃っていない段を返さない**: ゲストの再起動を撃っておらず、停止と起動も戻らなかった
+    /// なら nil(= 何も撃っていない。呼び手は再起動を記録しない)。デバイスが消えたときも nil(消失は別に扱う)
+    static func emulatorRepairResult(guestRebootFired: Bool, emulatorRestarted: Bool, deviceGone: Bool) -> WorkerRecoveryKind? {
+        if emulatorRestarted { return .deviceRestart }
+        if deviceGone { return nil }
+        return guestRebootFired ? .deviceRestart : nil
     }
 
     /// adb の一覧に載っていない(消えた)か。adb 自体が答えないときは false(消えたと言わない)

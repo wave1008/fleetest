@@ -702,7 +702,7 @@ extension StepExecutor {
             && (picked.narrowed || picked.region != snapshot.screen) ? picked.region : nil
         let outcome = try await performGesture(
             action, step: step, target: area ?? snapshot.screen, identifier: nil,
-            viewport: snapshot.screen, phase: &phase)
+            viewport: snapshot.screen, safeAreaTop: snapshot.safeAreaTop, phase: &phase)
         guard area != nil else { return outcome }
         return StepOutcome(status: outcome.status, driverFallback: Self.joinNotes(
             outcome.driverFallback,

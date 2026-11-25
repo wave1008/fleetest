@@ -11,6 +11,28 @@ public enum AppIconLocator {
         snapshot.elements.first { $0.label == name }
     }
 
+    /// ラベルが一致する全候補(木の並び順)
+    public static func matches(_ name: String, in snapshot: SnapshotResponse) -> [ElementInfo] {
+        snapshot.elements.filter { $0.label == name }
+    }
+
+    /// 撃ってよい見え方か: 中心が手前の要素に覆われておらず(`OcclusionGeometry.occluder`。祖先・子孫は除く)、
+    /// 枠がスクロール容器の縁で切り詰められていない(`TapTargetGeometry.containerClippingAnyType` = 型の門なし。アイコンは staticText で、門のある版では切れを見ない)。
+    /// **Android のランチャーのドロワーは行が検索バー・上端で切れて縮み、切れた枠の中心がバーの中に入る**
+    /// (Pixel 3a: 撃った点が検索バー右端のボタンの中)。判定は共有の幾何で、ランチャーの id・語に依らない
+    public static func isFreeToTap(_ icon: ElementInfo, in snapshot: SnapshotResponse) -> Bool {
+        OcclusionGeometry.occluder(of: icon, in: snapshot.elements, screen: snapshot.screen) == nil
+            && TapTargetGeometry.containerClippingAnyType(icon, in: snapshot.elements) == nil
+    }
+
+    /// 撃ってよい候補の先頭(木の並び順)。**Android だけ**覆い・切れで絞る(同名が重複して出る形でも見えている方を取る)。
+    /// iOS のホームの木は塗り順を持たず従来どおり `findIcon`。nil のとき呼び手が「一致はあるが全部覆われ・切れ」を言えるよう
+    /// `matches` で一致の有無を別に問う
+    public static func findTappableIcon(_ name: String, in snapshot: SnapshotResponse, isAndroid: Bool) -> ElementInfo? {
+        guard isAndroid else { return findIcon(name, in: snapshot) }
+        return matches(name, in: snapshot).first { isFreeToTap($0, in: snapshot) }
+    }
+
     /// iOS の App ライブラリの検索欄(SpringBoard の識別子。表示言語に依らない)。ホームのページに置かれていないアプリは
     /// App ライブラリにしか居ない(実測: -06 のホーム1ページに「FT E2E iOS」が無く「Other」フォルダの中だけ)。
     /// ページ送りは右端の App ライブラリで止まるので、送り切った木にこれがあれば検索で探せる

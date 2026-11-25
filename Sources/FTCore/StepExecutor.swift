@@ -1505,13 +1505,24 @@ public final class StepExecutor {
     /// 次のタップが解決に使った木と比べて**画面が変わっていなかった**と確定した、それより前のタップ
     /// (古い順の呼び名)。tap / select 以外の操作が走ったら捨てる(`lastInteraction` と同じ「直前」の意味)。
     /// 追加の撮影はしない(比べるのは既に持っている木だけ)
-    var unchangedEarlierTaps: [String] = []
+    var unchangedEarlierTaps: [UnchangedTap] = []
+    /// 無変化と確定した tap の呼び名と、その tap の時点の木の `contentSignature`。失敗側の木がこの署名と違えば、
+    /// その tap の後に画面が変わった(遅れて効いた)ので失敗文に挙げない(`stillUnchangedEarlierTaps`)。
+    /// **呼び名の辞書にしない**: 同じ呼び名の tap が2回あると上書きされ、撃ち直しの退避・復元(StaleRef)も辞書だけ戻らない。
+    /// 読みは足さない(失敗側が既に持つ木と比べるだけ)
+    struct UnchangedTap: Equatable {
+        let description: String
+        let signature: String
+    }
     /// この手の入口で控えた、まだ比べていない直前の tap と確定済みの無変化の tap(`unresolvedActionTapHint` だけが読む)。
     /// 入口はタップ以外の手で上の記録を消すので、消す前に控えないと解決できなかった失敗で名指しできない
-    var tapEvidenceAtEntry: (pending: LastInteraction?, earlier: [String]) = (nil, [])
+    var tapEvidenceAtEntry: (pending: LastInteraction?, earlier: [UnchangedTap]) = (nil, [])
     /// 持ち越す件数の上限(同じ画面でタップを連打する台本で失敗文言が伸び続けないため。
     /// 実例の S0020 は 1 件で足りる)
     static let unchangedEarlierTapsLimit = 3
+    /// 直近の `back()` が撃たれた直後のステップ数(`FTDriveCore.stepCounter` の値)。次のステップがまた `back()` のとき、
+    /// 読む前に木の整定を待つ印(`BackEffect.shouldSettleBeforeRead`)。DSL の back() だけが書く
+    public var backFiredAtStepCount: Int?
     /// **素取得の木が、既に見た迂回の木より古いかもしれない**まま、次のロケータ操作がまだ木を撮っていない。
     /// 立っている間は、次の操作の対象解決の 1 枚だけ **キャッシュを迂回して撮る**(`.afterOwnMove`)。
     /// Android の `refresh()` はキャッシュを更新しないので、迂回して新しい木を見た直後の素取得は
@@ -1702,7 +1713,8 @@ public final class StepExecutor {
         if let earlier = tapAwaitingNextTree {
             tapAwaitingNextTree = nil
             if Self.contentSignature(earlier.before) == Self.contentSignature(snapshot.elements) {
-                unchangedEarlierTaps.append(earlier.description)
+                unchangedEarlierTaps.append(UnchangedTap(description: earlier.description,
+                                                         signature: Self.contentSignature(earlier.before)))
                 unchangedEarlierTaps = Array(unchangedEarlierTaps.suffix(Self.unchangedEarlierTapsLimit))
             }
         }

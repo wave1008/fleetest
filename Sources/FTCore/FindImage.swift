@@ -440,6 +440,7 @@ public enum FindImage {
     /// 見本が N 枚あると候補の特徴量を N 回計算し直していた(findImages をラベルの見本全部に広げて
     /// 照合が約3倍になった実測)。鍵は見えている枠 = 同じスクリーンショットなら同じ切り出し。
     /// **走査ごとに作り直す**(別のスクリーンショットの特徴量で照合しない)
+    /// 不変条件: 1回の走査の中で見本を逐次(await を挟んで1本の流れで)照合する呼び手だけが触る = 可変状態への同時アクセスは無い。並行に使うなら要ロック
     public final class CandidatePrints: @unchecked Sendable {
         private var prints: [String: FeaturePrintObservation] = [:]
         /// 特徴量の計算元(この走査の見本・白紙・候補すべて。既定はこのプロセスの Vision)

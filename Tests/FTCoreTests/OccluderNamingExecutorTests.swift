@@ -30,6 +30,8 @@ final class OccluderNamingExecutorTests: XCTestCase {
             let text = outcome.driverFallback ?? ""
             XCTAssertEqual(text.contains("row_f_10"), named, "\(String(describing: framework)): \(text)")
             XCTAssertEqual(outcome.notes.contains(.occluderNamingSuppressed), !named, "\(String(describing: framework))")
+            // 名指さないときも、覆いの疑いそのものは名前の無い注意で言う(OI-387。警告を消さない)
+            XCTAssertEqual(text.contains("may be covered by another element"), !named, text)
         }
     }
 
@@ -43,7 +45,10 @@ final class OccluderNamingExecutorTests: XCTestCase {
             guard case .failed(let message) = failed.status else { return XCTFail("\(failed.status)") }
             XCTAssertEqual(failed.notes.contains(.coveredTouchBeforeFailure), named, "\(String(describing: framework)): \(message)")
             XCTAssertEqual(message.contains("row_f_10"), named, message)
-            if !named { XCTAssertTrue(failed.notes.contains(.occluderNamingSuppressed), "\(failed.notes)") }
+            if !named {
+                XCTAssertTrue(failed.notes.contains(.occluderNamingSuppressed), "\(failed.notes)")
+                XCTAssertTrue(message.contains("another element may have overlapped"), message)
+            }
         }
     }
 

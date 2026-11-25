@@ -10,10 +10,10 @@ public enum OcclusionGeometry {
     /// 中心を覆う別要素。**除くのは自分の祖先と子孫だけ**(「自分より深いものだけ」に絞ると、
     /// タブより浅い遮蔽物 `#tab_controls` を実測で外してしまう。容器を数えない目的には祖先の除外で足りる)
     public static func occluder(of element: ElementInfo, in elements: [ElementInfo],
-                         screen: FTRect) -> ElementInfo? {
+                         screen: FTRect, paintOrderIsReal: Bool = false) -> ElementInfo? {
         let cx = element.frame.x + element.frame.width / 2
         let cy = element.frame.y + element.frame.height / 2
-        let excluded = TapTargetGeometry.lineage(of: element, in: elements)
+        let excluded = TapTargetGeometry.lineage(of: element, in: elements, paintOrderIsReal: paintOrderIsReal)
         let overlaidScrollContent = scrollContentUnderOverlay(element, cx: cx, cy: cy,
                                                               excluded: excluded, in: elements)
         // **いちばん手前を返す**(DSL の `OcclusionSuspicion.covering` と揃えた)。配列順で最初の候補を
@@ -121,9 +121,9 @@ public enum OcclusionGeometry {
     /// 先に並ぶ大きな背景パネルが端の要素を「覆っている」ことになる誤検知に逆戻りする。
     /// 祖先・子孫の除外、残像の除外、丸ごと包む相手の除外は `occluder` と共有する
     public static func overlayCovering(_ element: ElementInfo, in elements: [ElementInfo],
-                                screen: FTRect) -> ElementInfo? {
+                                screen: FTRect, paintOrderIsReal: Bool = false) -> ElementInfo? {
         guard !isUntappableGhost(element, in: elements, screen: screen) else { return nil }
-        guard let hit = occluder(of: element, in: elements, screen: screen),
+        guard let hit = occluder(of: element, in: elements, screen: screen, paintOrderIsReal: paintOrderIsReal),
               PaintOrder.drawnAbove(hit, element) else { return nil }
         return hit
     }

@@ -609,6 +609,25 @@ public struct BridgeLauncher: Sendable {
         command.contains("FleetestRunner-\(port).xctestrun")
     }
 
+    /// 「このポートのランナーで、しかも指定 UDID を対象にしているか」(純粋関数)。
+    /// UDID の部分一致だけだと、pid が再利用された無関係なプロセスや別ポートのランナーまで
+    /// 拾う(`stopAll` / `sweepStalePidFiles` と同じくポート専用の xctestrun 名まで照合する)
+    static func isRunner(command: String, port: UInt16, targeting udid: String) -> Bool {
+        isOurRunner(command: command, port: port) && command.contains(udid)
+    }
+
+    /// `ps -ax -ww -o pid=,command=` の出力を pid → コマンド行へ(純粋関数)。
+    /// pid と引数列の境は最初の空白(コマンド行の空白は保つ)
+    static func parsePidCommandLines(_ output: String) -> [Int32: String] {
+        var result: [Int32: String] = [:]
+        for line in output.split(whereSeparator: \.isNewline) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard let space = trimmed.firstIndex(of: " "), let pid = Int32(trimmed[..<space]) else { continue }
+            result[pid] = String(trimmed[trimmed.index(after: space)...])
+        }
+        return result
+    }
+
     /// PID 再利用を検知したときの後始末を1箇所に集約する。**撃たない** —— 無関係プロセスへ
     /// SIGTERM/SIGKILL を送らず、stale な pid ファイルだけ片付けて1行だけ知らせる。
     /// pid が既に死んでいる(TTL 自主終了そのもの)ときは黙って片付ける(再利用ではないので発話しない)
@@ -829,12 +848,10 @@ public struct BridgeLauncher: Sendable {
         // **`ps -p <pid列>` を使ってはいけない**: 範囲外の pid が 1 つ混じるとエラーになり
         // **生きている分も含めて出力が空になる**(pid ファイルは壊れた値を持ち得る)。
         // 全プロセス列挙して pid で引く方がゴミ値に強い
-        guard let ps = try? Shell.run(["ps", "-ax", "-o", "pid=,command="]).outputIfSucceeded else { return [] }
+        guard let ps = try? Shell.run(["ps", "-ax", "-ww", "-o", "pid=,command="]).outputIfSucceeded else { return [] }
         var ports: [UInt16] = []
-        for line in ps.split(whereSeparator: \.isNewline) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard let space = trimmed.firstIndex(of: " "), trimmed.contains(udid),
-                  let pid = Int32(trimmed[..<space]), let port = portByPID[pid] else { continue }
+        for (pid, command) in parsePidCommandLines(ps) {
+            guard let port = portByPID[pid], isRunner(command: command, port: port, targeting: udid) else { continue }
             ports.append(port)
         }
         return ports.sorted()
@@ -850,7 +867,7 @@ public struct BridgeLauncher: Sendable {
     /// プロセスの起動引数から拾う(`BridgeOwnership.runnerProcess`)。申告先が消えたもの(孤児)は数えない
     public static func foreignRunners(_ udids: [String], repoRoot: URL) -> [String: [BridgeOwnership.RunnerProcess]] {
         guard !udids.isEmpty,
-              let ps = try? Shell.run(["ps", "-ax", "-o", "command="]).outputIfSucceeded else { return [:] }
+              let ps = try? Shell.run(["ps", "-ax", "-ww", "-o", "command="]).outputIfSucceeded else { return [:] }
         var result: [String: [BridgeOwnership.RunnerProcess]] = [:]
         for line in ps.split(whereSeparator: \.isNewline) {
             guard let runner = BridgeOwnership.runnerProcess(fromCommand: String(line)),
@@ -878,13 +895,11 @@ public struct BridgeLauncher: Sendable {
         }
         guard !portByPID.isEmpty else { return [:] }
         // portsMatching と同じ理由で `ps` は全列挙 1 回(`ps -p <pid列>` はゴミ pid 1 つで全滅する)
-        guard let ps = try? Shell.run(["ps", "-ax", "-o", "pid=,command="]).outputIfSucceeded else { return [:] }
+        guard let ps = try? Shell.run(["ps", "-ax", "-ww", "-o", "pid=,command="]).outputIfSucceeded else { return [:] }
         var result: [String: [UInt16]] = [:]
-        for line in ps.split(whereSeparator: \.isNewline) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard let space = trimmed.firstIndex(of: " "),
-                  let pid = Int32(trimmed[..<space]), let port = portByPID[pid] else { continue }
-            for udid in udids where trimmed.contains(udid) {
+        for (pid, command) in parsePidCommandLines(ps) {
+            guard let port = portByPID[pid] else { continue }
+            for udid in udids where isRunner(command: command, port: port, targeting: udid) {
                 result[udid, default: []].append(port)
             }
         }
@@ -930,14 +945,16 @@ public struct BridgeLauncher: Sendable {
                   let pid = Int32(pidString.trimmingCharacters(in: .whitespacesAndNewlines)) else {
                 continue
             }
-            let ps = try? Shell.run(["ps", "-p", String(pid), "-o", "command="])
+            let ps = try? Shell.run(["ps", "-ww", "-p", String(pid), "-o", "command="])
             guard let ps, ps.status == 0 else {
                 // プロセスが既に死んでいる stale ファイル。残すと assignPort がそのポートを
                 // 使用中とみなし続け採番がずれていくため、UDID に関係なくここで掃除する
                 try? FileManager.default.removeItem(at: entry)
                 continue
             }
-            guard ps.output.contains(udid) else { continue }
+            guard let port = UInt16(entry.deletingPathExtension().lastPathComponent
+                    .replacingOccurrences(of: "bridge-", with: "")),
+                  isRunner(command: ps.output, port: port, targeting: udid) else { continue }
             kill(pid, SIGTERM)
             terminated.append(pid)
             try? FileManager.default.removeItem(at: entry)

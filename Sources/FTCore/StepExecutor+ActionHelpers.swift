@@ -40,7 +40,7 @@ extension StepExecutor {
     ///
     /// **private ではない**: StepExecutor+DirectActions.swift の executeDirectUntargetedGesture からも呼ぶ
     func performGesture(_ action: String, step: FlowStep, target: FTRect,
-                        identifier: String?, viewport: FTRect,
+                        identifier: String?, viewport: FTRect, safeAreaTop: SafeAreaTop,
                         phase: inout PhaseAccumulator) async throws -> StepOutcome {
         var viaXCUITest = false
         var bandNote: String?
@@ -61,10 +61,10 @@ extension StepExecutor {
                 durationSeconds: step.duration ?? tunables.defaultPinchDuration,
                 phase: &phase)
         case "doubleTap":
-            let bandY = await bottomBandTapY(for: target, screen: viewport)
-            viaXCUITest = try await doubleTapWithFallback(x: target.centerX, y: bandY ?? target.centerY,
+            let band = await bandClearedTap(for: target, screen: viewport, safeAreaTop: safeAreaTop)
+            viaXCUITest = try await doubleTapWithFallback(x: target.centerX, y: band?.y ?? target.centerY,
                                                           phase: &phase)
-            if bandY != nil { bandNote = Self.bottomBandTapNote }
+            if let band { bandNote = band.note }
         case "swipeBy":
             // iOS/3ボタン navigation は nil → 除外なし(0, 0)。既定値を panPath 側に置かないのは
             // この分岐に確実に決めさせるため(ScrollGeometry.panPath の doc 参照)

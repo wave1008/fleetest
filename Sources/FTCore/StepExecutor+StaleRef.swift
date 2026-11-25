@@ -20,6 +20,26 @@ extension StepExecutor {
         return false
     }
 
+    /// ブリッジの断りの文言(`InterruptionGuard.message`)が末尾に付ける「iosAlertHandler が自動で閉じる」案内。
+    /// 文言の一致では**分岐しない**(判定は登録の有無)。登録済みの利用者に出さないための表示の整形だけ
+    static let bridgeAlertHandlerAdvice = "; in a scenario, iosAlertHandler closes it automatically"
+
+    /// システムアラートの断りで落ちるとき、登録(iosAlertHandler)があるのに「自動で閉じる」と案内しない。
+    /// 登録済みで落ちたのは、閉じて撃ち直す前に予算(waitSeconds)が尽きた・閉じられなかったとき。種別(`systemAlertBlocked`)は保つ
+    /// `canClose` = 撃ち直しの経路がある構成(閉じる手段 = `fallbackDriver`)。無い構成では「時間内に閉じられなかった」と言わない
+    /// (閉じる試みを1度もしていない)—— 事実だけ言う
+    static func noteAlertRegistration(_ error: Error, registered: Bool, canClose: Bool) -> Error {
+        guard registered, case DriverError.systemAlertBlocked(let detail)? = error as? DriverError else { return error }
+        let trimmed = detail.replacingOccurrences(of: bridgeAlertHandlerAdvice, with: "")
+        guard canClose else {
+            return DriverError.systemAlertBlocked(detail: trimmed
+                + "; iosAlertHandler is registered, but this mode cannot close system alerts during the step (no XCUITest fallback),"
+                + " so the action was not sent again")
+        }
+        return DriverError.systemAlertBlocked(detail: trimmed
+            + "; iosAlertHandler is registered, but it did not close this alert in time, so the action was not sent again")
+    }
+
     /// `executeAction` を、届けていないと確定した断り(staleRef / 登録のあるときの systemAlertBlocked)を受けたときだけ
     /// `step.timeout`(未指定は既定の待ち)の予算内で最初からやり直す。
     /// やり直しはロケータの解決(木の撮り直し)から入るので、新しい木から ref を引き直す
@@ -32,7 +52,10 @@ extension StepExecutor {
     func executeActionRetryingUndelivered(_ action: String, step: FlowStep, fingerprint: LocatorFingerprint?,
                                        phase: inout PhaseAccumulator) async throws -> StepOutcome {
         let clock = ContinuousClock()
-        let start = clock.now
+        // 予算の起点は**最初の断りの時刻**(関数の入口ではない)。入口から数えると、`tap` が有効になるのを待った時間
+        // (最大 waitSeconds)で予算を使い切り、撃ち直しの1回も撃たずに落ちる。断りが出た時点で撃ち直しの1回は必ず撃てる。
+        // 上限: 2回目以降の断りは最初の断りから waitSeconds までしか撃ち直さない(各試行の有効待ちも waitSeconds で打ち切られる)
+        var firstRefusalAt: ContinuousClock.Instant?
         var backoff = PollBackoff()
         while true {
             let savedLast = lastInteraction
@@ -59,11 +82,19 @@ extension StepExecutor {
             } catch {
                 let blockedByAlert = Self.isUndeliveredBySystemAlert(error)
                     && systemAlertWatchlist.isWatching && fallbackDriver != nil
-                guard Self.isRetryableStaleRef(error) || blockedByAlert else { throw error }
+                guard Self.isRetryableStaleRef(error) || blockedByAlert else {
+                    throw Self.noteAlertRegistration(error, registered: systemAlertWatchlist.isWatching,
+                                                         canClose: fallbackDriver != nil)
+                }
                 // 予算を Duration にするのは最初の断りのとき —— `.seconds(Double)` は範囲外で trap する。範囲外の
                 // waitSeconds は executeStep の入口(FlowStep.secondsArgumentViolation)が先に断るので、isFinite は二重の備え
                 let budget = step.timeout ?? tunables.defaultTimeout
-                guard budget.isFinite, clock.now < start.advanced(by: .seconds(budget)) else { throw error }
+                let refusedFrom = firstRefusalAt ?? clock.now
+                guard budget.isFinite, budget > 0, clock.now < refusedFrom.advanced(by: .seconds(budget)) else {
+                    throw Self.noteAlertRegistration(error, registered: systemAlertWatchlist.isWatching,
+                                                         canClose: fallbackDriver != nil)
+                }
+                firstRefusalAt = refusedFrom
                 lastInteraction = savedLast
                 tapAwaitingNextTree = savedAwaiting
                 previousTapTree = savedPrevious

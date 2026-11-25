@@ -140,6 +140,13 @@ public enum JobProgressLedger {
 
     public static func remove(jobID: String, directory: URL = directory()) {
         guard isValidID(jobID) else { return }
+        // flock の内側で消す: update が読んだ後の書き込み(rename)で消したジョブを蘇らせない。
+        // ロックを取れなくても消す(ベストエフォート。残すより消えないことのほうが害が大きい)
+        let fd = open(lockURL(jobID: jobID, directory: directory).path, O_CREAT | O_NOFOLLOW | O_RDWR | O_CLOEXEC, 0o644)
+        defer { if fd >= 0 { close(fd) } }
+        if fd >= 0 {
+            while flock(fd, LOCK_EX) != 0, errno == EINTR {}
+        }
         try? FileManager.default.removeItem(at: fileURL(jobID: jobID, directory: directory))
         try? FileManager.default.removeItem(at: lockURL(jobID: jobID, directory: directory))
     }

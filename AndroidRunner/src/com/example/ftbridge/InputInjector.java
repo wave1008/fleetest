@@ -58,6 +58,11 @@ final class InputInjector {
     private static final java.util.concurrent.atomic.AtomicBoolean HOLDING =
             new java.util.concurrent.atomic.AtomicBoolean(false);
 
+    /** /hold の指が下りている間 true。BridgeRouter が他の指の注入を 409 で断る根拠 */
+    static boolean isHolding() {
+        return HOLDING.get();
+    }
+
     /**
      * DOWN を注入して戻り、UP は別スレッドが durationSeconds 後に注入する。前の指がまだ下りていれば
      * 何もせず false。秒数の丸めは press と同じ(0〜60s。方針の判定はホスト側)。
@@ -156,7 +161,7 @@ final class InputInjector {
         boolean lastRefreshOK = false;  // 以下3つは期限切れの文言に載せる事実(failureFacts)
         String lastRead = null;
         int accepted = 0;
-        boolean refindFailed = false;  // 直近の周回で控えのノードを取り直せなかった(期限切れの文言に候補の事実を添える。OI-378)
+        boolean refindFailed = false;  // 直近の周回で控えのノードを取り直せなかった / 欄を1つも引けなかった(期限切れの文言に候補の事実を添える。OI-378)
         // 最初の SET_TEXT が受理されたノード。以後の読み・撃ちはこのノードだけ(引き直すと、受理後に焦点が次の欄へ移るアプリ
         // (OTP 等)で次々の欄へ同じ文字列を書いて誤った緑になる)。受理の前は何も届いていないので引き直してよい
         AccessibilityNodeInfo pinned = null;
@@ -175,7 +180,7 @@ final class InputInjector {
                     // (2026-07-31 実測: WebView 入力欄で 20%。値は実際には入っていた)。
                 // 1ノード1 IPC。通常経路は 1〜2 周で終わるのでコストは無視できる
                 boolean fresh = target != null && target.refresh();
-                refindFailed = pinned != null && !fresh;
+                refindFailed = (pinned != null && !fresh) || target == null;
                 if (target != null) {
                     lastRefreshOK = fresh;
                     if (!fresh) lastState = STALE_READ;
@@ -299,11 +304,19 @@ final class InputInjector {
                 }
                 for (int i = 0; i < node.getChildCount(); i++) queue.add(node.getChild(i));
             }
+            // 見つけ直しの本体が今この木で何を拾うか(拾えない = none)。拾えるのに失敗したなら欄は引けていて、読み・撃ちの側の問題
+            AccessibilityNodeInfo picked = findEditable(root, shortId, x, y, new Rect());
+            String pickedText = "none";
+            if (picked != null) {
+                Rect pickedBounds = new Rect();
+                picked.getBoundsInScreen(pickedBounds);
+                pickedText = pickedBounds.toShortString();
+            }
             String nearest = nearestBounds == null ? "none"
                     : nearestBounds.toShortString() + " (centre " + (int) Math.sqrt(nearestDistance) + "px from the tap point)";
             return "; refind: " + editables + " editable node(s) in the tree, " + sameId + " with id "
                     + (shortId == null ? "(none)" : shortId) + ", tap point (" + x + "," + y + "), nearest editable bounds "
-                    + nearest;
+                    + nearest + ", findEditable now picks " + pickedText;
         } catch (RuntimeException e) {
             return "; refind: facts unavailable (" + e.getClass().getSimpleName() + ")";
         }

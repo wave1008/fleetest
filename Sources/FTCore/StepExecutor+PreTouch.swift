@@ -329,7 +329,8 @@ extension StepExecutor {
         // 木に載る覆いの再判定は手前の判定に頼るので、塗り順のある木だけ(`PaintOrder.isReal`)
         let paintOrderKnown = paintOrderIsReal(snapshot.elements)
         if !allowsVisiblePart, paintOrderKnown,
-           let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) {
+           let over = TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen,
+                                                       paintOrderIsReal: paintOrderKnown) {
             return .refused("the soft keyboard was closed before \(verb) \(step.locatorSummary), and the target's centre"
                 + " (\(Int(saturating: element.frame.centerX)), \(Int(saturating: element.frame.centerY))) is now covered by \(TapTargetGeometry.describe(over)),"
                 + " which scrolling its container did not clear — a touch there would land on \(TapTargetGeometry.describe(over))"
@@ -340,7 +341,8 @@ extension StepExecutor {
         // 対象と覆いの枠が続けて2回同じになったら決める。少なくとも1回は読み直し、上限はステップの待ちの予算(新しい数字を置かない)。
         // 読み直しはブリッジの ref の表を作り直すので、引けなくなったら前の木の要素では撃たない
         if allowsVisiblePart, paintOrderKnown,
-           TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen) != nil {
+           TapTargetGeometry.overlayCoveringForUncover(element, in: snapshot.elements, screen: snapshot.screen,
+                                                       paintOrderIsReal: paintOrderKnown) != nil {
             let clock = ContinuousClock()
             let deadline = clock.now + .seconds(step.timeout ?? tunables.defaultTimeout)
             var settled = false

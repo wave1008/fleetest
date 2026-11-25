@@ -360,13 +360,13 @@ final class IOSPhysicalDeviceTests: XCTestCase {
         try FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        // 起動引数に UDID を含む生きたプロセス(ランナーの -destination id=<UDID> の代役)
+        // 起動引数にポート専用の xctestrun 名と UDID を含む生きたプロセス(ランナーの代役。照合は両方を見る = OI-380)
         let udid = "00008130-001819863E60001C"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         // **`sh -c "<単一コマンド>"` にしないこと**: sh が exec して自分を置き換えるため
         // ps の command から引数(= UDID)が消える。`;` で 2 コマンドにすると sh が残る
-        process.arguments = ["-c", "sleep 20; : -destination platform=iOS,id=\(udid)"]
+        process.arguments = ["-c", "sleep 20; : -xctestrun /x/FleetestRunner-8199.xctestrun -destination platform=iOS,id=\(udid)"]
         try process.run()
         defer { process.terminate() }
         try String(process.processIdentifier).write(

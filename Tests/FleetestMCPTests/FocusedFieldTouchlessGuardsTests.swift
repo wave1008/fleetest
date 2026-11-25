@@ -76,7 +76,7 @@ final class FocusedFieldTouchlessGuardsTests: XCTestCase {
             MCPServer.typesWithoutTouching(field, in: tree.elements)
         }
         XCTAssertEqual(suppressed, suppress, "\(tool)")
-        return RefGuard.preTapWarnings(field, keyboardOcclusion: occ, suppressKeyboardWarning: suppressed,
+        return RefGuard.preTapWarnings(field, keyboardOcclusion: occ, suppressKeyboardWarning: suppressed, clearsTopBand: false,
                                        overlayWindows: .none, safeAreaTop: .unknown, screen: screen)
     }
 

@@ -132,6 +132,7 @@
 - [tapAppIcon の探索順](../commands/navigation_ja.md#注意点) — 現在の画面、Android はドロワー、iOS はページ送りと App ライブラリの順に探します。
 - [iOS の tapAppIcon はホームの手前のシステムアラートを名指して失敗する](../commands/navigation_ja.md#注意点) — アラートが出ている間はアイコンがツリーに無いので、先にアラートを処理します。
 - [tapAppIcon はホーム画面のツリーが表示中の画面と一致しないと実行しない](../commands/navigation_ja.md#注意点) — 内蔵画面が2枚の Simulator でツリーの画面の大きさが違うと失敗します。
+- [Android の tapAppIcon は覆われた・切れたアイコンを押さない](../commands/navigation_ja.md#注意点) — 中心が覆われず枠が切れていないものだけを押し、他アプリでランチャーが前面のままなら失敗します。
 - [terminateApp() 等で止めた後の iOS の back() 等は実行せずに失敗する](../commands/navigation_ja.md#注意点) — 止めた後は `launchApp()` でアプリを起動してから操作します。
 - [rotateTo が契約するのはアプリの UI の向き](../commands/navigation_ja.md#注意点) — 実機の傾きではありません。値は `.portrait` / `.landscape` の2つだけです。
 - [rotateTo は向きが変わるまで待ってから返る](../commands/navigation_ja.md#注意点) — 向きが変わったことを別に待つ必要はありません。

@@ -539,7 +539,7 @@ final class SweepHarnessTests: XCTestCase {
         var c = Counts()
         for e in els {
             let ghost = RefGuard.isUntappableGhost(e, in: els, screen: snap.screen)
-            let overlayHit = RefGuard.overlayCovering(e, in: els, screen: snap.screen)
+            let overlayHit = RefGuard.overlayCovering(e, in: els, screen: snap.screen, paintOrderIsReal: false)
             let overlay = overlayHit != nil
             let overlayShown = overlayHit.map { naming.mayName($0, e) } ?? false
             let misses = RefGuard.missesItsOwnContent(e, in: els, screen: snap.screen) != nil
@@ -720,7 +720,7 @@ final class SweepHarnessTests: XCTestCase {
                 reported: snap.keyboardFrame, in: els, screen: snap.screen)
             for e in els {
                 let who = RefGuard.describe(e)
-                if let hit = RefGuard.overlayCovering(e, in: els, screen: snap.screen) {
+                if let hit = RefGuard.overlayCovering(e, in: els, screen: snap.screen, paintOrderIsReal: false) {
                     emit("   DETAIL \(name) overlay  \(who) ← \(RefGuard.describe(hit))")
                 }
                 if let inner = RefGuard.missesItsOwnContent(e, in: els, screen: snap.screen) {

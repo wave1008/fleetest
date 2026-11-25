@@ -9,13 +9,13 @@ final class TapRefKeyboardAndVisiblePartNoteTests: XCTestCase {
     /// 見えている部分の注記が、中心についての警告より前に来る
     func testVisiblePartNoteComesBeforeCentreWarnings() {
         let warning = " (warning: [3] may have hit #btn_bottom_b)"
-        let lead = MCPServer.tapRefLead(ref: 3, targetNote: warning, visiblePoint: (10, 20), bandTouched: false, visibleBandNote: "")
+        let lead = MCPServer.tapRefLead(ref: 3, targetNote: warning, visiblePoint: (10, 20), bandNote: "", visibleBandNote: "")
         let note = lead.range(of: "Warnings below about the frame's centre")
         let hit = lead.range(of: "may have hit")
         XCTAssertNotNil(note, lead)
         XCTAssertNotNil(hit, lead)
         XCTAssertTrue(note!.lowerBound < hit!.lowerBound, lead)
-        XCTAssertEqual(MCPServer.tapRefLead(ref: 3, targetNote: warning, visiblePoint: nil, bandTouched: false, visibleBandNote: ""),
+        XCTAssertEqual(MCPServer.tapRefLead(ref: 3, targetNote: warning, visiblePoint: nil, bandNote: "", visibleBandNote: ""),
                        "tap [3] done." + warning, "見えている部分を撃っていなければ従来のまま")
     }
 

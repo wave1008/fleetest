@@ -904,8 +904,17 @@ public enum DeviceBooter {
     /// `applyLocale`(ブリッジ /locale)で適用する
     /// **stale ロックは1回だけ自己修復する** —— 早期終了のログが残ったロック(多重起動・スナップショットの処理中)を
     /// 示し、かつ実際にはその AVD を握るプロセスが1つも無いときだけ、そのロックを消して撃ち直す(StaleAVDLock)
-    static func startEmulator(avd: String, gpuMode: String = "host",
+    /// `gpuMode` nil = **この AVD の前回の起動が使った `-gpu` を引き継ぐ**(起動ログの先頭行。無ければ "host")。
+    /// 回復・初期化の起動し直しが CPU 描画指定の台を GPU 描画へ戻さないため。明示する呼び手(`bootOne`・`AndroidGpuRecovery`)は上書きする。
+    /// **同じ AVD の qemu が残っていれば起動しない**(多重起動は同じ AVD のイメージを2つで握る)
+    static func startEmulator(avd: String, gpuMode: String? = nil,
                               log: @escaping @Sendable (String) -> Void = { _ in }) async throws -> String {
+        if let refusal = await refusalAfterWaitingForExit(avdID: avd, readPS: {
+            try? Shell.run(["/bin/ps", "-eo", "command"], timeout: 10).outputIfSucceeded
+        }) {
+            throw DeviceBooterError.commandFailed(refusal)
+        }
+        let gpuMode = gpuMode ?? inheritedGpuMode(avdID: avd)
         let directory = AndroidDeviceCatalog.avdContentDirectory(id: avd)
         var removed: Set<String> = []
         // **残骸は種類ごとに1回ずつ消して撃ち直す**(上限 = StaleAVDLock.kinds)。再起動で強制終了された AVD には
@@ -931,6 +940,64 @@ public enum DeviceBooter {
         }
         throw DeviceBooterError.commandFailed(
             "the emulator kept exiting on stale lock files after removing \(removed.sorted().joined(separator: ", ")) (\(avd))")
+    }
+
+    /// 断る前に、その AVD の qemu が消えるのを待つ。呼び手の停止(`emu kill`・shutdown)は adb の一覧から serial が消えるのを
+    /// 待つだけで、qemu 自体の終了はその数秒後。上限は `terminateGraceSeconds`(SIGTERM から qemu が終わるまでの待ちと同じ根拠 = 10 秒)・
+    /// 刻みは 0.5 秒。尽きても居れば従来どおり断り文を返す(待ち切れなかった事実は文言に出る)。`readPS` は差し替え口(テスト用)
+    static func refusalAfterWaitingForExit(avdID: String, graceSeconds: Double = terminateGraceSeconds,
+                                           pollNanoseconds: UInt64 = 500_000_000,
+                                           readPS: () -> String?) async -> String? {
+        let deadline = Date().addingTimeInterval(graceSeconds)
+        while true {
+            guard let refusal = runningProcessRefusal(psOutput: readPS(), avdID: avdID) else { return nil }
+            if Date() >= deadline { return refusal }
+            try? await Task.sleep(nanoseconds: pollNanoseconds)
+        }
+    }
+
+    /// その AVD の qemu が既に居るときの断り文(純粋関数)。`psOutput` nil(ps が読めない)は断らない —— 起動できなくなる害のほうが大きい
+    static func runningProcessRefusal(psOutput: String?, avdID: String) -> String? {
+        guard let psOutput, AndroidDataWiper.avdProcessPresent(psOutput: psOutput, avdID: avdID) else { return nil }
+        return "an emulator process for this AVD is still running (\(avdID)) — not starting a second one;"
+            + " stop it first (it may still be shutting down)"
+    }
+
+    /// 起動ログの先頭行(`emulatorLogHandle` が書く `=== <時刻> emulator <引数>`)から `-gpu` の値を読む(純粋関数)。
+    /// 値は emulator の引数へそのまま渡るので `[a-z_]+` だけ通す
+    static func gpuMode(inLogHeader text: String) -> String? {
+        guard let line = text.split(separator: "\n", maxSplits: 1).first else { return nil }
+        let tokens = line.split(separator: " ")
+        guard let index = tokens.firstIndex(of: "-gpu"), index + 1 < tokens.count else { return nil }
+        let value = String(tokens[index + 1])
+        guard !value.isEmpty, value.allSatisfy({ $0.isLowercase || $0 == "_" }) else { return nil }
+        return value
+    }
+
+    /// 前回の起動の `-gpu`(ログが無い・読めない・値が無いなら既定の "host")
+    static func inheritedGpuMode(avdID: String) -> String {
+        guard let handle = try? FileHandle(forReadingFrom: EmulatorLog.url(avdID: avdID)) else { return "host" }
+        defer { try? handle.close() }
+        let head = (try? handle.read(upToCount: 2048)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        return gpuMode(inLogHeader: head) ?? "host"
+    }
+
+    /// 起動待ちが尽きたとき、自分が起こした子(同じ pid が qemu に化けている)を止める。**止まったことを確かめてから返す**
+    /// (返す前に次の起動へ進むと同じ AVD の qemu が2つになる)。SIGTERM を送り `terminateGraceSeconds` 待ち、
+    /// 残っていれば自分の子だけ SIGKILL。尽きても居るときは throw に「止められなかった」を載せる
+    static let terminateGraceSeconds: Double = 10
+    private static func stopOwnChild(_ process: Process) async -> Bool {
+        guard process.isRunning else { return true }
+        process.terminate()
+        let deadline = Date().addingTimeInterval(terminateGraceSeconds)
+        while process.isRunning, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+        if process.isRunning {
+            kill(process.processIdentifier, SIGKILL)  // 自分が spawn した子の pid だけ
+            for _ in 0..<8 where process.isRunning { try? await Task.sleep(nanoseconds: 250_000_000) }
+        }
+        return !process.isRunning
     }
 
     private static func attemptStartEmulator(avd: String, gpuMode: String) async throws -> String {
@@ -990,9 +1057,10 @@ public enum DeviceBooter {
         }
         // serial を掴めないまま放置すると、起動済みエミュレータが参照されないまま ~3コアを消費し続ける
         // (次回スキャンで自己回復するが当該 run 中は resource を食う)。失敗経路では明示終了する。
-        process.terminate()
+        let stopped = await stopOwnChild(process)
         throw DeviceBooterError.commandFailed(
-            "cannot detect the emulator serial (\(avd); check that the AVD name is correct)")
+            "cannot detect the emulator serial (\(avd); check that the AVD name is correct)"
+            + (stopped ? "" : " — the emulator process it started could not be stopped (pid \(process.processIdentifier))"))
     }
 
     /// EmulatorLog.url を truncate して開く(ヘッダ=起動時刻+引数)。

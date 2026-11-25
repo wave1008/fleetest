@@ -741,6 +741,9 @@ public enum ProfileWorkerFactory {
         return (workers.filter { !excludedLabels.contains($0.label) }, restarted, excluded, reasons)
     }
 
+    /// 停止要求(`adb emu kill`)の後、serial が adb の一覧から消えるのを待つ上限(秒)。尽きたら起こさず nil を返す
+    static let emulatorStopWaitSeconds: Double = 30
+
     /// Emulator の停止と起動(`adb emu kill` → serial が消えるのを待つ → 起動 → ブート完了)。新しい serial を返す
     /// (nil = 起動できなかった)。`locale` は nil なら当て直さない(停止と起動はユーザーデータを保つ)。
     /// DisplayFreezeWatch(凍結の最後の段)とネットワークの無い Emulator の回復が共有する
@@ -748,10 +751,16 @@ public enum ProfileWorkerFactory {
                                      log: @escaping @Sendable (String) -> Void) async -> String? {
         if let adbPath = try? AndroidDriver.findADB() {
             _ = try? Shell.run([adbPath, "-s", serial, "emu", "kill"], timeout: AndroidHealthProbe.adbTimeoutSeconds)
-            // serial が消えるのを待ってから起こす(残ったまま起こすとポートの採番で別の serial になり、レーンの張り直しが迷う)
-            let deadline = Date().addingTimeInterval(30)
+            // serial が消えるのを待ってから起こす(残ったまま起こすとポートの採番で別の serial になり、レーンの張り直しが迷う)。
+            // **消えなければ起こさない**(止まっていない同じ AVD へ2つ目を起こすと、イメージを2つで握る)
+            let deadline = Date().addingTimeInterval(emulatorStopWaitSeconds)
             while Date() < deadline, ((try? AndroidDeviceCatalog.allEmulatorSerials()) ?? []).contains(serial) {
                 try? await Task.sleep(for: .seconds(1))
+            }
+            if ((try? AndroidDeviceCatalog.allEmulatorSerials()) ?? []).contains(serial) {
+                log("❌ \(label): the emulator is still listed by adb \(Int(emulatorStopWaitSeconds))s after the stop request"
+                    + " — not starting a second one")
+                return nil
             }
         }
         do {
@@ -945,21 +954,44 @@ public enum ProfileWorkerFactory {
         elapsedSeconds < budgetSeconds
     }
 
-    /// guest reboot(adb reboot・不可なら gRPC RESET=VM リセット)を発行し、ブート完了まで待つ。
+    /// `adb reboot` の届き方(純粋関数。`ProfileWorkerFactoryBlankRebootTests`)。**時間切れは「届いたか分からない」**
+    /// (adb が待たされただけで guest は再起動に入っていることがある)—— 撃ち直し(gRPC RESET)の根拠にしない(DR-136)。
+    /// 非ゼロ終了・起動できなかった = adb が断った/撃っていない = 届いていない
+    enum GuestRebootDelivery: Equatable { case delivered, unknown, notDelivered }
+    static func guestRebootDelivery(adbStatus: Int32?, timedOut: Bool) -> GuestRebootDelivery {
+        if timedOut { return .unknown }
+        return adbStatus == 0 ? .delivered : .notDelivered
+    }
+
+    /// guest reboot を撃ったか・ブートを確かめられたか。**`.notIssued` だけが「撃っていない」**
+    /// (呼び手が「再起動した」と記録しない根拠)。`.bootUnconfirmed` は撃った(届いたかは分からない場合を含む)が戻りを見ていない
+    enum GuestRebootOutcome: Equatable { case notIssued, bootUnconfirmed, booted }
+
+    /// guest reboot(adb reboot・届かなかったと確定したときだけ gRPC RESET=VM リセット)を発行し、ブート完了まで待つ。
     /// sleep/wake が効かない難治型の凍結に唯一効くのが guest reboot(実測。PT-7)。
     /// emulator プロセスは生かしたままなので serial・adb forward は維持される(デバイス常駐ブリッジは
     /// 死ぬが AndroidDriver.ensureBridge が次の操作で貼り直す)。
     /// 戻り値 false = 発行不能 or ブート完了を確認できず(呼び出し側は blank 再判定で最終判断する)
     /// DisplayFreezeWatch(run 中の止まった表示の回復)も使う
     static func rebootGuest(serial: String, timeout: TimeInterval) async -> Bool {
+        await rebootGuestOutcome(serial: serial, timeout: timeout) == .booted
+    }
+
+    static func rebootGuestOutcome(serial: String, timeout: TimeInterval) async -> GuestRebootOutcome {
         let adbPath = try? AndroidDriver.findADB()
-        let issuedViaAdb = adbPath.flatMap {
-            try? Shell.run([$0, "-s", serial, "reboot"], timeout: 15)
-        }?.status == 0
-        if !issuedViaAdb, await !EmulatorControl.reset(serial: serial) {
-            return false
+        var adbStatus: Int32?
+        var timedOut = false
+        if let adbPath {
+            do { adbStatus = try Shell.run([adbPath, "-s", serial, "reboot"], timeout: 15).status } catch ShellError.timedOut {
+                timedOut = true
+            } catch {}
         }
-        guard let adbPath else { return false }
+        // adb が届かなかった(確定)ときだけ VM リセットへ。時間切れ(届いたか不明)で重ねると二重に再起動する
+        if guestRebootDelivery(adbStatus: adbStatus, timedOut: timedOut) == .notDelivered,
+           await !EmulatorControl.reset(serial: serial) {
+            return .notIssued
+        }
+        guard let adbPath else { return .bootUnconfirmed }
         // reboot 発行直後はまだ旧セッションが sys.boot_completed=1 を返すため、先に「1 でなくなる」
         // ことを確認する(省くと waitForAndroidBoot が即成功し、再判定が凍結したままの旧画面に当たる)。
         // 停止を観測できないまま 30s 過ぎたらそのままブート待ちへ進む(最終判断は blank 再判定)
@@ -973,12 +1005,12 @@ public enum ProfileWorkerFactory {
         do {
             try await DeviceBooter.waitForAndroidBoot(serial: serial, timeout: timeout)
         } catch {
-            return false
+            return .bootUnconfirmed
         }
         // sys.boot_completed=1 の直後は SystemUI が未描画で画面が一様になりうる。整定を待たずに
         // 再判定すると回復済みの個体を「まだ blank」と誤判定して除外してしまう
         try? await Task.sleep(nanoseconds: bootSettleNs)
-        return true
+        return .booted
     }
 
     /// Android 実機の run 前準備(点灯+ロック解除+消灯抑止)。エミュレータは対象外。

@@ -2,9 +2,8 @@
 // (CLAUDE.md §判定は1箇所に置く)。`kill(pid, 0)` はゾンビにも成功するので、新しい呼び出しを
 // 見た目で見逃さないようソースを走査して固定する —— **新しい `kill(x, 0)` を書いたら落ちる**。
 //
-// 例外は2つだけ、どちらも「自分が起こした子を SIGKILL する直前の確認」で、ゾンビでも直後に
+// 例外は1つだけ、「自分が起こした子を SIGKILL する直前の確認」で、ゾンビでも直後に
 // kill するだけなので誤判定の実害が無い(生存判定として使っていない):
-//   - Sources/FTCore/ScenarioHost.swift
 //   - Sources/FTCore/IOSSimulatorVideoRecorder.swift
 //
 // **走査は Tests/ にも掛ける**(実害 2026-09-10): テストが `kill(pid, 0)` で死亡を判定しており、
@@ -18,7 +17,6 @@ import XCTest
 final class ProcessLivenessSourceScanTests: XCTestCase {
 
     private static let exempt: Set<String> = [
-        "Sources/FTCore/ScenarioHost.swift",
         "Sources/FTCore/IOSSimulatorVideoRecorder.swift",
         // ゾンビが kill(0) に応えること自体の witness(この形を確かめるのが目的のテスト)
         "Tests/FTCoreTests/ProcessLivenessTests.swift",
@@ -47,6 +45,12 @@ final class ProcessLivenessSourceScanTests: XCTestCase {
         Self.scan(directory: "Sources") + Self.scan(directory: "Tests")
     }
 
+    /// 走査で読めた .swift の相対パス(Sources の一致は 0 件が正常なので、到達は読めたファイルで確かめる)
+    private static let scannedFiles = LockedFiles()
+    private final class LockedFiles: @unchecked Sendable {  // static の初期化(hits)の中からだけ書く
+        var paths: [String] = []
+    }
+
     private static func scan(directory: String) -> [Hit] {
         let root = repoRoot
         let sourcesRoot = root.appendingPathComponent(directory)
@@ -60,6 +64,7 @@ final class ProcessLivenessSourceScanTests: XCTestCase {
             guard url.pathExtension == "swift" else { continue }
             let relative = directory + url.path.dropFirst(sourcesRoot.path.count)
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFiles.paths.append(relative)
             for (index, substring) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                 let line = String(substring)
                 // 行コメント(`//`/`///`)より右側は無視する —— ProcessLiveness.swift の doc は
@@ -78,7 +83,8 @@ final class ProcessLivenessSourceScanTests: XCTestCase {
 
     /// 走査が Tests/ にも届いていることの確認(片方だけ見て緑になる型を塞ぐ)
     func testScanReachesBothSourcesAndTests() {
-        XCTAssertTrue(Self.hits.contains { $0.file.hasPrefix("Sources/") }, "Sources を読めていない")
+        _ = Self.hits
+        XCTAssertTrue(Self.scannedFiles.paths.contains("Sources/FTCore/ProcessLiveness.swift"), "Sources を読めていない")
         XCTAssertTrue(Self.hits.contains { $0.file.hasPrefix("Tests/") }, "Tests を読めていない")
     }
 

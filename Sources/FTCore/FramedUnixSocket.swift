@@ -219,7 +219,11 @@ public enum FramedUnixSocket {
             var pollFD = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
             guard poll(&pollFD, 1, tickMilliseconds) > 0 else { continue }
             let connection = accept(listener, nil, nil)
-            guard connection >= 0 else { continue }
+            guard connection >= 0 else {
+                // fd が尽きている間は poll が即 readable を返し続け、待たずに戻ると CPU が空回りする
+                if shouldBackOffAfterAcceptFailure(errno: errno) { usleep(acceptExhaustionBackoffMicroseconds) }
+                continue
+            }
             connections.enter()
             DispatchQueue.global(qos: .userInitiated).async {
                 autoreleasepool {
@@ -236,6 +240,15 @@ public enum FramedUnixSocket {
             }
         }
         return 0
+    }
+
+    /// accept が fd 枯渇で失敗したあとの待ち。100 ms = 空回りを秒 10 回へ抑えつつ、fd が空いたら
+    /// 次の周で受け付けを再開できる長さ(尽きたままなら次の周も同じ待ちを繰り返す。発話はしない)
+    static let acceptExhaustionBackoffMicroseconds: UInt32 = 100_000
+
+    /// 待つべき accept 失敗か(純粋関数)。プロセス/システムの fd 枯渇だけ
+    static func shouldBackOffAfterAcceptFailure(errno code: Int32) -> Bool {
+        code == EMFILE || code == ENFILE
     }
 
     /// そのパスに繋がる(= 生きた持ち主が居る)か

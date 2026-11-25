@@ -790,21 +790,25 @@ struct RemoteCommand: AsyncParsableCommand {
                     let known = MachineBadgeColor.palette.map(\.key).joined(separator: ", ")
                     throw ValidationError("unknown color \"\(color)\" (known: \(known))")
                 }
-                var config = try LocalConfig.loadForUpdate()
-                try RemoteHostRegistry.validateUniqueHost(
-                    RemoteHostEntry(machine: machine, host: host), in: config.remoteHosts ?? [])
-                // **省略したら既存の値を保つ**。upsert なので「指定なし = nil で上書き」にすると、
-                // 別件で add を打ち直した瞬間に設定が黙って消える。消すのは --clear-fm-concurrency だけ
-                let existingEntry = (config.remoteHosts ?? []).first { $0.machine == machine }
-                let slots = clearFmConcurrency ? nil : (fmConcurrency ?? existingEntry?.fmConcurrency)
-                // developerDir も同じ規律(--clear-developer-dir だけが消す)
-                let pin = clearDeveloperDir ? nil : (developerDir ?? existingEntry?.developerDir)
-                // color / enabled は upsert が唯一の決定点(nil なら既存を保つ・新規なら自動割り当て)
-                let entry = RemoteHostEntry(machine: machine, host: host, dir: dir,
-                                           fmConcurrency: slots, color: color, enabled: enabled,
-                                           developerDir: pin)
-                config.remoteHosts = RemoteHostRegistry.upsert(entry, into: config.remoteHosts ?? [])
-                try config.save()
+                // 読み→変更→保存を flock で直列化(同時に書く別プロセスの変更を消さない)
+                let (slots, pin) = try LocalConfig.withUpdateLock { () throws -> (Int?, String?) in
+                    var config = try LocalConfig.loadForUpdate()
+                    try RemoteHostRegistry.validateUniqueHost(
+                        RemoteHostEntry(machine: machine, host: host), in: config.remoteHosts ?? [])
+                    // **省略したら既存の値を保つ**。upsert なので「指定なし = nil で上書き」にすると、
+                    // 別件で add を打ち直した瞬間に設定が黙って消える。消すのは --clear-fm-concurrency だけ
+                    let existingEntry = (config.remoteHosts ?? []).first { $0.machine == machine }
+                    let slots = clearFmConcurrency ? nil : (fmConcurrency ?? existingEntry?.fmConcurrency)
+                    // developerDir も同じ規律(--clear-developer-dir だけが消す)
+                    let pin = clearDeveloperDir ? nil : (developerDir ?? existingEntry?.developerDir)
+                    // color / enabled は upsert が唯一の決定点(nil なら既存を保つ・新規なら自動割り当て)
+                    let entry = RemoteHostEntry(machine: machine, host: host, dir: dir,
+                                               fmConcurrency: slots, color: color, enabled: enabled,
+                                               developerDir: pin)
+                    config.remoteHosts = RemoteHostRegistry.upsert(entry, into: config.remoteHosts ?? [])
+                    try config.save()
+                    return (slots, pin)
+                }
                 let slotsNote = slots.map { " (FM concurrency \($0))" } ?? ""
                 let pinNote = pin.map { " (Xcode pinned: \($0))" } ?? ""
                 ConsoleOut.out("✅ Registered machine \"\(machine)\" → \(host)\(slotsNote)\(pinNote)")
@@ -819,13 +823,15 @@ struct RemoteCommand: AsyncParsableCommand {
             var machine: String
 
             func run() async throws {
-                var config = try LocalConfig.loadForUpdate()
-                let before = config.remoteHosts ?? []
-                guard before.contains(where: { $0.machine == machine }) else {
-                    throw ValidationError("no machine named \"\(machine)\" is registered")
+                try LocalConfig.withUpdateLock {
+                    var config = try LocalConfig.loadForUpdate()
+                    let before = config.remoteHosts ?? []
+                    guard before.contains(where: { $0.machine == machine }) else {
+                        throw ValidationError("no machine named \"\(machine)\" is registered")
+                    }
+                    config.remoteHosts = RemoteHostRegistry.remove(machine: machine, from: before)
+                    try config.save()
                 }
-                config.remoteHosts = RemoteHostRegistry.remove(machine: machine, from: before)
-                try config.save()
                 ConsoleOut.out("✅ Removed machine \"\(machine)\"")
             }
         }

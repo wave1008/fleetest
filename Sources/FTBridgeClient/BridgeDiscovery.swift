@@ -114,8 +114,22 @@ public enum BridgeDiscovery {
     public static func isAlive(port: UInt16, repoRoot: URL?) async -> Bool {
         let endpoint = repoRoot.map { BridgeEndpoint.load(port: port, repoRoot: $0) }
             ?? BridgeEndpoint(port: port)
-        let status = try? await BridgeClient(endpoint: endpoint, timeoutSeconds: 2).status(timeout: 2)
-        return status != nil
+        do {
+            _ = try await BridgeClient(endpoint: endpoint, timeoutSeconds: 2).status(timeout: 2)
+            return true
+        } catch {
+            return answeredOverHTTP(error: error)
+        }
+    }
+
+    /// status() の失敗が「HTTP では答えた」か(純粋関数)。**到達不能・接続拒否以外は生きている側** ——
+    /// 実機のトークン不一致(401 = badResponse)を「居ない」と畳むと、呼び手が既定ポートを busy と言い続ける。
+    /// `probeStatus` の default 節と同じ分け方
+    static func answeredOverHTTP(error: Error) -> Bool {
+        switch error {
+        case DriverError.bridgeUnreachable, DriverError.bridgeConnectionRefused: return false
+        default: return true
+        }
     }
 
     /// 誰かがそのポートを**待受しているか**(応答するかではない)。カーネルが accept するので、

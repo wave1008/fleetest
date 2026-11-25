@@ -17,7 +17,8 @@ enum LiveEncodeStreams {
     /// 純粋関数: `ps -o command=` の出力から h264 の Simulator 配信の本数
     static func count(psOutput: String) -> Int {
         psOutput.split(separator: "\n").filter { line in
-            let tokens = line.split(separator: " ").map(String.init)
+            let tokens = LocalStreamHolder.mergeSpacedProgram(
+                line.split(separator: " ").map(String.init), names: ["fleetest-simstream"])
             guard let program = tokens.first,
                   URL(fileURLWithPath: program).lastPathComponent == "fleetest-simstream",
                   let codec = tokens.firstIndex(of: "--codec"), codec + 1 < tokens.count else { return false }

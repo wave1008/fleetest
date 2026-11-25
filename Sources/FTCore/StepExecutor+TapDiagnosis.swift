@@ -53,10 +53,19 @@ extension StepExecutor {
     /// StepExecutor+Assert.swift の失敗経路から呼ぶため internal
     func tapDiagnosisHint(_ elements: [ElementInfo]?) -> String {
         let last = lastTapHint(elements)
-        if last.unchanged || !unchangedEarlierTaps.isEmpty {
+        let earlier = stillUnchangedEarlierTaps(unchangedEarlierTaps, at: elements)
+        if last.unchanged || !earlier.isEmpty {
             noteCodesThisStep.insert(.unchangedTapBeforeFailure)
         }
-        return last.text + coveredTouchHint() + earlierTapsHint()
+        return last.text + coveredTouchHint() + earlierTapsHint(earlier)
+    }
+
+    /// 前のタップのうち、**失敗側の木がまだそのタップの時点の木と同じもの**だけ残す。違えば、その後に画面が変わった
+    /// (遅れて効いた・別の scene へ移った)ので「飲まれたかも」と挙げない。木が無ければ比べられないので全部残す。返すのは呼び名
+    func stillUnchangedEarlierTaps(_ taps: [UnchangedTap], at elements: [ElementInfo]?) -> [String] {
+        guard let elements, !taps.isEmpty else { return taps.map(\.description) }
+        let now = Self.contentSignature(elements)
+        return taps.filter { $0.signature == now }.map(\.description)
     }
 
     /// 覆いの名指しを抑える組(`OccluderNaming`)に使う材料。**判定と撃ち方には使わない**(文言と案内だけ)
@@ -83,8 +92,13 @@ extension StepExecutor {
     func coveredTouchHint() -> String {
         guard let last = lastInteraction else { return "" }
         guard let cover = last.coverSuspect else {
-            if last.coverSuspectSuppressed { noteCodesThisStep.insert(.occluderNamingSuppressed) }
-            return ""
+            guard last.coverSuspectSuppressed else { return "" }
+            // 名指しを抑えた組(DR-230)は相手の名前を言わずに疑いだけ言う
+            noteCodesThisStep.insert(.occluderNamingSuppressed)
+            return " (when the preceding \(last.description) was fired, another element may have overlapped the target's"
+                + " centre on this device (this app's accessibility tree does not tell which one is drawn in front), so the"
+                + " touch may have landed on it instead — if that is why this step failed, check with a screenshot and fix the"
+                + " scenario so the target is not covered at that step)"
         }
         noteCodesThisStep.insert(.coveredTouchBeforeFailure)
         return " (when the preceding \(last.description) was fired, \(cover) overlapped the target's centre on this device,"
@@ -96,7 +110,7 @@ extension StepExecutor {
     /// 直前のタップの結果とは独立に添える —— 直前のタップが「画面を変えないのが正常」な操作でも、
     /// その前のタップが効いていなかった事実は消さない
     private func earlierTapsHint(_ taps: [String]? = nil, also: Bool = true, nextAction: String = "the tap") -> String {
-        let taps = taps ?? unchangedEarlierTaps
+        let taps = taps ?? unchangedEarlierTaps.map(\.description)
         guard !taps.isEmpty else { return "" }
         let names = taps.joined(separator: ", then ")
         return " (earlier, the screen was\(also ? " also" : "") unchanged between \(names) and \(nextAction) after it"
@@ -157,7 +171,7 @@ extension StepExecutor {
     /// 名指しした回はステップの注記の印(`unchangedTapBeforeFailure`)を立てる = 失敗の文面を組むときだけ呼ぶ
     /// (sut-ec-mobile: 保存の tap が空振り → 戻る → 次の tap が「解決できない」で、空振りした保存を名指しできなかった)
     func unresolvedActionTapHint(_ elements: [ElementInfo]) -> String {
-        var taps = tapEvidenceAtEntry.earlier
+        var taps = stillUnchangedEarlierTaps(tapEvidenceAtEntry.earlier, at: elements)
         if let pending = tapEvidenceAtEntry.pending, Self.sameContent(pending.before, elements) {
             taps.append(pending.description)
         }

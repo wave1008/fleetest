@@ -81,7 +81,8 @@ extension MCPServer {
         lastTapTargets[Self.sessionKey(args)] = nil
         return text("tap link text \"\(linkText)\" at (\(Int(saturating: point.x.rounded())), \(Int(saturating: point.y.rounded())))"
             + " — located by \(point.source.rawValue) inside \(RefGuard.describe(element)); done"
-            + target.note + keyboardWarning + linkFrontWarning
+            + target.note + suppressedTopBandWarning(ref: target.ref, args: args)
+            + keyboardWarning + linkFrontWarning
             + waitForWithoutSnapshotAfterNote(args)
             + (await snapshotAfterBody(args, outsideTheAppTree: false)))
     }

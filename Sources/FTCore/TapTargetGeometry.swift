@@ -33,12 +33,16 @@ public enum TapTargetGeometry {
             && outer.y + outer.height >= inner.y + inner.height - 1
     }
 
-    /// 祖先を**近い順**に(preorder + depth から復元する)
-    public static func ancestors(of element: ElementInfo, in elements: [ElementInfo]) -> [ElementInfo] {
+    /// 祖先を**近い順**に(preorder + depth から復元する)。
+    /// `paintOrderIsReal`(`PaintOrder.isReal`)が true の木では、**z が対象より大きい候補を祖先と数えない**(本物の親は子より奥 = z が小さい。
+    /// RN の Android のボトムシートの全画面の幕が、depth が浅いだけで背面の要素の祖先に化けた)。false(z の無い木・塗り順でない木)は今のまま
+    public static func ancestors(of element: ElementInfo, in elements: [ElementInfo],
+                                 paintOrderIsReal: Bool = false) -> [ElementInfo] {
         guard let index = elements.firstIndex(where: { $0.ref == element.ref }) else { return [] }
         var depth = element.depth
         var result: [ElementInfo] = []
         for ancestor in elements[..<index].reversed() where ancestor.depth < depth {
+            if paintOrderIsReal, let az = ancestor.z, let ez = element.z, az > ez { continue }
             result.append(ancestor)
             depth = ancestor.depth
         }
@@ -46,10 +50,11 @@ public enum TapTargetGeometry {
     }
 
     /// 自分・祖先・子孫の ref(preorder + depth から復元する)
-    public static func lineage(of element: ElementInfo, in elements: [ElementInfo]) -> Set<Int> {
+    public static func lineage(of element: ElementInfo, in elements: [ElementInfo],
+                               paintOrderIsReal: Bool = false) -> Set<Int> {
         var result: Set<Int> = [element.ref]
         guard let index = elements.firstIndex(where: { $0.ref == element.ref }) else { return result }
-        result.formUnion(ancestors(of: element, in: elements).map(\.ref))
+        result.formUnion(ancestors(of: element, in: elements, paintOrderIsReal: paintOrderIsReal).map(\.ref))
         var i = elements.index(after: index)
         while i < elements.endIndex, elements[i].depth > element.depth {
             result.insert(elements[i].ref)
@@ -398,13 +403,17 @@ public enum TapTargetGeometry {
     /// (`StepExecutor.visibleTapRect` で寄せた場合は呼ばない —— 撃つ点が変わるので嘘になる)。
     /// **`naming` に既定値を置かない**: 偽の組は overlayCovering の段だけ飛ばす(後段は今どおり)。
     /// 撃ち方に使う呼び手は `.alwaysName` を渡す
+    /// `paintOrderIsReal` = `PaintOrder.isReal`(覆いの探索で z の逆転した「祖先」を除く。`ancestors`)。既定 false = 渡さない呼び手は従来どおり
     public static func advisoryKind(for element: ElementInfo, in elements: [ElementInfo],
-                                    screen: FTRect, naming: OccluderNamingContext) -> TapAdvisoryKind? {
-        advisoryKindResult(for: element, in: elements, screen: screen, naming: naming).kind
+                                    screen: FTRect, naming: OccluderNamingContext,
+                                    paintOrderIsReal: Bool = false) -> TapAdvisoryKind? {
+        advisoryKindResult(for: element, in: elements, screen: screen, naming: naming,
+                           paintOrderIsReal: paintOrderIsReal).kind
     }
 
     public static func advisoryKindResult(for element: ElementInfo, in elements: [ElementInfo],
-                                          screen: FTRect, naming: OccluderNamingContext) -> TapAdvisoryResult {
+                                          screen: FTRect, naming: OccluderNamingContext,
+                                          paintOrderIsReal: Bool = false) -> TapAdvisoryResult {
         var suppressed = false
         func result(_ kind: TapAdvisoryKind?) -> TapAdvisoryResult {
             TapAdvisoryResult(kind: kind, namingSuppressed: suppressed)
@@ -415,7 +424,8 @@ public enum TapTargetGeometry {
         if let scroller = outsideDeclaredScroller(element, in: elements, screen: screen) {
             return result(.scrolledOut(scroller))
         }
-        if let over = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen) {
+        if let over = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen,
+                                                        paintOrderIsReal: paintOrderIsReal) {
             if naming.mayName(over, element) { return result(.overlayCovering(over)) }
             suppressed = true
         }
@@ -475,6 +485,13 @@ public enum TapTargetGeometry {
     static func clippedAtContainerEdge(_ element: ElementInfo,
                                        in elements: [ElementInfo]) -> ElementInfo? {
         guard platformShouldResolve(element) else { return nil }
+        return containerClippingAnyType(element, in: elements)
+    }
+
+    /// `clippedAtContainerEdge` の型の門(押せる型・名前あり)を通さない版。ランチャーのアイコンは staticText で門に掛からないが、
+    /// 縁で切れた行を戻す(`StepExecutor.revealClippedAppIcon`)には要る。警告には使わない(門の理由は clippedAtContainerEdge の doc)
+    static func containerClippingAnyType(_ element: ElementInfo,
+                                         in elements: [ElementInfo]) -> ElementInfo? {
         // **容器は「要素を幾何的に含む祖先」を近い順に**(`ContainerGeometry.clippingContainer` は
         // 使わない): あちらの「直前で depth が浅い要素 = 親」の近似は、平坦化された Compose の木で
         // 直前の見出しラベル(実測: `staticText "アカウント"` d11・95x22)を親と誤認して nil を返す。
@@ -543,12 +560,19 @@ public enum TapTargetGeometry {
                                                screen: FTRect, isAndroid: Bool,
                                                framework: AppUIFramework?) -> OcclusionAdvisory {
         let result = advisoryKindResult(for: element, in: elements, screen: screen,
-                                        naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework))
+                                        naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework),
+                                        paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: isAndroid, framework: framework))
+        let named = result.kind.flatMap { occlusionAdvisoryText(kind: $0, for: element, in: elements, screen: screen,
+                                                                isAndroid: isAndroid) }
         return OcclusionAdvisory(
-            text: result.kind.flatMap { occlusionAdvisoryText(kind: $0, for: element, in: elements, screen: screen,
-                                                              isAndroid: isAndroid) },
+            text: named ?? (result.namingSuppressed ? unnamedCoverCaution : nil),
             namingSuppressed: result.namingSuppressed)
     }
+
+    /// 名指しを抑えた(`OccluderNaming`)ときの、相手を名指さない注意(DR-230)。覆いの判定は何かを中心の手前に見つけているが、
+    /// この木では手前がどちらか分からないので相手の名前は言わない。後段に言うことが無いときだけ出す
+    public static let unnamedCoverCaution = "the target's centre may be covered by another element (this app's"
+        + " accessibility tree does not tell which one is drawn in front), so this may have hit that element instead"
 
     private static func occlusionAdvisoryText(kind: TapAdvisoryKind, for element: ElementInfo,
                                               in elements: [ElementInfo], screen: FTRect,
@@ -878,10 +902,13 @@ public enum TapTargetGeometry {
     /// `advisoryKind` が `.overlayCovering` を選んだときの覆いだけを返す薄い口。
     /// **チェーンの優先順を迂回しない**ため、直接 `OcclusionGeometry.overlayCovering` を
     /// 呼ばずにここを通す(zero-frame・画面外・容器外が先に当たる形では nil)
+    /// `paintOrderIsReal` = `PaintOrder.isReal`(`advisoryKind` へ転送。z の逆転した「祖先」を除く)。呼び手は木の判定を渡す
+    /// (既定 false の呼び手は従来どおり)
     public static func overlayCoveringForUncover(_ element: ElementInfo, in elements: [ElementInfo],
-                                                 screen: FTRect) -> ElementInfo? {
+                                                 screen: FTRect, paintOrderIsReal: Bool = false) -> ElementInfo? {
         guard case .overlayCovering(let over)? = advisoryKind(for: element, in: elements,
-                                                              screen: screen, naming: .alwaysName) else { return nil }
+                                                              screen: screen, naming: .alwaysName,
+                                                              paintOrderIsReal: paintOrderIsReal) else { return nil }
         return over
     }
 
@@ -1557,6 +1584,18 @@ public enum TapTargetGeometry {
         return "its centre (\(Int(saturating: cx)), \(Int(saturating: cy))) is inside the top safe-area band (the top \(Int(saturating: top)) of the screen:"
             + " status bar / notch / Dynamic Island), where the touch can go to the system instead of"
             + " this element. Scroll it clear of the band first if the tap has no effect"
+    }
+
+    /// 中心が上端の帯の中の要素を、**帯の下に見えている部分**の中心へ寄せる y(寄せなければ nil)。
+    /// 下端のジェスチャ帯(`ScrollGeometry.tapYClearingBottomGestureBand`)と同じ形。帯の判定は `topSafeAreaAdvisory` と同じ材料
+    /// (`.unknown`・0 は nil)。見えている部分が 1pt 以下なら寄せない(警告のまま)
+    public static func topBandTapY(for frame: FTRect, safeAreaTop: SafeAreaTop, screen: FTRect) -> Double? {
+        guard case .measured(let top) = safeAreaTop, top > 0, top.isFinite else { return nil }
+        let bandBottom = screen.y + top
+        guard frame.centerY >= screen.y, frame.centerY < bandBottom else { return nil }
+        let bottom = min(frame.y + frame.height, screen.y + screen.height)
+        guard bottom > bandBottom + 1 else { return nil }
+        return (bandBottom + bottom) / 2
     }
 
     /// 「中心がソフトキーボードの下」の**中心点だけの判定**。木からは判定できない

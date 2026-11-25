@@ -357,9 +357,15 @@ public func back(settle: Bool = true, file: StaticString = #filePath, line: UInt
         func observe() async -> SnapshotResponse? {
             bypass ? try? await observer.snapshot(bypassingCache: true) : try? await observer.observationSnapshot()
         }
+        // 直前のステップも back() だったときだけ、pop の名残(戻るボタン)が静まってから before を読む(BackEffect.shouldSettleBeforeRead)
+        if BackEffect.shouldSettleBeforeRead(afterBackAtStepCount: executor.backFiredAtStepCount, stepsRecorded: core.stepCounter) {
+            await executor.settleBeforeBackObservation()
+        }
         let before = await observe()
         // performCustom は FlowStep を通らないので、ドライバへ届く TaskLocal はここで入れる(`settle:` は tap を参照)
         try await SettleOverride.$skip.withValue(!settle) { try await driver.back() }
+        // このステップの記録で stepCounter が +1 される。次のステップの本体が見る値で控える
+        executor.backFiredAtStepCount = core.stepCounter + 1
         // back はアプリを抜けうる(Android の最初の画面 = ランチャーへ出る。24周目 amax F2)。**門の後に立てる**: hook で先に立てると
         // 上の門が「前面」と聞いて落とし、抜けた後に聞き直さなかった
         executor.noteAppMayHaveLeft(true)
@@ -430,8 +436,8 @@ private let tapAppIconAndroidMaxFlicks = 8
 /// iOS のページ送り上限。ページインジケータを読めない(Runner が未対応)ため既定値固定
 /// (docs 化していない残課題。ページ数が分かればそちらを使う設計に変更余地あり)
 private let tapAppIconIOSMaxPages = 5
-/// 対象アプリ以外のアイコンをタップした後の整定待ち(Shirates 準拠)。前面になったかを問える相手
-/// (シナリオの対象アプリ)は `waitForAppForeground` が待つので、これは問えない相手の分だけ
+/// 前面を問えないときのタップ後の整定待ち(Shirates 準拠)。対象アプリは `waitForAppForeground`、Android の他アプリは
+/// ランチャーから離れるまでの照会が待つので、これは問えない構成(iOS の他アプリ・前面の窓が読めない)の分だけ
 private let tapAppIconSettleSeconds = 1.5
 /// App ライブラリの名前順一覧を送る上限(安全弁)。実際の終端は2回連続の不変化(一覧の末尾)。
 /// 1回の送りは見えている一覧の 60%(72pt の行で約3行)なので、30回で約90本のアプリまで届く
@@ -440,6 +446,9 @@ private let tapAppIconLibraryMaxDrags = 30
 /// = 120 と同じ考え方。所要の下限 0.6 秒・上限 3 秒も `StepExecutor.slowDrag` と同じ)。0.5 秒固定だった頃は 230pt の送りが
 /// 386pt 流れ、行が検索バーに潜って押しても起動しなかった
 private let tapAppIconLibraryDragSpeed = 120.0
+
+/// 前面の問い合わせが答えなかった(`pollForegroundArrival` の「問えなかった」へ数える。`ForegroundUnreadable` とは別)
+private struct ForegroundProbeUnanswered: Error {}
 
 /// 前面になるまで `waitSeconds`(= `tunables.screenWaitTimeout`)ポーリングする。
 /// 戻り値: true = 前面 / false = 問えて前面でなかった / nil = 一度も問えなかった(判定材料なし)。
@@ -499,6 +508,21 @@ public func tapAppIcon(_ appIconName: String? = nil,
         }
         let waitSeconds = core.tunables.screenWaitTimeout
 
+        // 撃ってよい候補の選び方(AppIconLocator.findTappableIcon。Android は覆われた・切れた・同名重複の候補を飛ばす)。
+        // 一致はあったが全部撃てなかった事実は、見つからなかったときの失敗文に残す(撃って別の物を押すより、撃たずに言う)
+        var sawUntappableMatch = false
+        func findTappable(in tree: SnapshotResponse) -> ElementInfo? {
+            let found = AppIconLocator.findTappableIcon(appIconName, in: tree, isAndroid: platform == "android")
+            if found == nil, !AppIconLocator.matches(appIconName, in: tree).isEmpty { sawUntappableMatch = true }
+            return found
+        }
+        func untappableNote() -> String {
+            sawUntappableMatch
+                ? " (an icon with this name was on screen but its centre was covered by another element or its frame was "
+                    + "cut off by the list edge, so it was not tapped)"
+                : ""
+        }
+
         // アイコンが木に無いとき、SpringBoard の前面にシステムアラートが出ていればそれを名指して失敗する
         // (アラートの間、木にはアラートの中の要素しか載らず「アイコンが無い」と読んで払い続けていた)。
         // 判定は MCP の systemAlertNote と共有(SystemUIGate.frontAlertPhrase)。答えられない(Android・旧ブリッジ)ときは何もしない。
@@ -519,7 +543,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
                 try Task.checkCancellation()
                 let next = try await driver.snapshot()
                 latest = next
-                guard let found = AppIconLocator.findIcon(appIconName, in: next) else { return (nil, next) }
+                guard let found = findTappable(in: next) else { return (nil, next) }
                 if found.frame == icon.frame { return (found, next) }
                 icon = found
             }
@@ -531,9 +555,25 @@ public func tapAppIcon(_ appIconName: String? = nil,
         // springboard のツリーを黙って読む(実機で確認)。タップ先がシナリオ対象アプリのときだけ
         // 張り直す(activate は /session の再バインド+前面化で状態を保持する。
         // 対象外アプリを開いた場合はそのまま = xcuitest は対象アプリ以外を駆動しない)
-        func afterTap(_ icon: ElementInfo) async throws {
+        func afterTap(_ icon: ElementInfo, launcherID: String?) async throws {
             guard appIconName == core.appDisplayName else {
-                // 前面かを問える相手がいない(任意の名前のアプリ)ので固定の整定待ちだけ
+                // 任意の名前のアプリは期待のパッケージが分からないので「撃つ前の前面(ランチャー)から離れたか」で確かめる。
+                // 離れなければ(撃った先がメニュー・別の物だった)赤。前面を問えない構成(iOS・窓なし)は従来どおり固定の整定待ち
+                if let launcherID {
+                    let left = try await pollForegroundArrival(waitSeconds: waitSeconds) {
+                        guard let id = await driver.foregroundAppID().value else { throw ForegroundProbeUnanswered() }
+                        return id != launcherID
+                    }
+                    if left == false {
+                        let x = icon.frame.x + icon.frame.width / 2
+                        let y = icon.frame.y + icon.frame.height / 2
+                        throw FTCommandError.message(
+                            "tapAppIcon \"\(appIconName)\": tapped the icon at (\(Int(saturating: x)),\(Int(saturating: y))) but "
+                            + "the home screen (\(launcherID)) stayed in the foreground for \(FTSeconds.format(waitSeconds))s "
+                            + "— the tap did not start another app")
+                    }
+                    if left == true { return }
+                }
                 try await Task.sleep(nanoseconds: ftSleepNanoseconds(tapAppIconSettleSeconds))
                 return
             }
@@ -567,9 +607,14 @@ public func tapAppIcon(_ appIconName: String? = nil,
                 core.executor.noteAppLaunched(bundleID: core.appBundleID)
                 iconNote = .appIconLaunchedWithBridge
             } else {
+                // 対象アプリ以外を撃つ Android だけ、撃つ前の前面(ランチャー)を控える(afterTap の前面確認の基準)
+                let launcherID = platform == "android" && appIconName != core.appDisplayName
+                    ? await driver.foregroundAppID().value : nil
                 try await driver.tap(ref: icon.ref)
+                try await afterTap(icon, launcherID: launcherID)
+                return
             }
-            try await afterTap(icon)
+            try await afterTap(icon, launcherID: nil)
         }
 
         // 中心が画面の外にある枠は撃たない(AppIconLocator.isCentreOnScreen の doc)。木が直るまで読み直し
@@ -592,7 +637,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
                 }
                 try Task.checkCancellation()
                 latest = try await driver.snapshot()
-                guard let found = AppIconLocator.findIcon(appIconName, in: latest) else { return (nil, latest) }
+                guard let found = findTappable(in: latest) else { return (nil, latest) }
                 icon = found
             }
             return (icon, latest)
@@ -727,7 +772,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
             try await tapInAppLibraryList(last)
             return
         }
-        if let icon = AppIconLocator.findIcon(appIconName, in: last) {
+        if let icon = findTappable(in: last) {
             let (tapped, snapshot) = try await tapSettled(icon)
             if tapped { return }
             if let snapshot { last = snapshot }
@@ -757,7 +802,13 @@ public func tapAppIcon(_ appIconName: String? = nil,
             }
 
             last = try await driver.snapshot()
-            if let icon = AppIconLocator.findIcon(appIconName, in: last) {
+            // 一致はあるが一覧の縁で切れて撃てない(末尾まで送ると先頭側の行が上端で切れて縮む)なら、
+            // 慣性を出さないドラッグで見える位置へ戻して選び直す。送りの向きに送り続けても戻らない
+            if platform == "android", AppIconLocator.findTappableIcon(appIconName, in: last, isAndroid: true) == nil,
+               await core.executor.revealClippedAppIcon(named: appIconName, in: last) {
+                last = try await driver.snapshot()
+            }
+            if let icon = findTappable(in: last) {
                 let (tapped, snapshot) = try await tapSettled(icon)
                 if tapped { return }
                 if let snapshot { last = snapshot }
@@ -781,7 +832,7 @@ public func tapAppIcon(_ appIconName: String? = nil,
                     return
                 }
                 try await failIfSystemAlertInFront()
-                throw FTCommandError.message("App icon not found.(\(appIconName))"
+                throw FTCommandError.message("App icon not found.(\(appIconName))" + untappableNote()
                     + appIconRemovedByScenarioNote(iconName: appIconName, appDisplayName: core.appDisplayName,
                                                    stoppedCommand: core.executor.appUnderTestStoppedCommand))
             }

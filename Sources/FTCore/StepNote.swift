@@ -443,6 +443,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// inapp-boost の操作(tap・type 等)の対象が in-app の木で解けず、アプリの XCUITest の木で見つかって押せると答えたので、
     /// XCUITest ブリッジで撃った(DR-202)。**率が上がったら in-app の木が読めない描き方の画面が増えている**
     case actedViaXCUITestTree = "acted-via-xcuitest-tree"
+    /// notExist / waitForClose のスコープ(`>>`)の容器が in-app の木で子を持たず「無い」に見えたので、アプリの XCUITest の木を照会したら
+    /// 居た(OI-390)。**不在を結論せず、居るものとして待つ・赤にした**。率が上がったら in-app の木が子を落とす部品の画面が増えている
+    case absenceContradictedByXCUITestTree = "absence-contradicted-by-xcuitest-tree"
     /// countIs の一致が、中身が枠の外へ続くスクロール容器の中にあった = 見えている件数が画面の大きさ・向きで変わる(DR-204。判定は変えない)。
     /// **率が上がったら、画面の大きさに依存する数え方のシナリオが増えている**
     case countInScrollingList = "count-in-scrolling-list"
@@ -787,6 +790,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
         case .xcuitestTreeUnverified:
             return "not in the in-app tree; the app's XCUITest tree had a match, but it could not be confirmed visible on the screen,"
                 + " so it was not taken"
+        case .absenceContradictedByXCUITestTree:
+            return "the in-app tree shows nothing under the scope container, but the app's XCUITest tree has the element,"
+                + " so it was not taken as gone"
         case .xcuitestTreeNotConsulted:
             return "not in the in-app tree; the app's XCUITest tree was not consulted because the text visibility check is off"
         case .countInScrollingList:

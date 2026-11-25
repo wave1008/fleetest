@@ -23,7 +23,7 @@ extension TapTargetGeometry {
     /// Flutter・Compose のように1枚の描画面で描くアプリでは木の順と同じで塗り順ではない = false)。既定値を置かない
     public static func coveredTouch(for element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                     inferring: Bool, scale: Double, zIsPaintOrder: Bool) -> CoveredTouch? {
-        var nearest = overlayCoveringForUncover(element, in: elements, screen: screen)
+        var nearest = overlayCoveringForUncover(element, in: elements, screen: screen, paintOrderIsReal: zIsPaintOrder)
         // 最前面の決め方(`OcclusionGeometry.occluder`)は枠がぴったり同じ相手を覆いと言わない(ラッパー・入れ替わりの誤報を避ける規則で、
         // 警告と MCP に広く効くので変えない)。塗り順が本物の木では、同じ枠で手前に描かれた押せる別の要素は撃てば当たる覆い
         // (OI-195 ①: 全開になったシートのキューの行が裏の本文の行と同じ枠に並び、最前面が容器 #list_queue = 押せないとされて中心を撃ち、

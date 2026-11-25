@@ -1547,12 +1547,15 @@ private final class ScenarioIdleWatchTracker: Sendable {
 extension ScenarioHost {
     /// SIGTERM → `Shell.killGraceSeconds` → まだ生きていれば SIGKILL(子の pid だけ)
     static func terminateWithGrace(_ process: Process) async {
+        let terminatedAt = Date()
         process.terminate()
         try? await Task.sleep(nanoseconds: UInt64(Shell.killGraceSeconds * 1_000_000_000))
         // process.isRunning は内部で waitpid して子を reap してしまい、終了待ち
         // (processExited)が通知を取りこぼす恐れがある(SIGTERM を無視した子で
-        // 実測: run 全体が凍結)。kill(pid, 0) は reap せず生存確認だけ行う。
-        if kill(process.processIdentifier, 0) == 0 { _ = kill(process.processIdentifier, SIGKILL) }
+        // 実測: run 全体が凍結)。sysctl の生存確認は reap しない。
+        // terminate 前の時刻より後に起動した同じ pid(reap 後の再利用)は撃たない
+        let pid = process.processIdentifier
+        if ProcessLiveness.isAliveAndNotStartedAfter(pid, recordedAt: terminatedAt) { _ = kill(pid, SIGKILL) }
     }
 
     /// パイプに未読のバイト(または EOF)があるか。待たない(poll のタイムアウト 0)。

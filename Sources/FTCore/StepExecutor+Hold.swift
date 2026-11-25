@@ -41,8 +41,12 @@ extension StepExecutor {
         adviseTarget(keyboardOcclusion.advisory(for: element))
         adviseTarget(OverlayWindowOcclusion.resolve(
             reported: snapshot.overlayWindowFrames).advisory(for: element))
-        adviseTarget(TapTargetGeometry.topSafeAreaAdvisory(
-            for: element, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen))
+        // 帯の下に見えている部分があれば指を置く点をそちらへ寄せる(下の bandClearedTap)ので、警告は寄せられないときだけ
+        let topBandAdvisory = TapTargetGeometry.topSafeAreaAdvisory(
+            for: element, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen)
+        let topBandCanBeCleared = TapTargetGeometry.topBandTapY(
+            for: element.frame, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen) != nil
+        if !topBandCanBeCleared { adviseTarget(topBandAdvisory) }
         adviseTarget(TapTargetGeometry.disabledAdvisory(for: element))
         adviseTarget(duplicateRegionAdvisory(element, in: snapshot))
         // 縁の帯に潜っているだけなら、撃つ前に1回だけ送って外す(tap の長押し分岐と同じ手順)
@@ -72,6 +76,9 @@ extension StepExecutor {
                                        inferring: step.containerInference ?? true,
                                        scale: driver.pointScale) ?? element.frame
         let duration = step.duration ?? tunables.defaultHoldDuration
+        let band = await bandClearedTap(for: rect, snapshot: snapshot)
+        if let band { driverFallback = Self.joinNotes(driverFallback, band.note) }
+        else if topBandCanBeCleared { adviseTarget(topBandAdvisory) }  // 寄せたのは element.frame 基準の見込み。実際の点が寄らなければ言う
         // **指を置く前に OCR のコンパイルを済ませる**: ブロックの最初の可視性検証がコンパイルを待つと(実測 12 秒)、
         // その間に指が離れて押している間だけ出る部品が消える。occlusionFlip と同じ条件で待つ
         // (詰まった読みがある間は待たない)。待った時間は可視性検証の内訳へ入れる
@@ -92,7 +99,7 @@ extension StepExecutor {
         // **送る直前**の時刻から離し時刻を数える(送信・応答の往復ぶんずれない)
         let sentAt = clock.now
         let viaXCUITest = try await gestureWithFallback(phase: &phase) {
-            try await $0.hold(x: rect.centerX, y: rect.centerY, duration: duration)
+            try await $0.hold(x: rect.centerX, y: band?.y ?? rect.centerY, duration: duration)
         }
         // **送れたときだけ**離し時刻を立てる(送れていなければ指は下がっていない)
         holdLiftsAt = sentAt.advanced(by: .seconds(duration))

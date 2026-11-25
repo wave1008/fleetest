@@ -1083,12 +1083,20 @@ extension StepExecutor {
             // keyboard と同じく座標に依らないので、この時点で載せてよい
             adviseTarget(OverlayWindowOcclusion.resolve(
                 reported: snapshot.overlayWindowFrames).advisory(for: element))
-            adviseTarget(TapTargetGeometry.topSafeAreaAdvisory(
-                for: element, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen))
+            // 帯の下に見えている部分があれば撃つ点をそちらへ寄せる(下の bandClearedTap)ので、警告は寄せられないときだけ。
+            // **消すのは bandClearedTap で実際に寄せた枝だけ**: 寄せない枝(linkText・型ドライバの長押し・キーボードの見えている部分)は
+            // `bandAdvisoryIfNotCleared` で言う
+            let topBandAdvisory = TapTargetGeometry.topSafeAreaAdvisory(
+                for: element, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen)
+            let topBandCanBeCleared = TapTargetGeometry.topBandTapY(
+                for: element.frame, safeAreaTop: snapshot.safeAreaTop, screen: snapshot.screen) != nil
+            if !topBandCanBeCleared { adviseTarget(topBandAdvisory) }
+            func bandAdvisoryIfNotCleared() { if topBandCanBeCleared { adviseTarget(topBandAdvisory) } }
             adviseTarget(TapTargetGeometry.disabledAdvisory(for: element))
             adviseTarget(duplicateRegionAdvisory(element, in: snapshot))
             // 文中リンク: 要素の中の文字列の位置を座標で撃つ(中心へ黙って落とさない)
             if let linkText = step.linkText {
+                bandAdvisoryIfNotCleared()
                 return try await executeTapLinkText(linkText, element: element, snapshot: snapshot,
                                                     step: step, notes: driverFallback, phase: &phase)
             }
@@ -1106,18 +1114,20 @@ extension StepExecutor {
                 case .none: break
                 case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))
                 case .part(let rect, let note):
-                    let bandY = await bottomBandTapY(for: rect, screen: snapshot.screen)
+                    let band = await bandClearedTap(for: rect, snapshot: snapshot)
+                    if band == nil { bandAdvisoryIfNotCleared() }
                     let viaXCUITest = try await gestureWithFallback(phase: &phase) {
-                        try await $0.press(x: rect.centerX, y: bandY ?? rect.centerY, duration: hold)
+                        try await $0.press(x: rect.centerX, y: band?.y ?? rect.centerY, duration: hold)
                     }
                     return StepOutcome(status: .passed, healedStep: healedStep,
                                        healedByFingerprint: healedByFingerprint,
                                        driverFallback: Self.joinNotes(driverFallback, note,
-                                                                      bandY != nil ? Self.bottomBandTapNote : nil,
+                                                                      band?.note,
                                                                       viaXCUITest ? "fell back to XCUITest" : nil))
                 }
                 if typeDriverGestures.contains("press") || pressFallbackLatched, let td = typeDriver,
                    try await pressViaTypeDriver(td, step: step, phase: &phase) {
+                    bandAdvisoryIfNotCleared()
                     return StepOutcome(status: .passed, healedStep: healedStep,
                                        healedByFingerprint: healedByFingerprint,
                                        driverFallback: Self.joinNotes(driverFallback,
@@ -1125,9 +1135,9 @@ extension StepExecutor {
                 }
                 do {
                     start = clock.now
-                    if let bandY = await bottomBandTapY(for: element.frame, screen: snapshot.screen) {
-                        try await actingDriver.press(x: element.frame.centerX, y: bandY, duration: hold)
-                        driverFallback = Self.joinNotes(driverFallback, Self.bottomBandTapNote)
+                    if let band = await bandClearedTap(for: element.frame, snapshot: snapshot) {
+                        try await actingDriver.press(x: element.frame.centerX, y: band.y, duration: hold)
+                        driverFallback = Self.joinNotes(driverFallback, band.note)
                     } else {
                         try await RefExpectationScope.firing(element) {
                             try await actingDriver.press(ref: element.ref, duration: hold)
@@ -1139,6 +1149,7 @@ extension StepExecutor {
                     // 409 を含めない理由は DriverError.isBridgeIncapable 参照
                     guard DriverError.isBridgeIncapable(error), let td = typeDriver else { throw error }
                     guard try await pressViaTypeDriver(td, step: step, phase: &phase) else { throw error }
+                    bandAdvisoryIfNotCleared()
                     pressFallbackLatched = true
                     driverFallback = Self.joinNotes(driverFallback, "fell back to XCUITest")
                 }
@@ -1256,24 +1267,27 @@ extension StepExecutor {
             // 壊れた frame ではそのまま容器の外を叩いて黙って飲まれる
             if let kbVisible = keyboardVisiblePartTap {
                 // キーボードを閉じられず、上端だけが見えている。中心はキーボードの下なので見えている部分を撃つ
+                bandAdvisoryIfNotCleared()
                 try await actingDriver.tap(x: kbVisible.centerX, y: kbVisible.centerY)
             } else if let coverPart = coverVisiblePartTap {
-                let bandY = await bottomBandTapY(for: coverPart, screen: snapshot.screen)
-                try await actingDriver.tap(x: coverPart.centerX, y: bandY ?? coverPart.centerY)
-                if bandY != nil { driverFallback = Self.joinNotes(driverFallback, Self.bottomBandTapNote) }
+                let band = await bandClearedTap(for: coverPart, snapshot: snapshot)
+                if band == nil { bandAdvisoryIfNotCleared() }
+                try await actingDriver.tap(x: coverPart.centerX, y: band?.y ?? coverPart.centerY)
+                if let band { driverFallback = Self.joinNotes(driverFallback, band.note) }
             } else if let visible = Self.visibleTapRect(for: element, in: snapshot.elements,
                                                 inferring: step.containerInference ?? true,
                                                 scale: driver.pointScale) {
-                let bandY = await bottomBandTapY(for: visible, screen: snapshot.screen)
-                try await actingDriver.tap(x: visible.centerX, y: bandY ?? visible.centerY)
+                let band = await bandClearedTap(for: visible, snapshot: snapshot)
+                if band == nil { bandAdvisoryIfNotCleared() }
+                try await actingDriver.tap(x: visible.centerX, y: band?.y ?? visible.centerY)
                 driverFallback = Self.joinNotes(driverFallback,
                     "tapped the visible part (the reported frame's centre falls outside its container)")
-                if bandY != nil { driverFallback = Self.joinNotes(driverFallback, Self.bottomBandTapNote) }
-            } else if let bandY = await bottomBandTapY(for: element.frame, screen: snapshot.screen) {
-                // ref で撃つと Android は frame の中心(帯の中)を押すので座標で撃つ
+                if let band { driverFallback = Self.joinNotes(driverFallback, band.note) }
+            } else if let band = await bandClearedTap(for: element.frame, snapshot: snapshot) {
+                // ref で撃つと frame の中心(帯の中)を押すので座標で撃つ
                 adviseTarget(occlusionAdvisoryNoted(for: element, in: snapshot))
-                try await actingDriver.tap(x: element.frame.centerX, y: bandY)
-                driverFallback = Self.joinNotes(driverFallback, Self.bottomBandTapNote)
+                try await actingDriver.tap(x: element.frame.centerX, y: band.y)
+                driverFallback = Self.joinNotes(driverFallback, band.note)
             } else {
                 // 寄せずに frame の中心を撃つ = 座標に依るチェーンが言える経路。
                 // **keyboard/disabled はここでは足さない**(上ですでに1回付けている。
@@ -1292,7 +1306,8 @@ extension StepExecutor {
                 var centreCoverOnly = false
                 // 撃ち方の判断なので名指しの抑止は掛けない(`.alwaysName`)
                 if case .overlayCovering? = TapTargetGeometry.advisoryKind(for: element, in: snapshot.elements,
-                                                                           screen: snapshot.screen, naming: .alwaysName) {
+                                                                           screen: snapshot.screen, naming: .alwaysName,
+                                                                           paintOrderIsReal: paintOrderIsReal(snapshot.elements)) {
                     centreCoverOnly = true
                 }
                 do {
@@ -1713,7 +1728,10 @@ extension StepExecutor {
                                                   in: snapshot.elements, screen: snapshot.screen),
                                                overlayWindows: OverlayWindowOcclusion.resolve(
                                                   reported: snapshot.overlayWindowFrames),
-                                               safeAreaTop: snapshot.safeAreaTop,
+                                               // 上端の帯は撃つ点を寄せる(performGesture)ので警告しない(tap と同じ)
+                                               safeAreaTop: TapTargetGeometry.topBandTapY(
+                                                   for: element.frame, safeAreaTop: snapshot.safeAreaTop,
+                                                   screen: snapshot.screen) == nil ? snapshot.safeAreaTop : .unknown,
                                                isAndroid: isAndroid, framework: uiFramework)
                 : nil
             if doubleTapAdvisory?.namingSuppressed == true { noteCodesThisStep.insert(.occluderNamingSuppressed) }
@@ -1745,7 +1763,8 @@ extension StepExecutor {
             }
             let outcome = try await performGesture(action, step: step, target: gestureTarget,
                                                    identifier: element.identifier,
-                                                   viewport: snapshot.screen, phase: &phase)
+                                                   viewport: snapshot.screen, safeAreaTop: snapshot.safeAreaTop,
+                                                   phase: &phase)
             guard case .passed = outcome.status else { return outcome }
             driverFallback = Self.joinNotes(driverFallback, gestureAdvisory, pinchTapNote, coverPartNote,
                                             outcome.driverFallback)

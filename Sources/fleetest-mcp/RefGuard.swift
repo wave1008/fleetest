@@ -86,14 +86,15 @@ enum RefGuard {
 
     static let stackedFrameMinimum = OcclusionGeometry.stackedFrameMinimum
 
+    /// `paintOrderIsReal` = `PaintOrder.isReal`(DSL と同じ値。祖先から z の逆転した候補を除く)。既定値を置かない = 呼び手に決めさせる
     static func overlayCovering(_ element: ElementInfo, in elements: [ElementInfo],
-                                screen: FTRect) -> ElementInfo? {
-        OcclusionGeometry.overlayCovering(element, in: elements, screen: screen)
+                                screen: FTRect, paintOrderIsReal: Bool) -> ElementInfo? {
+        OcclusionGeometry.overlayCovering(element, in: elements, screen: screen, paintOrderIsReal: paintOrderIsReal)
     }
 
     static func occluder(of element: ElementInfo, in elements: [ElementInfo],
-                         screen: FTRect) -> ElementInfo? {
-        OcclusionGeometry.occluder(of: element, in: elements, screen: screen)
+                         screen: FTRect, paintOrderIsReal: Bool) -> ElementInfo? {
+        OcclusionGeometry.occluder(of: element, in: elements, screen: screen, paintOrderIsReal: paintOrderIsReal)
     }
 
     /// `candidate` が `element` より手前に描かれているか。
@@ -233,7 +234,8 @@ enum RefGuard {
     static func ghostWarning(found: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                              naming: OccluderNamingContext) -> String {
         // 残像の判定は変えない。相手の名指しだけ `OccluderNaming` に従う
-        let hit = occluder(of: found, in: elements, screen: screen)
+        let hit = occluder(of: found, in: elements, screen: screen,
+                           paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: naming.isAndroid, framework: naming.framework))
             .flatMap { naming.mayName($0, found) ? " (possibly \(describe($0)))" : nil } ?? ""
         return " (warning: \(describe(found)) is reported outside its scroll container, so this"
             + " may have hit whatever is really drawn there\(hit) — verify with ft_screenshot,"
@@ -296,12 +298,25 @@ enum RefGuard {
     }
 
     /// **画面上端の安全領域の帯の中にある要素を撃とうとしている**ときの警告(判定は
-    /// `TapTargetGeometry.topSafeAreaAdvisory` = DSL と共有。ブリッジの申告が `.unknown` なら言わない)
-    static func topSafeAreaWarning(_ element: ElementInfo, safeAreaTop: SafeAreaTop, screen: FTRect) -> String? {
+    /// `TapTargetGeometry.topSafeAreaAdvisory` = DSL と共有。ブリッジの申告が `.unknown` なら言わない)。
+    /// `clearsTopBand` = 撃つ点を帯の下の見えている部分へ寄せる操作(`topBandTapY` が点を返すとき)は警告しない(DSL と同じ。
+    /// 寄せない操作(drag・pinch 等)には既定値を置かず呼び手に決めさせる)
+    static func topSafeAreaWarning(_ element: ElementInfo, safeAreaTop: SafeAreaTop, screen: FTRect,
+                                   clearsTopBand: Bool) -> String? {
+        if clearsTopBand, TapTargetGeometry.topBandTapY(for: element.frame, safeAreaTop: safeAreaTop, screen: screen) != nil {
+            return nil
+        }
         guard let advisory = TapTargetGeometry.topSafeAreaAdvisory(
             for: element, safeAreaTop: safeAreaTop, screen: screen) else { return nil }
         return " (warning: \(describe(element)) — \(advisory);"
             + " ft_scroll_to brings it into view, then re-snapshot)"
+    }
+
+    /// `operationClearsTopBand` の操作が実際には寄せなかった枝(見えている部分・覆いの外の点を撃つ・linkText)で、消えていた帯の警告を言い直す。
+    /// 寄せられない要素の警告は `preTapWarnings` が言っているので、ここは `topBandTapY` が点を返す要素だけ(二重に言わない)
+    static func suppressedTopBandWarning(_ element: ElementInfo, safeAreaTop: SafeAreaTop, screen: FTRect) -> String? {
+        guard TapTargetGeometry.topBandTapY(for: element.frame, safeAreaTop: safeAreaTop, screen: screen) != nil else { return nil }
+        return topSafeAreaWarning(element, safeAreaTop: safeAreaTop, screen: screen, clearsTopBand: false)
     }
 
     /// keyboard + overlay window + disabled + 安全領域の帯の組(帯は最後 = `TapTargetGeometry.advisory` と同じ並び)。**この順序で4箇所から呼ばれる** ——
@@ -310,13 +325,13 @@ enum RefGuard {
     /// `suppressKeyboardWarning`: 触らずに打つ操作(焦点の欄への ft_type / ft_clear_input = `typesWithoutTouching`)はキーボードの下でも
     /// 「タップがキーボードに当たる」と言わない。既定値を置かない(呼び手に決めさせる)
     static func preTapWarnings(_ element: ElementInfo, keyboardOcclusion: KeyboardOcclusion,
-                               suppressKeyboardWarning: Bool,
+                               suppressKeyboardWarning: Bool, clearsTopBand: Bool,
                                overlayWindows: OverlayWindowOcclusion,
                                safeAreaTop: SafeAreaTop, screen: FTRect) -> String {
         (suppressKeyboardWarning ? "" : keyboardWarning(element, keyboardOcclusion: keyboardOcclusion) ?? "")
             + (overlayWindowWarning(element, overlayWindows: overlayWindows) ?? "")
             + disabledWarning(element)
-            + (topSafeAreaWarning(element, safeAreaTop: safeAreaTop, screen: screen) ?? "")
+            + (topSafeAreaWarning(element, safeAreaTop: safeAreaTop, screen: screen, clearsTopBand: clearsTopBand) ?? "")
     }
 
     /// **申告されたスクロール容器の外へ送り出された要素を撃とうとしている**ときの警告
@@ -342,10 +357,16 @@ enum RefGuard {
     /// `operation` = 文言の操作名("tap" / "double tap" / "drag" / "type" 等。既定値を置かない = 呼び手に決めさせる)
     static func overlapWarning(found: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                isAndroid: Bool, framework: AppUIFramework?, operation: String) -> String {
-        guard let kind = TapTargetGeometry.advisoryKind(
+        let result = TapTargetGeometry.advisoryKindResult(
             for: found, in: elements, screen: screen,
-            naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework))
-        else { return "" }
+            naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework),
+            paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: isAndroid, framework: framework))
+        guard let kind = result.kind else {
+            // 名指しを抑えた組は相手の名前を言わずに注意だけ出す(DR-230。DSL の `TapTargetGeometry.unnamedCoverCaution` と対)
+            guard result.namingSuppressed else { return "" }
+            return " (warning: \(describe(found))'s centre may be covered by another element — this app's tree does not tell"
+                + " which one is drawn in front, so the \(operation) may land on it; verify with ft_screenshot)"
+        }
         switch kind {
         case .zeroFrame:
             // **DSL にだけあり MCP のタップ時には出ていなかった形**(合流済み)

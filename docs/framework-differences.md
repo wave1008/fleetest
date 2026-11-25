@@ -517,6 +517,9 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
+| — | 塗り順の z が本物の木(Android の View/Compose/RN・iOS の z のある木)では、対象より z が大きい要素を祖先と数えない(RN の Android のボトムシートの全画面の幕が depth だけで背面の要素の祖先に化け、背面への tap が注記なしで幕に当たっていた)。DSL と MCP の覆いの判定が共有 |
+| — | CMP の iOS(inapp-boost)で、`>>` のスコープの容器が in-app の木で見つかって下が空のとき、`notExist` / `waitForClose` は「無い」と結論する前に XCUITest の木に照会する(DR-199。ScrollableTabRow・PullToRefreshBox の中が in-app の木で空になる) |
+| — | 名指しを止めた出口(Android の Flutter の同じ土台・同じウィンドウの組)でも、覆いの疑いそのものは相手を名指さない注意で言う(DR-230。常駐シートの裏の行への tap が警告なしの ✅ でシートの行に当たった = OI-387) |
 | iOS v306 | XCUITest ランナーの `POST /renderer`: 直近の木の ref の要素の出どころ(flutter / compose / reactNative / swiftUI / uikit / keyboard / web / uikitCustom)を、非公開属性の本当のクラス名と祖先から答える(古い ref・取れないときは不明)。iOS でアプリが不明・主のドライバが XCUITest のとき、空打ちの判断に公開クラス名より先に使う(地図のピンを自前描画と取り違えない)。`/status` の `elementClassQuery` が取れたかを申告する(DR-230) |
 | — | Android の Flutter と分かるアプリで、木の順で後ろの要素(一覧の行)を「覆い」と名指さない(z が木の順で塗り順でないため。DR-230)。名指す文言の出口(緑の tap の注記・失敗の文言・失敗後の案内・MCP の見本保存の断りと残像の警告)だけで止め、判定と撃ち方は変えない。抑えた事実は注記 `occluder-naming-suppressed`。別ウィンドウの組は名指す |
 | Android v134 | 読み取り専用の欄(inputType none・EditText を名乗らない・入力接続なし)への `type` に注記を付ける(FD-2.4) |

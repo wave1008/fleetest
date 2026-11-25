@@ -1118,6 +1118,18 @@ extension StepExecutor {
                         continue
                     }
                 }
+                // スコープの容器が in-app の木で空の形だけ、XCUITest の木にも居ないことを確かめる(OI-390)。
+                // 居れば不在を結論せず、他の「まだ在る」と同じく締め切りまで待つ。答えられなければ従来どおり(注記だけ残る)
+                if await scopedAbsenceConsult(step: step, snapshot: snapshot, phase: &phase) == .stillThere {
+                    if Date() >= deadline {
+                        return .failed("element still exists (in the app's XCUITest tree; the in-app tree shows nothing under its scope container): "
+                                       + "\(step.locatorSummary) (timeout \(FTSeconds.format(step.timeout ?? tunables.defaultTimeout))s)")
+                    }
+                    let waitStart = clock.now
+                    try await Task.sleep(for: backoff.nextDelay())
+                    phase.waitMs += Self.ms(clock.now - waitStart)
+                    continue
+                }
                 noteAbsenceBehindModal(snapshot, step: step)
                 return .passed
             }

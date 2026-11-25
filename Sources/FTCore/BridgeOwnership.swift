@@ -49,10 +49,12 @@ public enum BridgeOwnership: Equatable, Sendable {
         }
     }
 
-    /// `ps` の command 列の1行を読む。ランナーでなければ nil。書式は `BridgeLauncher.startDetached` が組む起動引数
+    /// `ps` の command 列の1行を読む。ランナーでなければ nil。書式は `BridgeLauncher.startDetached` が組む起動引数。
+    /// **ワークスペースのパスは空白を含みうる**(iCloud の `Mobile Documents` 等)ので `\S+` で切らず、
+    /// 最初の `/.fleetest/` までを持ち主とする
     public static func runnerProcess(fromCommand command: String) -> RunnerProcess? {
         guard command.contains("xcodebuild"), command.contains("test-without-building"),
-              let xctestrun = command.range(of: #"-xctestrun (\S+)/\.fleetest/\S*FleetestRunner-(\d+)\.xctestrun"#,
+              let xctestrun = command.range(of: #"-xctestrun (.+?)/\.fleetest/\S*FleetestRunner-(\d+)\.xctestrun"#,
                                             options: .regularExpression),
               let destination = command.range(of: #"id=[0-9A-Fa-f-]+"#, options: .regularExpression)
         else { return nil }

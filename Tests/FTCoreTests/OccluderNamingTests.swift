@@ -54,7 +54,8 @@ final class OccluderNamingTests: XCTestCase {
 
         let text = TapTargetGeometry.occlusionAdvisoryResult(for: target, in: tree, screen: screen,
                                                              isAndroid: true, framework: .flutter)
-        XCTAssertNil(text.text)
+        // 後段に言うことが無ければ、相手を名指さない注意を出す(OI-387。警告そのものは消さない)
+        XCTAssertEqual(text.text, TapTargetGeometry.unnamedCoverCaution)
         XCTAssertTrue(text.namingSuppressed)
         let compose = TapTargetGeometry.occlusionAdvisoryResult(for: target, in: tree, screen: screen,
                                                                 isAndroid: true, framework: .compose)

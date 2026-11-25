@@ -132,6 +132,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 - [`tapAppIcon` search order](../commands/navigation.md#notes) — current screen, then the drawer or home pages, and the App Library on iOS; it fails with "App icon not found" if never found.
 - [iOS: a system alert hides the icons](../commands/navigation.md#notes) — `tapAppIcon` fails naming the alert; answer it in the scenario or register `iosAlertHandler`.
 - [Two-display Simulator tree mismatch](../commands/navigation.md#notes) — `tapAppIcon` never taps when the home-screen tree does not match the shown display, and fails with a message saying so.
+- [Android `tapAppIcon` skips covered or cut-off icons](../commands/navigation.md#notes) — it taps only an icon whose centre is uncovered and whose frame is not cut at the list edge, and for another app it fails if the launcher stays in front.
 - [iOS `back()` after the app was stopped](../commands/navigation.md#notes) — after `terminateApp()`, `removeApp()` or `clearAppData()` it fails unsent, and in inapp-boost `tapAppIcon()` launches instead of tapping; start the app with `launchApp()` first.
 - [`rotateTo` follows the app's UI orientation](../commands/navigation.md#notes) — only `.portrait` and `.landscape` exist, with identical frames across OS and frameworks.
 - [`rotateTo` waits for the change](../commands/navigation.md#notes) — it returns only once the orientation has actually changed.

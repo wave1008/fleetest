@@ -105,8 +105,30 @@ public enum LocalStreamHolder {
             let tokens = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
             guard tokens.count >= 3, let pid = Int32(tokens[0]),
                   let elapsed = elapsedSeconds(etime: tokens[1]) else { return nil }
-            return ProcessRow(pid: pid, elapsedSeconds: elapsed, tokens: Array(tokens.dropFirst(2)))
+            return ProcessRow(pid: pid, elapsedSeconds: elapsed,
+                              tokens: mergeSpacedProgram(Array(tokens.dropFirst(2)), names: helperPrograms))
         }
+    }
+
+    /// 実行ファイルのパスに空白があると(iCloud の `Mobile Documents` 等)空白区切りで先頭が割れる。
+    /// 先頭が `/` で始まり、先頭から `maxProgramPathTokens` 個以内に `names` の実行ファイル名で終わるトークンが
+    /// あれば、そこまでを空白で戻して1つにする。見つからなければ変えない(= 従来どおり。他のプロセスを巻き込まない)。
+    /// 8 = パスの空白が 7 個以内(これを超える配置は実在しない見込み。超えれば従来どおり読み落とすだけ)
+    static let maxProgramPathTokens = 8
+
+    static func mergeSpacedProgram(_ tokens: [String], names: Set<String>) -> [String] {
+        guard let first = tokens.first, first.hasPrefix("/") else { return tokens }
+        // 先頭が実在する通常ファイル = それ自体が実行ファイル(`/bin/sh -c …/fleetest-simstream` を配信と読まない)
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: first, isDirectory: &isDirectory), !isDirectory.boolValue { return tokens }
+        for index in 0..<min(tokens.count, maxProgramPathTokens) {
+            let token = tokens[index]
+            guard let name = token.split(separator: "/").last.map(String.init), names.contains(name) else { continue }
+            guard index > 0 else { return tokens }
+            guard !tokens[1..<index].contains(where: { $0.hasPrefix("-") }) else { return tokens }
+            return [tokens[0...index].joined(separator: " ")] + Array(tokens.dropFirst(index + 1))
+        }
+        return tokens
     }
 
     /// `etime` の書式 `[[dd-]hh:]mm:ss` を秒へ
