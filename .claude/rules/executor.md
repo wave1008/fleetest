@@ -1,5 +1,7 @@
 ---
 paths:
+  - "Sources/FTCore/JudgmentCapture.swift"
+  - "Sources/fleetest/RunHookRunner.swift"
   - "TestProjects/E2E-Android/scenarios/15_OCRで読める薄いテキスト.swift"
   - "TestProjects/E2E-CMP/scenarios/19_OCRで読める薄いテキスト.swift"
   - "TestProjects/E2E-Flutter/scenarios/15_OCRで読める薄いテキスト.swift"
@@ -110,6 +112,13 @@ paths:
   **失敗時の証跡の絵は inapp-boost モードなら XCUITest(`XCUIScreen`)で撮る**(`FTRuntime.handleFailure`。in-app の絵は
   アプリの window しか描かず OS のアラートが写らない)。保存前に PNG の向きの申告で回す(`FailureEvidenceImage.displayOriented`。横向きで 90° 回ったままになる)。**iOS の「飲まれたタップ」注記はアラートの可能性を
   併記する**(iOS の木はアプリのプロセスだけ = アラートを出したタップも無変化に見える)
+- **前のシナリオが残したシステムアラートはシナリオの開始前に消す**(CLAUDE.md「失敗の記録と操作の規律」の、ツールが閉じる範囲の続き)。
+  押すのは何も決めないボタンと権限の拒否側と、ソフトウェアアップデートの保留(「あとで」。開始前に残っている分だけ)だけ・無ければ Simulator は
+  SpringBoard の起こし直し → MN-72
+- **判定の関数を `StepExecutor` の static に置かない**。置くと判定の型が実行機に依存する(依存は実行機 → 判定の
+  一方向。ロケータ解決は `LocatorResolver`・容器推定は `ContainerGeometry`)。コンパイラは止めない → MN-57
+- **`AppDriver` に既定実装を足すときはプロトコル要件にも宣言する**(要件でないと存在型越しの呼び出しが黙って既定実装に落ちる。
+  `AppDriverDefaultDispatchTests`)
 - **シナリオのサンドボックス(Seatbelt・常に有効 = DR-137)**: 全拒否が土台の Seatbelt でシナリオ実行バイナリを包む
   (`FTCore.ScenarioSandbox`。入口は `ScenarioHost.sandboxedLaunch` = 実行・dry-run・`list`・`compile-ocr` の全部。
   `ScenarioSandboxWiringTests`)。外せるのはマシン側の `sandbox.disabled` だけ。守る規律5つ:

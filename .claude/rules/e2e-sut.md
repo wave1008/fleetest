@@ -12,12 +12,34 @@ paths:
   - "TestProjects/E2E-*/**"
   - "E2E*AppIOS/**/project.xcproj"
   - "E2E*AppCMP/**/project.xcproj"
+  - "E2EXApp*/**"
+  - "TestProjects/E2EX-*/**"
+  - "Scripts/e2ex.sh"
   - "E2EYApp*/**"
   - "TestProjects/E2EY-*/**"
+  - "Scripts/e2ey.sh"
   - "Tests/FleetestTests/DeepLinkSchemeSyncTests.swift"
 ---
 
 # fleetest 自身の E2E(SUT) の規律
+
+**UI フレームワークごとに SUT が5つ**ある(画面・`#id`・ラベルは全 SUT 共通契約):
+
+| SUT | 実装 | プロジェクト | 対象 OS |
+|---|---|---|---|
+| `E2EAppCMP/` | Compose Multiplatform | TestProjects/E2E-CMP | ios + android |
+| `E2EAppIOS/` | SwiftUI + 一部 UIKit | TestProjects/E2E-iOS | ios |
+| `E2EAppAndroid/` | View/XML + 一部 Compose | TestProjects/E2E-Android | android |
+| `E2EAppFlutter/` | Flutter | TestProjects/E2E-Flutter | ios + android |
+| `E2EAppRN/` | React Native | TestProjects/E2E-RN | ios + android |
+
+**共通契約に載らない定番部品の SUT が別に5つ**(`E2EXAppCMP/`・`E2EXAppFlutter/`・`E2EXAppRN/`・`E2EXAppAndroid/`・
+`E2EXAppIOS/` → TestProjects/E2EX-*。回すのは `Scripts/e2ex.sh`・`e2e.sh` の対象外)。契約は `E2EXAppCMP/docs/ui-contract.md` と
+`ui-contract-wave2.md`、書き方と癖は docs/user-docs/reference/writing/ui_component_patterns_ja.md、差の索引は FD-5.1
+
+**実アプリで頻出しツールの判定を直撃する作りの SUT がさらに5つ**(`E2EYAppCMP/` 等 → TestProjects/E2EY-*。
+入れ子スクロール・反転チャット・読み込み中の骨組み・途中まで払うスワイプ 等の12画面。回すのは `Scripts/e2ey.sh`)。
+契約は `E2EYAppCMP/docs/ui-contract.md`(各画面の「罠」は意図して残す性質 = SUT 側で回避しない。下の E2EY の項)
 
 - **iOS のプロジェクトは `project.xcproj`(Xcode 27.2 の JSON 形式)を直接編集する**(DR-152。Runner + `E2EAppIOS` / `E2EXAppIOS` / `E2EYAppIOS` +
   `E2EAppCMP` / `E2EXAppCMP` / `E2EYAppCMP`)。**手書きで作り直さず既存を編集する**(xcodegen が暗黙に足していた既定値

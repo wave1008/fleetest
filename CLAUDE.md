@@ -45,31 +45,14 @@
   断り(`ErrorResponse.reason` = `stale-ref` / `system-alert-blocked`。撃つ前に断った・XCTest が合成せずに諦めた)だけで、
   文言の一致・所要時間・画面の無変化からは確定と言わない。途中まで届きうる操作(入力・ダブルタップ・ドラッグ)には理由を付けない。
   ツールが閉じるのは**ステップ開始時点で出ている割り込み**と、**届けずに断られた操作の直前に出た登録済みのアラート**まで
-  (加えて、前のシナリオが残した
-  システムアラートはシナリオの開始前に消す。押すのは何も決めないボタンと権限の拒否側と、ソフトウェアアップデートの保留(「あとで」。開始前に残っている分だけ)だけ・無ければ Simulator は
-  SpringBoard の起こし直し = MN-72)。**届いたか分からないまま間に湧いた分の
+  (加えて前のシナリオが残したアラートを開始前に消す = `.claude/rules/executor.md`)。**届いたか分からないまま間に湧いた分の
   復帰はシナリオ側**(docs/commands.md §割り込みが「操作を吸った」ときの扱い)。
   **届いたか分からない操作の自動リトライを再提案しない**
 
 ### fleetest 自身の E2E(SUT)
 
-**UI フレームワークごとに SUT が5つ**ある(画面・`#id`・ラベルは全 SUT 共通契約):
-
-| SUT | 実装 | プロジェクト | 対象 OS |
-|---|---|---|---|
-| `E2EAppCMP/` | Compose Multiplatform | TestProjects/E2E-CMP | ios + android |
-| `E2EAppIOS/` | SwiftUI + 一部 UIKit | TestProjects/E2E-iOS | ios |
-| `E2EAppAndroid/` | View/XML + 一部 Compose | TestProjects/E2E-Android | android |
-| `E2EAppFlutter/` | Flutter | TestProjects/E2E-Flutter | ios + android |
-| `E2EAppRN/` | React Native | TestProjects/E2E-RN | ios + android |
-
-**共通契約に載らない定番部品の SUT が別に5つ**(`E2EXAppCMP/`・`E2EXAppFlutter/`・`E2EXAppRN/`・`E2EXAppAndroid/`・
-`E2EXAppIOS/` → TestProjects/E2EX-*。回すのは `Scripts/e2ex.sh`・`e2e.sh` の対象外)。契約は `E2EXAppCMP/docs/ui-contract.md` と
-`ui-contract-wave2.md`、書き方と癖は docs/user-docs/reference/writing/ui_component_patterns_ja.md、差の索引は FD-5.1
-
-**実アプリで頻出しツールの判定を直撃する作りの SUT がさらに5つ**(`E2EYAppCMP/` 等 → TestProjects/E2EY-*。
-入れ子スクロール・反転チャット・読み込み中の骨組み・途中まで払うスワイプ 等の12画面。回すのは `Scripts/e2ey.sh`)。
-契約は `E2EYAppCMP/docs/ui-contract.md`(各画面の「罠」は意図して残す性質 = SUT 側で回避しない)
+SUT は3系統 × UI フレームワーク5つ(CMP・SwiftUI・View/XML・Flutter・RN): **E2E**(画面・`#id`・ラベルは全 SUT 共通契約。`Scripts/e2e.sh`)/
+**E2EX**(定番部品。`Scripts/e2ex.sh`)/ **E2EY**(判定を直撃する作り・罠は意図して残す。`Scripts/e2ey.sh`)。表と契約は `.claude/rules/e2e-sut.md`
 
 
 ## 領域ごとの規律(`.claude/rules/`)
@@ -299,9 +282,6 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   失敗モードが沈黙(誤った成功)なら塞ぐ価値がある**(その場合は「再現していない」と明記する)。
   可能なら**同型の再発を落とすテスト**まで足す(`SwipeForScrollForwardingTests` = ソース走査 /
   `BridgeRouterStatusContractTests` = 本数固定 / `AppDriverDefaultDispatchTests` = 宣言の突き合わせ)
-- **`AppDriver` に既定実装を足すときはプロトコル要件にも宣言する**(要件でないと存在型越しの呼び出しが黙って既定実装に落ちる。
-  `AppDriverDefaultDispatchTests`)
-
 - **探索・負荷の誤った成功と回復の失敗を直すときは、再現手順と別経路の形を `Scripts/replay-cases/` に足し、直しを外した版で赤を確かめてから完了とする**
   (修正の関門。所見の様式の「直しとの関係」も必須)→ docs/verification/testing.md「修正の関門」
 
@@ -364,13 +344,8 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   `RefGuard`/MCP は転送する。別々に持つと**同じ画面で MCP と DSL の判断が食い違う**
   (実例は MN-5)。移設したときは**掃討ゲート(`SweepHarnessTests`)が
   実アプリのコーパスで等価性を検証する**
-- **判定の関数を `StepExecutor` の static に置かない**。置くと判定の型が実行機に依存する(依存は実行機 → 判定の
-  一方向。ロケータ解決は `LocatorResolver`・容器推定は `ContainerGeometry`)。コンパイラは止めない → MN-57
-- **前面にあると観測しただけの相手へ、画面を動かす操作を撃たない**。セッションの向け直しは
-  `AppDriver.attach`(前面確認だけ・非破壊)で、**activate は使わない** —— Spotlight のような
-  SpringBoard の拡張を activate すると**ホーム画面が描画を失って真っ黒になり**、自アプリなら
-  in-app の既定実装から launch = 注入付きの再起動へ落ちる(実測 2026-09-22 → MN-40)。
-  `attach` の既定実装は activate へ倒さず 501 を投げる(向け直せないことより画面を壊すほうが害が大きい)
+- **判定の関数を `StepExecutor` の static に置かない**(`.claude/rules/executor.md`)
+- **前面にあると観測しただけの相手へ、画面を動かす操作を撃たない**(activate を使わない。`.claude/rules/bridge-provision.md`・MN-40)
 - **FM の失敗トリアージ(分類・要約・修正案)と FM ヒール(ロケータ自己修復)・ヒールキャッシュは置かない**
   (DR-6・DR-7。実測の誤りの率と見直す条件は DR に。`FMTriageRemovedTests` / `FMHealRemovedTests`)。
   **`heal` は指紋照合だけのスイッチで、FM のトグルと独立**
@@ -379,13 +354,8 @@ grep やシェル(`cat`)で見るだけのとき・新しいファイルを読�
   `FTCore.SimilarLabels` / `FTCore.BackEffect` / `FTCore.SnapshotTruncation.remedy` /
   `TapTargetGeometry.offscreenScrollGateCentre`。**天井まで来ていたら「上げろ」と言わない**。
   **FM に訊いて答えが無かったステップは `visibility-guard-skipped`** を立てる。
-  **判定に文言を埋め込んだら、呼び手が増えた日に他人の対処文が出る** ——
-  `BridgeIdentityCheck.verdict` は「レーンの port が奪われた・worker を起動し直せ」という
-  **run 向けの対処文を detail に持っていた**ため、ライブ操作に共有した瞬間に
-  「lane / worker」の無い文脈でその文が出た(2026-09-22 のレビュー)。**対処文は `remedy` として
-  呼び手が渡す**(既定値を置かない = 新しい呼び手の渡し忘れをコンパイルで止める。run の4経路が
-  共有する文は `BridgeIdentityCheck.runLaneRemedy` の1箇所)。**detail が要らない呼び手には
-  `matches(expected:status:)`** を使わせる(文言を作らないので remedy も要らない)
+  **判定に文言を埋め込んだら、呼び手が増えた日に他人の対処文が出る** —— **対処文は `remedy` として
+  呼び手が渡す**(既定値を置かない = 渡し忘れをコンパイルで止める。実例は `.claude/rules/bridge-provision.md` の `BridgeIdentityCheck`)
 
 ### 個別の規律
 
@@ -454,13 +424,8 @@ in-app ブリッジを足し、in-app で撃てる操作はそちらで撃つ構
 `bridge: "inapp"` はブリッジの種類の値でモード名ではない —— **モードの値を /status の `bridge` との比較へそのまま渡さない**
 (主ポートのブリッジは `IOSMode.primaryBridge(forMode:)`)
 
-**用語(モニターのペイン)**: 「デバイスモニター」タブは上から**ラインビュー**(タイルの並び)・
-**グリッドビュー**(選択したデバイスの拡大表示)・**実行ログビュー**(選択したデバイスの実行ログ)の
-**常設の3ペイン**(ユーザー決定 2026-09-17、3ペイン化は 2026-09-21。**契約は
-DS-12.6 が唯一の定義元**)。**両ビューに出るのはラインビューで選択したデバイスだけ**で、
-**全体レーン(`__overall__`)だけは選択に関わらず実行ログビューに残す**(供給の進行の受け皿)。
-ペインを「フリート」と呼ばない —— **「フリート」は複数機械・
-`run --fleet` の製品概念**に取っておく。見出しの文言は中身を表す(「デバイス一覧」「選択したデバイス」「実行ログ」)
+**用語(モニターのペイン)**: 「デバイスモニター」タブは**ラインビュー・グリッドビュー・実行ログビュー**の常設3ペイン
+(契約は DS-12.6)。ペインを「フリート」と呼ばない(複数機械・`run --fleet` の製品概念)。詳細は `.claude/rules/vscode-i18n.md`
 
 **用語(利用者向けの表記)**: user-docs の ja・README・拡張の i18n の表記ゆれと保守者の内輪の語(受け手・木・撃つ 等)は
 `UserFacingSpellingTests` が置き換え先付きで落とす(表は同テスト・DR-182)。保守者向けのコメント・docs は対象外

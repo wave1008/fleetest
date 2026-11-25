@@ -4,6 +4,7 @@ paths:
   - ".claude/skills/fleetest-remote-setup/SKILL.md"
   - "Scripts/align.sh"
   - "Scripts/bench.swift"
+  - "vscode-fleetest/src/remote*.ts"
   - "Sources/FTAndroid/DeviceBooter.swift"
   - "Sources/FTBridgeClient/BridgeDiscovery.swift"
   - "Sources/FTBridgeClient/BridgeLauncher.swift"

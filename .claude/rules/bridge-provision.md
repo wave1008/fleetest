@@ -102,6 +102,16 @@ paths:
   「セッション消失」と読んで activate を撃つ。「セッションはあるが今は無理」は **422** を使う
   (`BridgeRouterStatusContractTests` が 409/503/501 の本数を数えて守る)。in-app ブリッジは逆に
   409 を一時的競合へ広く使ってよい(あちらは包まれない)
+- **前面にあると観測しただけの相手へ、画面を動かす操作を撃たない**。セッションの向け直しは
+  `AppDriver.attach`(前面確認だけ・非破壊)で、**activate は使わない** —— Spotlight のような
+  SpringBoard の拡張を activate すると**ホーム画面が描画を失って真っ黒になり**、自アプリなら
+  in-app の既定実装から launch = 注入付きの再起動へ落ちる(実測 2026-09-22 → MN-40)。
+  `attach` の既定実装は activate へ倒さず 501 を投げる(向け直せないことより画面を壊すほうが害が大きい)
+- **判定に文言を埋め込まない実例**(CLAUDE.md「判定は1箇所に置く」): `BridgeIdentityCheck.verdict` は「レーンの port が奪われた・
+  worker を起動し直せ」という**run 向けの対処文を detail に持っていた**ため、ライブ操作に共有した瞬間に
+  「lane / worker」の無い文脈でその文が出た。**対処文は `remedy` として呼び手が渡す**(既定値を置かない。run の4経路が
+  共有する文は `BridgeIdentityCheck.runLaneRemedy` の1箇所)。**detail が要らない呼び手には
+  `matches(expected:status:)`** を使わせる(文言を作らないので remedy も要らない)
 - **同じ Mac で実機とシミュレータの run が同居する前提でポートを扱う**(2026-09-15 の負荷テスト。
   経緯は MN-20): ①採番は `.pid` に加えて**生きた `iproxy-<port>.pid`** を除外する
   ②`PortHolder.stopIfOwnedBridge` が iproxy を止めるのは台帳 `.device` の UDID が供給中のデバイスと
