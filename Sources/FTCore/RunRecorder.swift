@@ -335,9 +335,6 @@ public final class RunRecorder: @unchecked Sendable {
                        abortReason: String? = nil) -> [SlowWorkerFinding] {
         // run が終わったら診断の置き場をこの run から外す(同じプロセスで後から採った分が終わった run のフォルダへ入らないように)
         SimulatorDiagnosticsCapture.currentRunDirectory.withLock { if $0 == runDir { $0 = nil } }
-        // この run の中で採った統合ログを書き終えてから終わる(run が終わるとプロセスも終わり、ファイルが仮の行のまま残る)。
-        // 採取が無ければすぐ戻る。採取があった回だけ、通常 2 秒前後(上限は logShowTimeoutSeconds + 5)待つ
-        SimulatorDiagnosticsCapture.waitForPendingLogs()
         hostMetrics?.stop()
         // ジョブの行を中止にする印(中断した run も終了コードは 0 / 1 = 成功・失敗に見える)。結果を書く3経路が必ずここを通る
         if interrupted { JobMembership.noteInterrupted() }
@@ -402,6 +399,9 @@ public final class RunRecorder: @unchecked Sendable {
             workerModes: modes.isEmpty ? nil : modes,
             variants: declaredVariants.isEmpty ? nil : declaredVariants)
         RunResultsStore.writeMeta(meta, runDir: runDir)
+        // run.json を書いた**後で**、この run の中で採った統合ログを書き終えるのを短く待つ(run が終わるとプロセスも終わり、
+        // ファイルが仮の行のまま残る)。採取が無ければすぐ戻る。中断した run は待たない
+        if !interrupted { SimulatorDiagnosticsCapture.waitForPendingLogs(timeout: SimulatorDiagnosticsCapture.exitWaitSeconds) }
         return slowFindings
     }
 

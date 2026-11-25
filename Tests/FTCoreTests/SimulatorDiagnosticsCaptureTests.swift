@@ -112,6 +112,7 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
         XCTAssertEqual(SimulatorDiagnosticsCapture.logTailLines, 800)
         XCTAssertEqual(SimulatorDiagnosticsCapture.reportWindowSeconds, 3600)
         XCTAssertEqual(SimulatorDiagnosticsCapture.reportListLimit, 20)
+        XCTAssertEqual(SimulatorDiagnosticsCapture.exitWaitSeconds, 10)
     }
 
     func testWaitForPendingLogsReturnsOnceTheBackgroundLogIsWritten() throws {
@@ -141,11 +142,13 @@ final class SimulatorDiagnosticsCaptureTests: XCTestCase {
         for i in 0..<5 {
             let path = dir.appendingPathComponent("f\(i).txt").path
             FileManager.default.createFile(atPath: path, contents: Data())
-            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(Double(i))], ofItemAtPath: path)
+            // f0・f1 は書き直しがありうる窓(logShowTimeoutSeconds)より古い。f2〜f4 は窓の中 = 上限の外でも消さない
+            let age: Double = i < 2 ? 1000 + Double(i) : Double(i)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-age)], ofItemAtPath: path)
         }
-        SimulatorDiagnosticsCapture.pruneOldest(in: dir, keep: 3)
+        SimulatorDiagnosticsCapture.pruneOldest(in: dir, keep: 1, now: now)
         let left = try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
-        XCTAssertEqual(left, ["f2.txt", "f3.txt", "f4.txt"])
+        XCTAssertEqual(left, ["f2.txt", "f3.txt", "f4.txt"])  // 上限 1 でも窓の中の3つは残し、古い f0・f1 だけ消す
     }
 
     func testReportsListsOnlyRecentSpringBoardAndBackboarddFiles() throws {

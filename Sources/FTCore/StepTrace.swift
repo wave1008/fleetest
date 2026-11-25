@@ -24,7 +24,7 @@ public enum StepTraceStage: String, CaseIterable, Sendable {
 
 /// 足跡の上限。根拠: 結果 JSON は run ごとに全ステップの timeline を持つので、1ステップの足跡が
 /// 膨らむと1シナリオの大きさが線形に増える。単位は entry 数 / 文字数(Swift の Character)。
-/// 尽きたとき: entry は最後に `trace-truncated`(`dropped=<捨てた数>`)を1つ置く(実 entry は最大 `maxEntries` + この1つ)。
+/// 尽きたとき: 古い entry から捨て、先頭に `trace-truncated`(`dropped=<捨てた数>`)を1つ置く(実 entry は最大 `maxEntries` + この1つ)。
 /// 値は末尾を `…` で切る(切った後の長さが `maxValueLength` ちょうど)
 public enum StepTraceLimits {
     public static let maxEntries = 16
@@ -56,19 +56,20 @@ public struct StepTraceBuffer: Sendable {
         append(stage, facts: map)
     }
 
+    /// 上限を超えたら**古い方から**捨てる(赤を決めたのは最後の試み = 待ちの間に探索を繰り返すステップでは後ろが要る)
     public mutating func append(_ stage: StepTraceStage, facts: [String: String]) {
-        guard entries.count < StepTraceLimits.maxEntries else {
+        if entries.count >= StepTraceLimits.maxEntries {
+            entries.removeFirst()
             dropped += 1
-            return
         }
         entries.append(StepTraceEntry(stage: stage.rawValue, facts: facts.mapValues(Self.clipped)))
     }
 
-    /// 結果へ載せる形。捨てた分があれば末尾に `trace-truncated` を足す
+    /// 結果へ載せる形。捨てた分があれば先頭に `trace-truncated`(捨てたのは最初の `dropped` 件)を置く
     public func finished() -> [StepTraceEntry] {
         guard dropped > 0 else { return entries }
-        return entries + [StepTraceEntry(stage: StepTraceStage.traceTruncated.rawValue,
-                                         facts: ["dropped": String(dropped)])]
+        return [StepTraceEntry(stage: StepTraceStage.traceTruncated.rawValue,
+                               facts: ["dropped": String(dropped)])] + entries
     }
 
     static func clipped(_ value: String) -> String {

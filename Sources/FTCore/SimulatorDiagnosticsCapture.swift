@@ -133,6 +133,10 @@ public enum SimulatorDiagnosticsCapture {
 
     /// 背景の統合ログの採取が終わるまで待つ(上限 `logShowTimeoutSeconds` + 余裕 5 秒。尽きたら待たずに戻り、ファイルは仮の行のまま)。
     /// 採取が無ければすぐ戻る。協調スレッドの上では呼ばない(同期で待つ)
+    /// すぐ終わる呼び手(起動の時間切れ・run の終わり)が統合ログを待つ上限(秒)。根拠: `log show` は 10 分ぶんで約 2 秒
+    /// (2026-11-25 実測)の 5 倍。尽きたら待たずに進む(ファイルは仮の行のまま = 止まった端末で終わりを延ばさない)
+    public static let exitWaitSeconds: TimeInterval = 10
+
     @discardableResult
     public static func waitForPendingLogs(timeout: TimeInterval = logShowTimeoutSeconds + 5) -> Bool {
         pendingLogs.wait(timeout: .now() + timeout) == .success
@@ -223,29 +227,34 @@ public enum SimulatorDiagnosticsCapture {
     /// 1件約 160 KB × 50 = 約 8 MB で頭打ちにする。超えたら古いものから消す(run の結果フォルダは run ごと掃除される)
     static let maxFilesPerDirectory = 50
 
-    static func pruneOldest(in dir: URL, keep: Int = maxFilesPerDirectory) {
+    /// 書き終えた `.txt` だけ数えて消す(Foundation の書き直しの一時ファイルに触れない)。背景の書き直しがまだありうる新しいもの
+    /// (`logShowTimeoutSeconds` 以内)は消さない —— 消しても書き直しが作り直す。そのぶん一時的に上限を超えうる
+    static func pruneOldest(in dir: URL, keep: Int = maxFilesPerDirectory, now: Date = Date()) {
         let fm = FileManager.default
-        // 書き終えた `.txt` だけ数えて消す(Foundation の書き直しの一時ファイルに触れない)
         guard let names = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]))?
                 .filter({ $0.pathExtension == "txt" }),
               names.count > keep else { return }
         let dated = names.map { ($0, (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) }
-        for (url, _) in dated.sorted(by: { $0.1 > $1.1 }).dropFirst(keep) { try? fm.removeItem(at: url) }
+        for (url, date) in dated.sorted(by: { $0.1 > $1.1 }).dropFirst(keep)
+        where now.timeIntervalSince(date) > logShowTimeoutSeconds {
+            try? fm.removeItem(at: url)
+        }
     }
 
     /// `capture` を協調スレッドの外で走らせて待つ(async の回復の経路から呼ぶ口)。launchctl の照会は同期で最大 5 秒 + 子の終了猶予
     /// かかるので、協調スレッドを塞がない。起こし直す前の状態を採る順序は保つ(呼び手は待ってから起こし直す)。
     /// 文言は呼び手のスレッドで出す(`log` を別スレッドへ渡さない)
-    /// `waitForLog`: 統合ログを書き終えるまで待つ(呼び手がこの後すぐ投げて終わりうる経路 = 起動の時間切れ)
+    /// `waitForLog`: この採取の統合ログを書き終えるまで最大 `exitWaitSeconds` 待つ(呼び手がこの後すぐ投げて終わりうる経路 = 起動の時間切れ)
     public static func captureOffCooperativePool(udid: String, reason: String, fallbackDirectory: URL?,
                                                  waitForLog: Bool = false) async
         -> (url: URL?, messages: [String]) {
         await withCheckedContinuation { continuation in
             let thread = Thread {
                 let messages = LockedValue<[String]>([])
+                let done = DispatchSemaphore(value: 0)  // **この採取の**書き終わり(他の端末の採取は待たない)
                 let url = capture(udid: udid, reason: reason, fallbackDirectory: fallbackDirectory,
-                                  log: { line in messages.withLock { $0.append(line) } })
-                if waitForLog, url != nil { waitForPendingLogs() }
+                                  log: { line in messages.withLock { $0.append(line) } }, completion: { done.signal() })
+                if waitForLog, url != nil { _ = done.wait(timeout: .now() + exitWaitSeconds) }
                 continuation.resume(returning: (url, messages.value))
             }
             thread.name = "fleetest-simulator-diagnostics-head"

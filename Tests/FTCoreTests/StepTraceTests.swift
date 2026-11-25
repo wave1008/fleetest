@@ -24,8 +24,10 @@ final class StepTraceTests: XCTestCase {
         }
         let finished = buffer.finished()
         XCTAssertEqual(finished.count, StepTraceLimits.maxEntries + 1)
-        XCTAssertEqual(finished.dropFirst(StepTraceLimits.maxEntries - 1).first?.facts["n"], "15")
-        XCTAssertEqual(finished.last, StepTraceEntry(stage: "trace-truncated", facts: ["dropped": "3"]))
+        // 古い方から捨てる: 先頭に印・残るのは最後の 16 件(n = 3〜18)
+        XCTAssertEqual(finished.first, StepTraceEntry(stage: "trace-truncated", facts: ["dropped": "3"]))
+        XCTAssertEqual(finished[1].facts["n"], "3")
+        XCTAssertEqual(finished.last?.facts["n"], String(StepTraceLimits.maxEntries + 2))
     }
 
     func testExactlyTheLimitHasNoMarker() {

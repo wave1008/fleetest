@@ -498,7 +498,7 @@ kernelの`IODARTFamily` / `VM exhausted`を時刻で照合する。2008だけで
 (数値・枠・id・Bool)を段ごとに1件残す。**事実だけ**(原因の推測・分類を書かない)。欄が無い = その段に入らなかったか測っていない
 (互換の読み替えは置かず、プロトコル版も上げない)。`ScenarioEvent.trace` → `StepResult.trace` → 結果 JSON の経路で、`api results` の
 パック(`trimmedForStorage`)は落とす。`StepTraceEntry` = `{ "stage": "<段>", "facts": { "<キー>": "<値>" } }`(facts はキー昇順・値は文字列)。
-**上限**(`StepTraceLimits`): 1ステップ16件・1値240文字(末尾を `…` で切る)。16件を超えた分は捨て、末尾に `trace-truncated`(`dropped` = 捨てた数)を1件足す。
+**上限**(`StepTraceLimits`): 1ステップ16件・1値240文字(末尾を `…` で切る)。16件を超えたら**古い方から**捨て(赤を決めたのは最後の試み)、先頭に `trace-truncated`(`dropped` = 捨てた最初の件数)を1件置く。**`ocr-near-miss` の facts は画面の文字(FM・OCR が読んだ文字)を含む** —— ステップの説明(`textIs "…"`)・失敗の文(actual)と同じく、結果 JSON は画面の文字を持つ前提で扱う。
 枠は `x,y wxh`(ft_snapshot の単位。無いときは `none`)、Bool は `true` / `false`。
 
 | stage | いつ残るか | facts のキー |
