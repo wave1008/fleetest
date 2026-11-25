@@ -1537,6 +1537,12 @@ public struct BridgeProvisioner: Sendable {
                     }
                     try await Task.detached(priority: .userInitiated) {
                         try SimulatorBoot.ensureBooted(udid: sim.udid, log: log)
+                        // ランナーを起こす前だけ(SpringBoard の起こし直しはランナーも落とす)。外観を届けない SpringBoard は
+                        // 起動の時点で決まり、そのまま使い続けると外観を変えるシナリオが毎回 display-not-applied で払う
+                        if case .unchecked(let why) = SimulatorAppearanceArbiter.ensureResponsive(
+                            udid: sim.udid, log: { log("\(name): \($0)") }) {
+                            log("\(name): could not check whether SpringBoard applies appearance changes (\(why))")
+                        }
                     }.value
                     supplyStage?(name, "ios", .bridge)
                 }
