@@ -263,11 +263,22 @@ extension StepExecutor {
             }
             return .next
         }
+        if await coveredInPaintRanks(e) { noteCodesThisStep.insert(.coveredByFrontElementFromSemantics) }
         let clock = ContinuousClock()
         let start = clock.now
         if await coverReadOnScreen(e, phase: &phase) != nil { noteCodesThisStep.insert(.coveredByFrontElementReadOnScreen) }
         phase.ocrMs += Self.ms(clock.now - start)
         return .next
+    }
+
+    /// 中心を覆う要素(`OcclusionGeometry.overlayCovering`・木の順を手前と見ない)が、名指しを止める組(`OccluderNaming`)で、
+    /// アプリの VM サービスの塗り順(DR-235)では対象より手前か。聞くのは覆いの候補がある回だけ(普通の検証に往復を足さない)
+    func coveredInPaintRanks(_ e: VisibilityEvidence) async -> Bool {
+        guard isAndroid,
+              let cover = OcclusionGeometry.overlayCovering(e.element, in: e.elements, screen: e.screen, paintOrderIsReal: false),
+              !OccluderNaming.mayName(occluder: cover, target: e.element, isAndroid: isAndroid, framework: uiFramework),
+              let ranks = await paintRanks(elements: e.elements, app: nil) else { return false }
+        return ranks.inFront(cover, of: e.element) == true
     }
 
     /// 対象の中心に、ラベルを持つ別の要素が重なっている(祖先・子孫 = 枠が他方を丸ごと含む形は除く)とき、対象の枠を OCR で1回読み、

@@ -84,25 +84,70 @@ extension StepExecutor {
         let base = OccluderNamingContext(isAndroid: isAndroid, framework: uiFramework, paintRanks: nil)
         let first = compute(base)
         guard suppressed(first) else { return first }
-        let signature = Self.contentSignature(snapshot.elements)
-        if fetch, isAndroid, paintRanksCache?.signature != signature {
-            let response = await driver.semanticsOrder()
-            let answer = PaintRankAnswer.make(response: response, elements: snapshot.elements)
-            paintRanksCache = (signature, answer)
-            if answer == nil {
-                noteCodesThisStep.insert(.semanticsOrderUnavailable)
-                traceThisStep.append(.semanticsOrder, ["outcome": "unavailable",
-                                                       "reason": response?.reason ?? (response == nil ? "no-response" : "tree-mismatch")])
-            } else {
-                traceThisStep.append(.semanticsOrder, ["outcome": "answered"])
-            }
-        }
+        if fetch { _ = await paintRanks(for: snapshot) }
         let naming = occluderNaming(for: snapshot.elements)
         guard naming.paintRanks != nil else { return first }
         let again = compute(naming)
         if !suppressed(again) { noteCodesThisStep.insert(.occluderOrderFromSemantics) }
         return again
     }
+
+    /// その木の塗り順の答え(DR-235)。控えが無ければ聞く(Android だけ)。**呼ぶのは木を撮った直後(撃つ前・検証の段)だけ** ——
+    /// ブリッジの ref は直近の木の中でだけ有効(違えば `make` が捨てる)。答えの木が違った回は控えない(同じ内容の木で次に聞けば合いうる)
+    func paintRanks(for snapshot: SnapshotResponse) async -> PaintRankAnswer? {
+        await paintRanks(elements: snapshot.elements, app: snapshot.sessionBundleID)
+    }
+
+    /// `app` = 木のアプリ(`sessionBundleID`。無ければ起こしたアプリ)。VM サービスが無いと答えたアプリの控えの鍵
+    func paintRanks(elements: [ElementInfo], app: String?) async -> PaintRankAnswer? {
+        guard isAndroid else { return nil }
+        let signature = Self.contentSignature(elements)
+        if let cached = paintRanksCache, cached.signature == signature { return cached.answer }
+        let response = await askSemanticsOrder(elements: elements, app: app)
+        let answer = PaintRankAnswer.make(response: response, elements: elements)
+        if answer == nil {
+            noteCodesThisStep.insert(.semanticsOrderUnavailable)
+            traceThisStep.append(.semanticsOrder, ["outcome": "unavailable", "reason": Self.unavailableReason(response)])
+            // ブリッジが答えられないと言った回だけ控える(木の食い違いは控えない)
+            if response?.reason != nil { paintRanksCache = (signature, nil) }
+        } else {
+            traceThisStep.append(.semanticsOrder, ["outcome": "answered"])
+            paintRanksCache = (signature, answer)
+        }
+        return answer
+    }
+
+    /// 足跡の理由: ブリッジの語彙(`reason`)か、ホストで使えなかった理由(no-response = 答えが返らない・旧ブリッジ /
+    /// unusable-answer = 答えの中心がホストの木と合わない・ダンプに対応する要素が無い)
+    static func unavailableReason(_ response: SemanticsOrderResponse?) -> String {
+        guard let response else { return "no-response" }
+        return response.reason ?? "unusable-answer"
+    }
+
+    /// ブリッジの `POST /semanticsorder` を聞く唯一の口。同じ木なら控えを返す・VM サービスが無いと答えたアプリへは聞かない。
+    /// **ダンプを使う呼び手も `PaintRankAnswer.make` が通った答えだけを信じる**(ダンプは聞いた瞬間のもの = 木と同じ時点かは中心の照合でしか言えない)
+    func askSemanticsOrder(elements: [ElementInfo], app: String?) async -> SemanticsOrderResponse? {
+        let signature = Self.contentSignature(elements)
+        if let cached = semanticsOrderCache, cached.signature == signature { return cached.response }
+        // アプリが分からない木(検証の段は bundle ID を持たない)では控えを引かず、残さない(起こしたアプリで代用すると、別のアプリの答えで
+        // 起こしたアプリを「VM サービス無し」と覚える)
+        if let known = semanticsOrderUnavailableApp, known == app {
+            return SemanticsOrderResponse(dump: nil, nodes: nil, reason: Self.noVMServiceReason)
+        }
+        let response = await driver.semanticsOrder()
+        if response?.reason == Self.noVMServiceReason, let app { semanticsOrderUnavailableApp = app }
+        // 控えるのは、ブリッジが答えられないと言った回と、答えがこの木のもの(中心が合う)回だけ。食い違った答えは控えない
+        // (同じ内容の木を次に撮れば、ブリッジの直近の木と合いうる)。理由付きの答えはブリッジの直近の木についてで、ホストの木と同じかは
+        // 確かめられない(別の呼び手が間に撮った木の答えが混ざりうる)が、倒れる先は答え無し = DR-230 のまま
+
+        if response?.reason != nil || PaintRankAnswer.make(response: response, elements: elements) != nil {
+            semanticsOrderCache = (signature, response)
+        }
+        return response
+    }
+
+    /// ブリッジの理由の語彙(FlutterSemanticsOrder.java の REASON_NO_VM_SERVICE と同じ綴り。`SemanticsOrderWireSyncTests`)
+    static let noVMServiceReason = "no-vm-service"
 
     /// `TapTargetGeometry.occlusionAdvisory` の文言を返し、名指しを抑えたら事実として注記 `occluderNamingSuppressed` を残す
     func occlusionAdvisoryNoted(for element: ElementInfo, in snapshot: SnapshotResponse) async -> String? {

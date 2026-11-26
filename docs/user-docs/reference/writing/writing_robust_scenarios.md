@@ -94,10 +94,11 @@ element can be hit there, and fails without pressing if the answer is "no". A "y
 however (for example a row behind a half-height sheet in SwiftUI), so this check does not replace
 verifying the result after the tap.
 
-When a Flutter app on Android runs as a debug or profile build, the tool reads which element is drawn in
-front from the app's development interface (the Dart VM service). If another element is in front of the one
-you tapped, the step note and the failure message name that element (how the tap is made and whether the
-step passes do not change). A release build does not offer this, so check the result after the tap as above.
+Flutter apps on Android have the same gap in the element list. When such an app runs as a debug or profile
+build, the tool reads which element is drawn in front from the app's development interface (the Dart VM
+service). If another element is in front of the one you tapped, the step note and the failure message name
+that element (how the tap is made and whether the step passes do not change). A release build does not offer
+this, and even a debug build cannot always answer, so check the result after the tap.
 
 ## Never retry an irreversible action
 

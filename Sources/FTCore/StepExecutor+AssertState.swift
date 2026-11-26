@@ -180,7 +180,7 @@ extension StepExecutor {
                         "the count", step: step,
                         evidence: Self.ceilingTruncationEvidence(snapshot)))
                 }
-                if expectedCount == 0 { noteAbsenceBehindModal(snapshot, step: step) }
+                if expectedCount == 0 { await noteAbsenceBehindModal(snapshot, step: step) }
                 if ViewportCount.dependsOnViewport(matches: breakdown.flatMap(\.elements), in: snapshot.elements) {
                     noteCodesThisStep.insert(.countInScrollingList)
                 }

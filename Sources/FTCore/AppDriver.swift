@@ -207,7 +207,7 @@ public protocol AppDriver {
     func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse?
     /// 直近の木について、Android の Flutter のアプリの VM サービスが答えた塗り順(Android ブリッジの POST /semanticsorder。DR-235)。
     /// 答えられない(Android でない・旧ブリッジ・通信断)は nil(答えられない理由はブリッジが `reason` で返す)。**包むドライバは素通しすること**・
-    /// **プロトコル要件として宣言すること**(touchLands と同じ理由)。**名指しの出口だけが使う**(判定と撃ち方には使わない)
+    /// **プロトコル要件として宣言すること**(touchLands と同じ理由)。**名指しの出口と合否を変えない注記だけが使う**(判定と撃ち方には使わない)
     func semanticsOrder() async -> SemanticsOrderResponse?
     /// in-app ブリッジのアプリの `UIApplication.applicationState`("active" / "inactive" / "background")を短い上限で聞く。
     /// 答えられない(in-app でない・停止して答えない・通信断)は nil。**プロトコル要件として宣言すること**(touchLands と同じ理由)。

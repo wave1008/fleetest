@@ -236,6 +236,11 @@ extension StepExecutor {
             let kindResult = await resolvingPaintOrder(snapshot, fetch: true, {
                 TapTargetGeometry.advisoryKindResult(for: element, in: snapshot.elements, screen: snapshot.screen, naming: $0)
             }, suppressed: \.namingSuppressed)
+            // 塗り順の答え(DR-235)は名指しだけに使う: 答えが無ければ抑えていた組は、下の推定した容器の門(OI-282)も閉じたまま
+            let suppressedWithoutPaintOrder = kindResult.namingSuppressed
+                || TapTargetGeometry.advisoryKindResult(
+                    for: element, in: snapshot.elements, screen: snapshot.screen,
+                    naming: OccluderNamingContext(isAndroid: isAndroid, framework: uiFramework, paintRanks: nil)).namingSuppressed
             if case .overlayCovering(let over)? = kindResult.kind {
                 suspect = over
             }
@@ -299,7 +304,7 @@ extension StepExecutor {
             if suspect == nil,
                let container = ContainerGeometry.clippingContainer(of: element, in: snapshot.elements,
                                                                    inferring: step.containerInference ?? true),
-               !kindResult.namingSuppressed
+               !suppressedWithoutPaintOrder
                    || TapTargetGeometry.isDeclaredScrollerFrame(container, in: snapshot.elements) {
                 suspect = TapTargetGeometry.pinnedBandCovering(element, in: snapshot.elements, container: container)
             }

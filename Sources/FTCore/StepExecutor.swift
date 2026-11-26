@@ -415,6 +415,9 @@ public final class StepExecutor {
 
     public func noteAppLaunched(bundleID: String? = nil) {
         if let bundleID { launchedBundleID = bundleID }
+        semanticsOrderUnavailableApp = nil
+        semanticsOrderCache = nil
+        paintRanksCache = nil
         armUnregisteredSystemAlertProbe()
         firstFrameGatePending = true
         pendingLaunchSettle = true
@@ -1231,7 +1234,9 @@ public final class StepExecutor {
     /// **書き手への警告として足した注記(合否を変えない)はここに載せる** —— 載せ忘れると結果 JSON のコードにしか出ず、レポートでは
     /// 注記の無い ✅ に見える(40周目 iultra F1・im4 F1: absence-behind-modal / covered-by-front-element)
     static let readerFacingNotes: [StepNote] = [.ordinalWithoutScope, .absenceCheckedOnAnotherApp, .absenceBehindModal,
-                                                .coveredByFrontElement, .coveredByFrontElementReadOnScreen, .typeFocusNotReported,
+                                                .absenceBehindFlutterDialog,
+                                                .coveredByFrontElement, .coveredByFrontElementReadOnScreen,
+                                                .coveredByFrontElementFromSemantics, .typeFocusNotReported,
                                                 .countInScrollingList]
     private func readerNotesText() -> String? {
         Self.joinNotes(Self.readerFacingNotes.filter { noteCodesThisStep.contains($0) }.map { note in
@@ -1396,6 +1401,12 @@ public final class StepExecutor {
     var actsOnFallbackTreeThisStep = false
     /// 塗り順の答え(DR-235)の控え。木の内容の署名(`contentSignature`)ごとに1つ = 同じ木で2回聞かない(答えが nil でも控える)
     var paintRanksCache: (signature: String, answer: PaintRankAnswer?)?
+    /// ブリッジの `/semanticsorder` の答えの控え(木の内容の署名ごとに1つ)。塗り順とダイアログの確かめが同じ木で2回聞かない
+    var semanticsOrderCache: (signature: String, response: SemanticsOrderResponse?)?
+    /// ブリッジが「VM サービスが無い」(`no-vm-service`。release のビルド・ログに URI が無い)と答えたアプリ(木の `sessionBundleID`)。
+    /// そのアプリへは聞き直さない(聞くたびにブリッジが pidof と logcat を読む)。アプリを起こし直したら捨てる(`noteAppLaunched`。新しい pid は
+    /// ログに URI を出し直す)
+    var semanticsOrderUnavailableApp: String?
     /// 足跡用: 直近のスクロール探索で最後に撃った1本の種類(`swipe` = 払い・`*-drag` / `*-swipe` = 寄せなどの回復)と、
     /// 内容が動いた容器。`runScrollSearch` の入口で捨てる。判定には使わない
     var scrollTraceLastSend = "none"

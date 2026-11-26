@@ -20,7 +20,7 @@ public enum StepTraceStage: String, CaseIterable, Sendable {
     case ocrNearMiss = "ocr-near-miss"
     /// 可視性検証の `notRendered` の赤の後の白紙の公表(`publishScreenStateAfterNotRendered`)がどこまで進んだか
     case screenStatePublish = "screen-state-publish"
-    /// 名指しを抑える組で塗り順(DR-235)を聞いた結果(`outcome` = answered / unavailable、答えが無ければブリッジの `reason`)
+    /// 塗り順(DR-235)を聞いた結果(名指しを抑える組・検証の注記の確かめ)(`outcome` = answered / unavailable、答えが無ければブリッジの `reason`)
     case semanticsOrder = "semantics-order"
     /// 上限を超えて捨てた足跡の数(`dropped`)。`StepTraceBuffer` だけが置く
     case traceTruncated = "trace-truncated"

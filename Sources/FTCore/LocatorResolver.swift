@@ -638,6 +638,17 @@ public enum LocatorResolver {
     /// 外しても照合の結果は変わらない
     static let splitTextSameLineTolerance: Double = 4
 
+    /// ロケータのスコープ(`>>`)の最内の容器が木に在るか(スコープが無ければ偽)
+    public static func scopeContainerResolves(_ step: FlowStep, in snapshot: SnapshotResponse) -> Bool {
+        guard let scope = step.locator?.scope, !scope.isEmpty else { return false }
+        var pool = snapshot.elements
+        for locator in scope {
+            guard let (found, _) = matchDetailed(locator, elements: pool) else { return false }
+            pool = scopeDescendants(of: found, in: snapshot.elements)
+        }
+        return true
+    }
+
     /// スコープ `>>` の容器の子孫。**木に出した祖先の数(`ElementInfo.keptDepth`)で引く** —— `descendants` の depth は
     /// 出さなかった入れ物も数えるので、葉の直後に並ぶ「出さなかった兄弟の入れ物」の中身が葉の子孫に見え、
     /// 中身を持たない要素を容器にした `>>` が別の要素を押して ✅ になった。木に1つでも keptDepth の無い要素が

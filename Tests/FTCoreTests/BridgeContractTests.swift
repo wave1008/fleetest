@@ -192,7 +192,7 @@ final class BridgeContractTests: XCTestCase {
             "AndroidRunner/src/com/example/ftbridge/BridgeRouter.java": "6fa0497aef7343f232b02185da9842b8c47be772cf209919ad51b3977d5e17f2",
             "AndroidRunner/src/com/example/ftbridge/DisplayHeartbeat.java": "77528d6e36f12d477cc3dfe4d9920f5ce69ad7912bc2461b698ace89a0ba6808",
             "AndroidRunner/src/com/example/ftbridge/FirstFrameState.java": "378cd2f84f8fa12de57da78bc19354933bf10ef32691d0225c6950b52109770a",
-            "AndroidRunner/src/com/example/ftbridge/FlutterSemanticsOrder.java": "363b1a7da1e812e8a13592344b76249546c7f0924ee58ddee66503a18357621a",
+            "AndroidRunner/src/com/example/ftbridge/FlutterSemanticsOrder.java": "62bc8109fb910c1599621d85481fb58e3ea28160d23fedc8f263c950cd7ae20b",
             "AndroidRunner/src/com/example/ftbridge/ImeOnboarding.java": "fe2d90d892046f64e4893c008148d47886e36bceb244dd9e68e560b368f0193b",
             "AndroidRunner/src/com/example/ftbridge/InputInjector.java": "e6551ba915adff55978f064ab9de36683b1920c3a5e2cdaec736208682c83181",
             "AndroidRunner/src/com/example/ftbridge/KeyboardPrimerActivity.java": "f5a4751486cd8349a8f10b65332d6a3e1d77c3d82e0528e8518ec646aad152d9",

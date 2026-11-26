@@ -254,6 +254,10 @@ final class FakeAppDriver: AppDriver {
     /// tapProbe の答え(nil = 答えられない = 既定のドライバと同じ)
     var tapProbeAnswer: TapProbeResponse?
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { tapProbeAnswer }
+    /// semanticsOrder の答え(nil = 答えられない = 既定のドライバと同じ)と、聞かれた回数
+    var semanticsOrderAnswer: SemanticsOrderResponse?
+    private(set) var semanticsOrderCalls = 0
+    func semanticsOrder() async -> SemanticsOrderResponse? { semanticsOrderCalls += 1; return semanticsOrderAnswer }
     /// 座標タップの後に呼ぶ(キーボードが閉じる形を表すのに使う)
     var afterCoordinateTap: (() -> Void)?
     func tap(x: Double, y: Double) async throws {

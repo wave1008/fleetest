@@ -146,6 +146,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 読めなかった(`StepExecutor.coverReadOnScreen`)。合否は変えない(**新しい検知なので警告から**)。E2EY-Flutter の Android の
     /// 半分のシートの裏の行への exist / textIs が注記なしの ✅ だった(tap の側は `unnamedCoverCaution`)
     case coveredByFrontElementReadOnScreen = "covered-by-front-element-read-on-screen"
+    /// 塗り順の分からない木(Android の Flutter)で、検証が通った要素の中心を覆う要素が、アプリの VM サービスの塗り順(DR-235)では
+    /// 手前だった。合否は変えない(**新しい検知なので警告から**)。ラベルの無い覆い(下のバー)でも言える(画素の読み = 上の注記は
+    /// 覆いのラベルが要る)。答えが無い(release のビルド等)ときは立たない
+    case coveredByFrontElementFromSemantics = "covered-by-front-element-from-semantics"
     /// 撃つ前の確かめで、座標で撃った tap の対象の枠に、重なる別の要素の文字が描かれていた(自分の文字は読めなかった)。
     /// 中心への タッチはその要素に当たったかもしれない。合否は変えない(**新しい検知なので警告から**)。
     /// Flutter の Android のオートコンプリートの候補は木の枠が描画より上にずれ、中心に欄が描かれて押すと欄に当たった(緑のまま選ばれない)
@@ -160,6 +164,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 否定の検証(notExist・count 0)が、手前のダイアログが裏を木から隠している木で通った(iOS の in-app の `modalScope`・
     /// `coveredByFrontWindow`・Android のアプリ自身のダイアログの窓)。合否は変えない(木に無ければ緑)。裏の要素を確かめるならダイアログを閉じてから(39周目 iultra F2・amax F1)
     case absenceBehindModal = "absence-behind-modal"
+    /// 否定の検証が、Android の Flutter のアプリの VM サービスのダンプがダイアログの役割を申告している間に通った(DR-235・OI-200)。
+    /// Flutter はダイアログの間、裏の画面を木から外す。合否は変えない(**新しい検知なので警告から**)。答えが無い(release 等)ときは立たない
+    case absenceBehindFlutterDialog = "absence-behind-flutter-dialog"
 
     /// 自己修復(指紋照合)が代わりの要素を見つけたのに、**この画面でそれを一意に指せる書き方が無い**
     /// (`SelectorNaming.graded` が nil)。操作はその要素で続けるが、修正提案は作らない ——
@@ -676,7 +683,7 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "the tree did not appear to cover the whole screen when this was judged, so an"
                 + " absence here is not evidence"
         case .backIneffective: return BackEffect.note(advice: BackEffect.dslAdvice)
-        case .absenceBehindModal:
+        case .absenceBehindModal, .absenceBehindFlutterDialog:
             return "a dialog or window in front of the screen keeps what is behind it out of the tree, so this absence may only mean"
                 + " the element is behind it; close the dialog first to check what is behind it"
         case .tapTargetDrawnOver:
@@ -684,6 +691,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " so the touch at its centre may have landed on that element"
         case .coverReadBudgetExhausted:
             return "whether an overlapping element is drawn in front was not checked: the OCR read ran out of its time budget"
+        case .coveredByFrontElementFromSemantics:
+            return "the element is in the tree, but another element that overlaps its centre is drawn in front of it (as the app's"
+                + " Dart VM service reports), so it may not be visible to a person"
         case .coveredByFrontElementReadOnScreen:
             return "the element is in the tree, but the text drawn where it is belongs to another element that overlaps it"
                 + " (its own text was not read there), so that element is drawn in front of it and it may not be visible to a person"

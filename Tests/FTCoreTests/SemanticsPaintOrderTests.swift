@@ -177,3 +177,172 @@ final class SemanticsPaintOrderTests: XCTestCase {
     static let expectedCleared = 9
     static let expectedKept = 3
 }
+
+/// 実行機の上の配線(DR-235): 検証の V3 で、覆いが塗り順で手前なら注記を立てる・名指せる組や覆いの無い要素では聞かない
+final class SemanticsPaintOrderExecutorTests: XCTestCase {
+    private func el(_ ref: Int, _ id: String, y: Double, height: Double = 100) -> ElementInfo {
+        ElementInfo(ref: ref, type: "button", identifier: id, label: id, value: nil, placeholder: nil,
+                    enabled: true, frame: FTRect(x: 0, y: y, width: 400, height: height), depth: 1)
+    }
+    private let screen = FTRect(x: 0, y: 0, width: 400, height: 800)
+
+    private func executor(answerFront front: ElementInfo, back: ElementInfo, framework: AppUIFramework) -> (StepExecutor, FakeAppDriver) {
+        let driver = FakeAppDriver(name: "p", log: CallLog())
+        driver.semanticsOrderAnswer = SemanticsOrderResponse(
+            dump: "SemanticsNode#0\n ├─SemanticsNode#\(back.ref + 10)\n └─SemanticsNode#\(front.ref + 10)\n",
+            nodes: [front, back].map { .init(ref: $0.ref, semanticsId: $0.ref + 10, cx: $0.frame.centerX, cy: $0.frame.centerY) },
+            reason: nil)
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: framework)
+        return (executor, driver)
+    }
+
+    private func evidence(_ target: ElementInfo, _ elements: [ElementInfo]) -> VisibilityEvidence {
+        VisibilityEvidence(element: target, expectedText: target.label ?? "", elements: elements, screen: screen,
+                           keyboardShown: false, looseMatch: false, expectedIsUserText: false, perStepGuard: nil)
+    }
+
+    func testCoverInFrontOnFlutterIsReported() async {
+        let row = el(1, "row", y: 300), sheet = el(2, "sheet_row", y: 320)
+        let (executor, driver) = executor(answerFront: sheet, back: row, framework: .flutter)
+        let covered = await executor.coveredInPaintRanks(evidence(row, [row, sheet]))
+        XCTAssertTrue(covered)
+        XCTAssertEqual(driver.semanticsOrderCalls, 1)
+        let again = await executor.coveredInPaintRanks(evidence(row, [row, sheet]))
+        XCTAssertTrue(again)
+        XCTAssertEqual(driver.semanticsOrderCalls, 1, "同じ木で2回聞かない")
+        executor.noteAppLaunched(bundleID: "com.example.flutter")
+        XCTAssertNil(executor.paintRanksCache, "起こし直したら塗り順の控えも捨てる")
+        XCTAssertNil(executor.semanticsOrderCache)
+    }
+
+    func testAnswerForAnotherTreeIsDroppedButNotRemembered() async {
+        let row = el(1, "row", y: 300), sheet = el(2, "sheet_row", y: 320)
+        let (executor, driver) = executor(answerFront: sheet, back: row, framework: .flutter)
+        let moved = el(2, "sheet_row", y: 340)
+        let stale = await executor.coveredInPaintRanks(evidence(row, [row, moved]))
+        XCTAssertFalse(stale, "答えの中心がこの木と合わない = 捨てる")
+        _ = await executor.coveredInPaintRanks(evidence(row, [row, moved]))
+        XCTAssertEqual(driver.semanticsOrderCalls, 2, "食い違った答えは控えない = 同じ内容の木を次に撮れば聞き直す")
+        XCTAssertNil(executor.paintRanksCache, "木の食い違いは塗り順の控えに残さない")
+        XCTAssertEqual(StepExecutor.unavailableReason(driver.semanticsOrderAnswer), "unusable-answer")
+        XCTAssertEqual(StepExecutor.unavailableReason(nil), "no-response")
+    }
+
+    func testCoverBehindOrNameablePairIsNotReportedAndNotAsked() async {
+        let row = el(1, "row", y: 300), sheet = el(2, "sheet_row", y: 320)
+        let (behind, _) = executor(answerFront: row, back: sheet, framework: .flutter)
+        let notCovered = await behind.coveredInPaintRanks(evidence(row, [row, sheet]))
+        XCTAssertFalse(notCovered, "覆いが奥なら言わない")
+        let (compose, composeDriver) = executor(answerFront: sheet, back: row, framework: .compose)
+        let composeCovered = await compose.coveredInPaintRanks(evidence(row, [row, sheet]))
+        XCTAssertFalse(composeCovered)
+        XCTAssertEqual(composeDriver.semanticsOrderCalls, 0, "名指せる組(塗り順のある木の側)では聞かない")
+        let far = el(3, "far", y: 600)
+        let (alone, aloneDriver) = executor(answerFront: sheet, back: row, framework: .flutter)
+        let aloneCovered = await alone.coveredInPaintRanks(evidence(far, [row, sheet, far]))
+        XCTAssertFalse(aloneCovered)
+        XCTAssertEqual(aloneDriver.semanticsOrderCalls, 0, "覆いの無い要素では聞かない")
+    }
+}
+
+/// OI-200 ①(DR-235): Android の Flutter のダイアログの間の否定の検証に注記。材料はダンプのダイアログの役割だけ
+final class FlutterDialogAbsenceTests: XCTestCase {
+    private static let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Fixtures/FlutterSemanticsOrder")
+
+    func testOnlyTheDialogDumpPresentsADialog() throws {
+        func dump(_ name: String) throws -> String {
+            try String(contentsOf: Self.fixtures.appendingPathComponent("\(name)-dump.txt"), encoding: .utf8)
+        }
+        XCTAssertTrue(FlutterSemanticsDump.presentsDialog(dump: try dump("dialog")), "破棄の確認ダイアログ(role: alertDialog)")
+        for name in ["half", "fab", "hide"] {
+            XCTAssertFalse(FlutterSemanticsDump.presentsDialog(dump: try dump(name)), "\(name): シート・FAB・バーはダイアログではない")
+        }
+    }
+
+    /// 下の `snapshot` の要素(枠 0,0 100x50)に、ダンプの「編集を続ける」のボタン(SemanticsNode#95)を対応させた答えの節
+    private static let keepButtonNode: [SemanticsOrderResponse.Node] = [.init(ref: 1, semanticsId: 95, cx: 50, cy: 25)]
+
+    private func snapshot(renderer: String?, app: String = "com.example.flutter", label: String = "編集を続ける") -> SnapshotResponse {
+        var e = ElementInfo(ref: 1, type: "button", identifier: "btn_keep", label: label, value: nil, placeholder: nil,
+                            enabled: true, frame: FTRect(x: 0, y: 0, width: 100, height: 50), depth: 1)
+        e.renderer = renderer
+        return SnapshotResponse(sessionBundleID: app, screen: FTRect(x: 0, y: 0, width: 400, height: 800), elements: [e], truncatedCount: 0)
+    }
+
+    func testNoteFollowsTheDumpAndIsNotAskedOutsideVirtualTrees() async throws {
+        let dialog = try String(contentsOf: Self.fixtures.appendingPathComponent("dialog-dump.txt"), encoding: .utf8)
+        let driver = FakeAppDriver(name: "p", log: CallLog())
+        driver.semanticsOrderAnswer = SemanticsOrderResponse(dump: dialog, nodes: Self.keepButtonNode, reason: nil)
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        await executor.noteAbsenceBehindModal(snapshot(renderer: "virtual"))
+        XCTAssertTrue(executor.noteCodesThisStep.contains(.absenceBehindFlutterDialog))
+
+        let otherTree = FakeAppDriver(name: "p", log: CallLog())
+        otherTree.semanticsOrderAnswer = SemanticsOrderResponse(
+            dump: dialog, nodes: [.init(ref: 1, semanticsId: 95, cx: 50, cy: 400)], reason: nil)
+        let otherExecutor = StepExecutor(driver: otherTree, isAndroid: true, tunables: RunTunables())
+        await otherExecutor.noteAbsenceBehindModal(snapshot(renderer: "virtual"))
+        XCTAssertFalse(otherExecutor.noteCodesThisStep.contains(.absenceBehindFlutterDialog),
+                       "答えがこの木のものでなければダンプを信じない(後から開いたダイアログ)")
+
+        let viewDriver = FakeAppDriver(name: "p", log: CallLog())
+        viewDriver.semanticsOrderAnswer = SemanticsOrderResponse(dump: dialog, nodes: Self.keepButtonNode, reason: nil)
+        let viewExecutor = StepExecutor(driver: viewDriver, isAndroid: true, tunables: RunTunables())
+        await viewExecutor.noteAbsenceBehindModal(snapshot(renderer: "view"))
+        XCTAssertFalse(viewExecutor.noteCodesThisStep.contains(.absenceBehindFlutterDialog))
+        XCTAssertEqual(viewDriver.semanticsOrderCalls, 0, "仮想の要素の無い木では聞かない")
+    }
+
+    func testMissingVMServiceIsRememberedForTheScenario() async {
+        let driver = FakeAppDriver(name: "p", log: CallLog())
+        driver.semanticsOrderAnswer = SemanticsOrderResponse(dump: nil, nodes: nil, reason: "no-vm-service")
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        await executor.noteAbsenceBehindModal(snapshot(renderer: "virtual"))
+        await executor.noteAbsenceBehindModal(snapshot(renderer: "virtual", label: "別の木"))
+        XCTAssertEqual(driver.semanticsOrderCalls, 1, "VM サービスが無いと答えたアプリへ聞き直さない(木が変わっても)")
+        XCTAssertFalse(executor.noteCodesThisStep.contains(.absenceBehindFlutterDialog))
+        executor.noteAppLaunched(bundleID: "com.example.flutter")
+        await executor.noteAbsenceBehindModal(snapshot(renderer: "virtual"))
+        XCTAssertEqual(driver.semanticsOrderCalls, 2, "起こし直したアプリ(新しい pid)には聞き直す")
+        await executor.noteAbsenceBehindModal(snapshot(renderer: "virtual", app: "com.example.other", label: "4つ目"))
+        XCTAssertEqual(driver.semanticsOrderCalls, 3, "別のアプリには聞く")
+    }
+
+    func testScopedAbsenceInsideTheDialogIsNotNoted() async throws {
+        let dialog = try String(contentsOf: Self.fixtures.appendingPathComponent("dialog-dump.txt"), encoding: .utf8)
+        let driver = FakeAppDriver(name: "p", log: CallLog())
+        driver.semanticsOrderAnswer = SemanticsOrderResponse(dump: dialog, nodes: Self.keepButtonNode, reason: nil)
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables())
+        let step = FlowStep(assert: "notExists", locator: FlowLocator(id: "no_such", scope: [FlowLocator(id: "btn_keep")]))
+        await executor.noteAbsenceBehindModal(snapshot(renderer: "virtual"), step: step)
+        XCTAssertFalse(executor.noteCodesThisStep.contains(.absenceBehindFlutterDialog), "容器が木に在る = ダイアログの中の本物の不在")
+    }
+}
+
+
+/// ブリッジとホストで同期する語彙と、上限の既定値(DR-4)。Java の側はソースを読んで比べる
+final class SemanticsOrderWireSyncTests: XCTestCase {
+    private static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent()
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: Self.root.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    func testReasonSpellingMatchesTheBridge() throws {
+        let java = try source("AndroidRunner/src/com/example/ftbridge/FlutterSemanticsOrder.java")
+        XCTAssertTrue(java.contains("REASON_NO_VM_SERVICE = \"\(StepExecutor.noVMServiceReason)\""),
+                      "控えの鍵の語(no-vm-service)がブリッジと割れた = 控えが黙って効かなくなる")
+    }
+
+    func testBudgetsArePinned() throws {
+        XCTAssertEqual(PaintRankAnswer.centreTolerance, 1.0)
+        let java = try source("AndroidRunner/src/com/example/ftbridge/FlutterSemanticsOrder.java")
+        XCTAssertTrue(java.contains("HTTP_TIMEOUT_MS = 500;"))
+        XCTAssertTrue(java.contains("ANSWER_BUDGET_MS = 1500;"))
+        let client = try source("Sources/FTBridgeClient/BridgeClient.swift")
+        XCTAssertTrue(client.contains("static let semanticsOrderTimeout: TimeInterval = 5"),
+                      "ホストの上限はブリッジの答え全体の上限(1.5 秒)より長いこと")
+    }
+}

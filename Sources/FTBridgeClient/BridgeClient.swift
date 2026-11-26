@@ -887,7 +887,9 @@ public final class BridgeClient: AppDriver, Sendable {
     }
 
     /// POST /semanticsorder(Android ブリッジだけ。DR-235)。直近の /snapshot の木について、Flutter の VM サービスの塗り順を返す。
-    /// 失敗(旧ブリッジの 404・通信断)は nil。上限はブリッジの中の HTTP(1回 500ms・最大4回)と shell(pidof・logcat)を足して収まる 5 秒
+    /// 失敗(旧ブリッジの 404・通信断)は nil。上限 5 秒 = ブリッジの HTTP の締め切り(FlutterSemanticsOrder.java の ANSWER_BUDGET_MS 1.5 秒・
+    /// 最悪は約 2.5 秒)+ 上限を持てない shell(pidof・logcat)+ 前の要求の待ち。尽きたら nil = 今の挙動のまま(ブリッジは1本ずつ処理するので、
+    /// 尽きた後もブリッジ側は答え終えるまで次の要求を待たせる = ブリッジ側の締め切りが実際の砦)
     public func semanticsOrder() async -> SemanticsOrderResponse? {
         struct Empty: Encodable {}
         return try? await post("/semanticsorder", body: Empty(), timeout: Self.semanticsOrderTimeout)

@@ -53,7 +53,6 @@ final class OccluderNamingMCPTests: XCTestCase {
     }
 
     /// MCP の木の ref はブリッジの ref + 世代の基点(`nativeRef`)。答えの ref を写さないと全部が「木に無い」になり、答えごと捨てられる
-    /// (2026-11-26 のデバイスでの確かめで、MCP だけ名指しが戻らなかった)
     func testBridgeRefsAreShiftedIntoSessionRefs() {
         func el(_ ref: Int, y: Double) -> ElementInfo {
             ElementInfo(ref: ref, type: "button", identifier: "e\(ref)", label: nil, value: nil, placeholder: nil,

@@ -1,6 +1,6 @@
 // Android の Flutter のアプリ(debug / profile)の VM サービスから取った「塗り順」(DR-235)。
 // 同期相手: AndroidRunner/src/com/example/ftbridge/FlutterSemanticsOrder.java(POST /semanticsorder)。
-// **名指しの出口(`OccluderNaming`)だけが使う**。共有の幾何(`PaintOrder` ほか DR-230 の列挙)・撃ち方・合否には使わない。
+// **使うのは名指しの出口(`OccluderNaming`)と合否を変えない注記だけ**。共有の幾何(`PaintOrder` ほか DR-230 の列挙)・撃ち方・合否には使わない。
 // BridgeDTO.swift に置かない: あちらは iOS のブリッジの入力(`BridgeSourceSet`)で、触ると iOS の版まで上がる
 
 import Foundation
@@ -45,6 +45,19 @@ public enum FlutterSemanticsDump {
             order += 1
         }
         return out
+    }
+}
+
+extension FlutterSemanticsDump {
+    /// ダンプのどこかのノードが、ダイアログの役割(`role: dialog` / `role: alertDialog` = Flutter の `SemanticsRole`)を申告しているか。
+    /// フレームワーク自身の申告だけを見る(ラベル「Dismiss」・全面の押せる幕・型の形からは決めない)。
+    /// 実測(E2EY-Flutter の Android・戻るの横取りの破棄の確認): ダイアログの間のダンプは幕・`role: alertDialog`・ダイアログの中身だけで、
+    /// 裏の画面のノードは1つも無い
+    public static func presentsDialog(dump: String) -> Bool {
+        dump.split(separator: "\n").contains { line in
+            let body = line.drop(while: { $0 == " " || $0 == "│" || $0 == "├" || $0 == "└" || $0 == "─" })
+            return body == "role: dialog" || body == "role: alertDialog"
+        }
     }
 }
 

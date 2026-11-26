@@ -40,6 +40,13 @@ final class FlutterSemanticsOrder {
 
     /** 1回の HTTP の接続・読みそれぞれの上限(ms)。段0のスクロールの最中の最大 50.1ms の約10倍。尽きたら timeout を返す(ホストは今の挙動のまま) */
     private static final int HTTP_TIMEOUT_MS = 500;
+    /**
+     * 1回の答えの HTTP の締め切り(ms)。**ブリッジは要求を1本ずつ処理する**(BridgeHttpServer の accept ループ)ので、長引くと次の tap がこの後ろで
+     * 待つ。HTTP の呼び出しの前と読みの塊ごとに残りを見て、尽きていれば timeout を返す(残りが HTTP_TIMEOUT_MS より短ければその長さで撃つ)。
+     * 値は HTTP 3回(getVM・ダンプ・やり直しの1回)ぶん。**硬い上限ではない**: 接続・応答の頭・1回の読みはそれぞれ最大で残り(≤500ms)まで止まり
+     * うるので最悪は約 2.5 秒、さらに上限を持てない shell(pidof・logcat。静止時の実測で数十 ms)が乗る。ホストの上限(5 秒)はその外側
+     */
+    private static final long ANSWER_BUDGET_MS = 1500;
 
     private static final Pattern VM_URI = Pattern.compile(
             "The Dart VM service is listening on (http://127\\.0\\.0\\.1:\\d+/[^\\s]*/)");
@@ -88,18 +95,19 @@ final class FlutterSemanticsOrder {
         return new JSONObject().put("reason", reason);
     }
 
-    /** 控えで1回・失敗したら控えを捨ててやり直しで1回(timeout はやり直さない = 上限を2倍にしない) */
+    /** 控えで1回・失敗したら控えを捨ててやり直しで1回(timeout はやり直さない)。全体は ANSWER_BUDGET_MS の中 */
     private static String fetchDump(UiAutomation ua, String pkg) throws Failure {
+        long deadline = android.os.SystemClock.uptimeMillis() + ANSWER_BUDGET_MS;
         String pid = pidOf(ua, pkg);
         try {
-            return fetchOnce(ua, pid);
+            return fetchOnce(ua, pid, deadline);
         } catch (Failure first) {
             if (REASON_TIMEOUT.equals(first.reason) || REASON_NO_VM_SERVICE.equals(first.reason)) throw first;
             synchronized (cacheLock) {
                 uriByPid.remove(pid);
                 isolateByPid.remove(pid);
             }
-            return fetchOnce(ua, pid);
+            return fetchOnce(ua, pid, deadline);
         }
     }
 
@@ -114,7 +122,7 @@ final class FlutterSemanticsOrder {
         return out;
     }
 
-    private static String fetchOnce(UiAutomation ua, String pid) throws Failure {
+    private static String fetchOnce(UiAutomation ua, String pid, long deadline) throws Failure {
         String uri;
         synchronized (cacheLock) { uri = uriByPid.get(pid); }
         if (uri == null) {
@@ -131,64 +139,63 @@ final class FlutterSemanticsOrder {
         }
         String isolate;
         synchronized (cacheLock) { isolate = isolateByPid.get(pid); }
-        if (isolate != null) return dumpOf(uri, isolate);
-        JSONArray isolates = isolates(uri);
-        Failure last = new Failure(REASON_DUMP_FAILED);
-        // name が main を先に、無ければ順に
-        for (int pass = 0; pass < 2; pass++) {
-            for (int i = 0; i < isolates.length(); i++) {
-                JSONObject iso = isolates.optJSONObject(i);
-                if (iso == null) continue;
-                boolean isMain = "main".equals(iso.optString("name"));
-                if (isMain != (pass == 0)) continue;
-                String id = iso.optString("id", "");
-                if (id.isEmpty()) continue;
-                try {
-                    String dump = dumpOf(uri, id);
-                    synchronized (cacheLock) { isolateByPid.put(pid, id); }
-                    return dump;
-                } catch (Failure f) {
-                    if (REASON_TIMEOUT.equals(f.reason)) throw f;
-                    last = f;
-                }
-            }
+        if (isolate != null) return dumpOf(uri, isolate, deadline);
+        // Flutter の UI の isolate は name が main。無ければ先頭の1つだけ試す(isolate を総なめしない = 上限の中に収める)
+        JSONArray isolates = isolates(uri, deadline);
+        String id = null;
+        for (int i = 0; i < isolates.length() && id == null; i++) {
+            JSONObject iso = isolates.optJSONObject(i);
+            if (iso != null && "main".equals(iso.optString("name"))) id = iso.optString("id", null);
         }
-        throw last;
+        if (id == null && isolates.length() > 0 && isolates.optJSONObject(0) != null) {
+            id = isolates.optJSONObject(0).optString("id", null);
+        }
+        if (id == null || id.isEmpty()) throw new Failure(REASON_DUMP_FAILED);
+        String dump = dumpOf(uri, id, deadline);
+        synchronized (cacheLock) { isolateByPid.put(pid, id); }
+        return dump;
     }
 
-    private static JSONArray isolates(String uri) throws Failure {
+    private static JSONArray isolates(String uri, long deadline) throws Failure {
         try {
-            JSONObject result = new JSONObject(get(uri + "getVM")).getJSONObject("result");
+            JSONObject result = new JSONObject(get(uri + "getVM", deadline)).getJSONObject("result");
             return result.getJSONArray("isolates");
         } catch (JSONException e) {
             throw new Failure(REASON_DUMP_FAILED);
         }
     }
 
-    private static String dumpOf(String uri, String isolateId) throws Failure {
+    private static String dumpOf(String uri, String isolateId, long deadline) throws Failure {
         try {
             String url = uri + "ext.flutter.debugDumpSemanticsTreeInInverseHitTestOrder?isolateId="
                     + URLEncoder.encode(isolateId, "UTF-8");
-            JSONObject result = new JSONObject(get(url)).getJSONObject("result");
+            JSONObject result = new JSONObject(get(url, deadline)).getJSONObject("result");
             return result.getString("data");
         } catch (JSONException | java.io.UnsupportedEncodingException e) {
             throw new Failure(REASON_DUMP_FAILED);
         }
     }
 
-    private static String get(String url) throws Failure {
+    private static String get(String url, long deadline) throws Failure {
+        long remaining = deadline - android.os.SystemClock.uptimeMillis();
+        if (remaining <= 0) throw new Failure(REASON_TIMEOUT);
+        int timeout = (int) Math.min(HTTP_TIMEOUT_MS, remaining);
         HttpURLConnection conn = null;
         try {
             conn = (HttpURLConnection) new URL(url).openConnection();
-            conn.setConnectTimeout(HTTP_TIMEOUT_MS);
-            conn.setReadTimeout(HTTP_TIMEOUT_MS);
+            conn.setConnectTimeout(timeout);
+            conn.setReadTimeout(timeout);
             conn.setRequestMethod("GET");
             if (conn.getResponseCode() != 200) throw new Failure(REASON_DUMP_FAILED);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             try (InputStream in = conn.getInputStream()) {
                 byte[] buf = new byte[8192];
                 int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                // 読みの上限は read() ごとにかかるので、少しずつ届く応答でも締め切りを大きく越えないよう塊ごとに残りを見る
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                    if (android.os.SystemClock.uptimeMillis() > deadline) throw new Failure(REASON_TIMEOUT);
+                }
             }
             return out.toString("UTF-8");
         } catch (SocketTimeoutException e) {

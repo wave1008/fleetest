@@ -305,11 +305,23 @@ extension StepExecutor {
     /// そのときは WebView 向けの `treeUnderreported` を外す(理由が別で、案内が事実と違った)。
     /// **通る直前に1回だけ呼ぶ**(Android は窓の一覧を adb で引く = 周ごとに払わない)
     /// スコープの容器が手前のモーダル自身(の中)なら出さない: そこでの「無い」は裏を見ていない本物の不在で、閉じると `.alert` ごと消える
-    func noteAbsenceBehindModal(_ snapshot: SnapshotResponse, step: FlowStep? = nil) {
+    /// Android の Flutter のダイアログは同じ窓の中のノードで申告も窓も無い(OI-200)ので、仮想の要素の木だけ、アプリの VM サービスの
+    /// ダンプがダイアログの役割を申告しているかを聞く(DR-235。答えが無ければ今のまま)
+    func noteAbsenceBehindModal(_ snapshot: SnapshotResponse, step: FlowStep? = nil) async {
         if let step, Self.scopeContainerIsInModal(step, snapshot) { return }
-        guard Self.hasModalScope(snapshot) || (snapshot.coveredByFrontWindow?.droppedCount ?? 0) > 0
-                || ownDialogHint() != nil else { return }
-        noteCodesThisStep.insert(.absenceBehindModal)
+        if Self.hasModalScope(snapshot) || (snapshot.coveredByFrontWindow?.droppedCount ?? 0) > 0 || ownDialogHint() != nil {
+            noteCodesThisStep.insert(.absenceBehindModal)
+        } else if isAndroid, snapshot.elements.contains(where: { $0.renderer == "virtual" }),
+                  // スコープの容器が木に在る = Flutter のダイアログの間は裏が木から外れるので、容器はダイアログの中 = 本物の不在
+                  !(step.map { LocatorResolver.scopeContainerResolves($0, in: snapshot) } ?? false),
+                  let response = await askSemanticsOrder(elements: snapshot.elements, app: snapshot.sessionBundleID),
+                  // 答えがこの木のもの(中心が合う)ときだけダンプを信じる(後から開いたダイアログを、前の木の「無い」に付けない)
+                  PaintRankAnswer.make(response: response, elements: snapshot.elements) != nil,
+                  let dump = response.dump, FlutterSemanticsDump.presentsDialog(dump: dump) {
+            noteCodesThisStep.insert(.absenceBehindFlutterDialog)
+        } else {
+            return
+        }
         noteCodesThisStep.remove(.treeUnderreported)
     }
 
@@ -1160,7 +1172,7 @@ extension StepExecutor {
                     phase.waitMs += Self.ms(clock.now - waitStart)
                     continue
                 }
-                noteAbsenceBehindModal(snapshot, step: step)
+                await noteAbsenceBehindModal(snapshot, step: step)
                 return .passed
             }
             if Date() >= deadline {
