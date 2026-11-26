@@ -38,6 +38,11 @@ public struct OccluderNamingContext: Equatable, Sendable {
         self.paintRanks = paintRanks
     }
 
+    /// OS だけ差し替えた文脈(アプリの答えと塗り順は保つ)
+    public func withOS(isAndroid: Bool) -> OccluderNamingContext {
+        OccluderNamingContext(isAndroid: isAndroid, framework: framework, paintRanks: paintRanks)
+    }
+
     /// 今の規則(`OccluderNaming.mayName`)が偽の組は、塗り順が「覆いが手前」と答えたときだけ名指す
     public func mayName(_ occluder: ElementInfo, _ target: ElementInfo) -> Bool {
         if OccluderNaming.mayName(occluder: occluder, target: target, isAndroid: isAndroid, framework: framework) { return true }

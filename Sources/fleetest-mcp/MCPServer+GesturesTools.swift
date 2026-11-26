@@ -1032,8 +1032,8 @@ extension MCPServer {
             screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0))
             + RefGuard.overlapWarning(found: element, in: snapshot?.elements ?? [],
                                       screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0),
-                                      isAndroid: isAndroid,
-                                      framework: refOccluderNaming(snapshot, driver: driver, args: args).framework,
+                                      naming: await refOccluderNaming(snapshot, driver: driver, args: args, askingFor: element)
+                                          .withOS(isAndroid: isAndroid),
                                       operation: operation)
             + (TapTargetGeometry.pinnedBandNote(for: element, in: snapshot?.elements ?? [], operation: "touch") ?? "")
             // 容器の縁にまたがる行は、ft_tap / ft_long_press と同じく ref を引く全ての操作で言う(判定は `straddleWarning` の1箇所)

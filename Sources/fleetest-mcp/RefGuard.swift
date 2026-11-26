@@ -357,10 +357,19 @@ enum RefGuard {
     /// `operation` = 文言の操作名("tap" / "double tap" / "drag" / "type" 等。既定値を置かない = 呼び手に決めさせる)
     static func overlapWarning(found: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                isAndroid: Bool, framework: AppUIFramework?, operation: String) -> String {
+        overlapWarning(found: found, in: elements, screen: screen,
+                       naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework, paintRanks: nil),
+                       operation: operation)
+    }
+
+    /// `naming` に塗り順の答え(DR-235)を載せられる版。OS とアプリの答えは `naming` の欄を使う(呼び手は OS を自分の判定で入れる =
+    /// `refOccluderNaming(_:driver:args:askingFor:)` の `isAndroid` は木の材料からで、文言の OS とは別に決まりうる)
+    static func overlapWarning(found: ElementInfo, in elements: [ElementInfo], screen: FTRect,
+                               naming: OccluderNamingContext, operation: String) -> String {
+        let isAndroid = naming.isAndroid
         let result = TapTargetGeometry.advisoryKindResult(
-            for: found, in: elements, screen: screen,
-            naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework, paintRanks: nil),
-            paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: isAndroid, framework: framework))
+            for: found, in: elements, screen: screen, naming: naming,
+            paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: isAndroid, framework: naming.framework))
         guard let kind = result.kind else {
             // 名指しを抑えた組は相手の名前を言わずに注意だけ出す(DR-230。DSL の `TapTargetGeometry.unnamedCoverCaution` と対)
             guard result.namingSuppressed else { return "" }

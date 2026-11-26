@@ -527,7 +527,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
-| Android v154 | `POST /semanticsorder`: Android の Flutter のアプリ(debug / profile のビルド)の VM サービスからセマンティクスのダンプを読み、直近の木の仮想の要素の id と中心を添えて返す。DR-230 で名指しを止めた組だけ、ホストがダンプの前順で前後を決める(覆いが手前なら名指し・奥なら名指さない注意も出さない。DR-235)。E2EX-Flutter の FAB の tap に出ていた外れた注意が消えた。release のビルド・答えの無い回は DR-230 のまま(注記 `semantics-order-unavailable`) |
+| Android v154 | `POST /semanticsorder`: Android の Flutter のアプリ(debug / profile のビルド)の VM サービスからセマンティクスのダンプを読み、直近の木の仮想の要素の id と中心を添えて返す。DR-230 で名指しを止めた組だけ、ホストがダンプの前順で前後を決める(覆いが手前なら名指し・奥なら名指さない注意も出さない。DR-235)。DSL と MCP の両方。E2EX-Flutter の FAB の tap に出ていた外れた注意が消えた。release のビルド・答えの無い回は DR-230 のまま(注記 `semantics-order-unavailable`) |
 | — | 塗り順の z が本物の木(Android の View/Compose/RN・iOS の z のある木)では、対象より z が大きい要素を祖先と数えない(RN の Android のボトムシートの全画面の幕が depth だけで背面の要素の祖先に化け、背面への tap が注記なしで幕に当たっていた)。DSL と MCP の覆いの判定が共有 |
 | — | CMP の iOS(inapp-boost)で、`>>` のスコープの容器が in-app の木で見つかって下が空のとき、`notExist` / `waitForClose` は「無い」と結論する前に、`countIs` / `select` / 肯定の検証(`exist`・`textIs` 等・`enabled`・`checked`)/ 送りの探索は解決のために XCUITest の木に照会する(DR-199。ScrollableTabRow・PullToRefreshBox の中が in-app の木で空になる) |
 | — | 名指しを止めた出口(Android の Flutter の同じ土台・同じウィンドウの組)でも、覆いの疑いそのものは相手を名指さない注意で言う(DR-230。常駐シートの裏の行への tap が警告なしの ✅ でシートの行に当たった = OI-387) |

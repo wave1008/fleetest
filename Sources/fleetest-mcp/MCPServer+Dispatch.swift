@@ -108,7 +108,7 @@ extension MCPServer {
             // ft_tap / ft_long_press(verifiedRef の .ghost)と同じ警告。撃つが、何に当たりうるかを言う
             return (found, gateNote + retarget
                 + RefGuard.ghostWarning(found: found, in: fresh.elements, screen: fresh.screen,
-                                        naming: refOccluderNaming(fresh, driver: driver, args: args)))
+                                        naming: await refOccluderNaming(fresh, driver: driver, args: args, askingFor: found)))
         case .found(let found, _):
             return (found, gateNote + retarget)
         }

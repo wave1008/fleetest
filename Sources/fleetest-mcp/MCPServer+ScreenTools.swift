@@ -174,8 +174,41 @@ extension MCPServer {
     func refOccluderNaming(_ tree: SnapshotResponse?, driver: AppDriver, args: [String: Any]) -> OccluderNamingContext {
         guard let tree else { return .alwaysName }
         let material = refTreeFrameworkMaterial(tree, driver: driver, args: args)
-        // 塗り順の答え(DR-235)は MCP ではまだ取らない(段1b)= DR-230 の名指さない注意のまま
         return OccluderNamingContext(isAndroid: material.isAndroid, framework: material.framework, paintRanks: nil)
+    }
+
+    /// `refOccluderNaming` に、アプリの VM サービスの塗り順(DR-235)を載せたもの。**聞くのは `target` に今の規則で名指せない覆いがある回だけ**
+    /// (注記の覆い・残像の相手・見本の覆いのどれか。DSL の `StepExecutor.resolvingPaintOrder` と同じ門 = 普通の操作に往復を足さない)。
+    /// `tree` はブリッジが直近に撮った木であること(ref はその木の中でだけ有効。違えば `PaintRankAnswer.make` が答えごと捨てる)。
+    /// 答えが無ければ塗り順なし = DR-230 のまま
+    func refOccluderNaming(_ tree: SnapshotResponse?, driver: AppDriver, args: [String: Any],
+                           askingFor target: ElementInfo) async -> OccluderNamingContext {
+        let base = refOccluderNaming(tree, driver: driver, args: args)
+        guard let tree, base.isAndroid, Self.namingSuppressed(for: target, in: tree, naming: base) else { return base }
+        guard let answer = PaintRankAnswer.make(response: Self.inSessionRefs(await driver.semanticsOrder(),
+                                                                         base: refGenerations[Self.sessionKey(args)]?.last?.base ?? 0),
+                                                elements: tree.elements) else { return base }
+        return OccluderNamingContext(isAndroid: base.isAndroid, framework: base.framework, paintRanks: answer)
+    }
+
+    /// ブリッジの答えの ref(ブリッジの木の番号)を MCP の番号(`nativeRef` の逆 = 直近の世代の基点を足す)へ写す。
+    /// 世代が違えば中心が合わず `PaintRankAnswer.make` が捨てる
+    static func inSessionRefs(_ response: SemanticsOrderResponse?, base: Int) -> SemanticsOrderResponse? {
+        guard let response, let nodes = response.nodes else { return response }
+        return SemanticsOrderResponse(dump: response.dump, nodes: nodes.map {
+            .init(ref: $0.ref + base, semanticsId: $0.semanticsId, cx: $0.cx, cy: $0.cy)
+        }, reason: response.reason)
+    }
+
+    /// MCP の名指しの出口(`RefGuard.overlapWarning` / `ghostWarning` / `captureCoverRefusal`)のどれかが、`target` について相手を名指さない組か
+    static func namingSuppressed(for target: ElementInfo, in tree: SnapshotResponse, naming: OccluderNamingContext) -> Bool {
+        let paintOrderIsReal = PaintOrder.isReal(in: tree.elements, isAndroid: naming.isAndroid, framework: naming.framework)
+        if TapTargetGeometry.advisoryKindResult(for: target, in: tree.elements, screen: tree.screen, naming: naming,
+                                                paintOrderIsReal: paintOrderIsReal).namingSuppressed { return true }
+        let covers = [RefGuard.occluder(of: target, in: tree.elements, screen: tree.screen, paintOrderIsReal: paintOrderIsReal),
+                      OcclusionGeometry.overlayCovering(target, in: tree.elements, screen: tree.screen,
+                                                        paintOrderIsReal: paintOrderIsReal)]
+        return covers.contains { $0.map { !naming.mayName($0, target) } ?? false }
     }
 
     static func coveredRefTouch(_ element: ElementInfo, in snapshot: SnapshotResponse?, scale: Double,
@@ -927,6 +960,8 @@ extension MCPServer {
         guard let cover = OcclusionGeometry.overlayCovering(
             element, in: elements, screen: screen,
             paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: naming.isAndroid, framework: naming.framework)) else { return nil }
+        // 塗り順が「覆いは奥」と答えた組は見本の覆いではない(DR-235)
+        if naming.answeredBehind(cover, element) { return nil }
         guard naming.mayName(cover, element) else {
             return "nothing was saved: \(RefGuard.describe(element)) may be covered by another element on this screen"
                 + " (paint order is not known here), so its capture could show something else. Check with ft_screenshot"
@@ -1046,7 +1081,7 @@ extension MCPServer {
             element = found
             screen = snapshot.screen
             elements = snapshot.elements
-            naming = refOccluderNaming(snapshot, driver: d, args: args)
+            naming = await refOccluderNaming(snapshot, driver: d, args: args, askingFor: found)
             refNote = target.note
         } else if let selector = args["selector"] as? String {
             let snapshot = try await freshSnapshot(d, args: args)
@@ -1061,7 +1096,7 @@ extension MCPServer {
             element = found
             screen = snapshot.screen
             elements = snapshot.elements
-            naming = refOccluderNaming(snapshot, driver: d, args: args)
+            naming = await refOccluderNaming(snapshot, driver: d, args: args, askingFor: found)
         } else {
             throw MCPError("ref or selector is required")
         }
