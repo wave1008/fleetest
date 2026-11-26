@@ -667,12 +667,14 @@ extension StepExecutor {
                     snapshot = fsnap
                     actingDriver = fb
                     switchedToFallbackDriver = true
+                    actsOnFallbackTreeThisStep = true
                 }
             }
         }
         // inapp-boost: in-app の木で解けない対象は、キーボードを閉じる・指紋で直す前に XCUITest の木を1回照会する(DR-202)
         if resolved == nil, action != "select", let c = await appXCUITestTreeActionTarget(step: step, action: action, phase: &phase) {
             (resolved, snapshot, actingDriver, switchedToFallbackDriver) = ((c.element, c.usedFallback), c.snapshot, c.driver, true)
+            actsOnFallbackTreeThisStep = true
         }
 
         // select は掴むだけ(撃たない)ので、スコープの容器が in-app の木で空の形だけ XCUITest の木の要素を掴む(DR-199。ref は撃たないので使わない)
@@ -1298,23 +1300,10 @@ extension StepExecutor {
                                                                            paintOrderIsReal: paintOrderIsReal(snapshot.elements)) {
                     centreCoverOnly = true
                 }
-                // 撃つ前の確かめ: 塗り順の分からない木で、中心に重なる要素の文字が対象の枠に描かれているか(画素 = OCR。合否は変えない)。
-                // 木の枠が描画とずれる形(Flutter の Android のオートコンプリートの候補 = 枠の中心に欄が描かれ、押すと欄に当たる)と、
-                // 覆われた要素を押す形(塗り順の無い iOS の木 = in-app の activate は覆いに依らず要素へ届く = 人には押せない物を押す)を言う
-                var drawnCover: (element: ElementInfo, text: String)?
-                if !paintOrderIsReal(snapshot.elements), let own = Self.drawnText(of: element) {
-                    drawnCover = await coverDrawnOver(element, ownText: own, elements: snapshot.elements, screen: snapshot.screen,
-                                                      keyboardShown: KeyboardWait.isShown(snapshot), phase: &phase)
-                }
-                // XCUITest が座標で押す回(xcuitest モード・inapp-boost で XCUITest へ切り替えた回)は、覆いの文字が読めたら撃たずに断る
-                // (DR-234: 回帰 1,783 本で誤検知 0・xcuitest の貼り付く見出しで赤 6/6 に付いた)。in-app の activate と Android は注記のまま
-                if let drawnCover, !isAndroid, !primaryCaptureOmitsSystemUI || switchedToFallbackDriver {
-                    let name = drawnCover.element.identifier.map { "#\($0)" } ?? "a \(drawnCover.element.type)"
-                    noteCodesThisStep.insert(.tapTargetDrawnOver)
-                    return StepOutcome(status: failedWithoutKind(
-                        "did not touch \(step.locatorSummary): where its frame is, the screen shows the text of \(name)"
-                            + " (\"\(drawnCover.text)\") instead of its own, so a touch there would land on \(name)"
-                            + " (nothing was touched). " + Self.uncoverRemedy(cover: name, step: step)))
+                // 撃つ前の確かめ(DR-233)と、XCUITest が座標で撃つ回の断り(DR-234)。中身と理由は `preTapDrawnCover` / `drawnCoverRefusal`
+                let drawnCover = await preTapDrawnCover(element, in: snapshot, phase: &phase)
+                if let refusal = drawnCoverRefusal(drawnCover, step: step, viaFallbackXCUITest: switchedToFallbackDriver) {
+                    return StepOutcome(status: failedWithoutKind(refusal))
                 }
                 do {
                     try await RefExpectationScope.firing(element) { try await actingDriver.tap(ref: element.ref) }
@@ -1349,7 +1338,7 @@ extension StepExecutor {
                     }
                     // activate で押した = 座標を撃っていない。撃つ前の判定(別の層の覆い・中心の覆い)や当たり判定の申告から立った
                     // 「触れたのは覆いかも」の疑いは、失敗後の案内に使わない(どこで立ったかに関わらず最後に捨てる)
-                    if pressedByActivate { lastInteraction?.coverSuspect = nil }
+                    if pressedByActivate { lastInteraction?.coverSuspect = nil; lastInteraction?.axHitSuspect = nil }
                 } catch {
                     // in-app が「activate 不発・合成タッチは効かない」(SwiftUI)で 501 を返したら、
                     // 今の木の枠の中心を XCUITest の座標タップで押す(ref は別名前空間なので渡さない)。

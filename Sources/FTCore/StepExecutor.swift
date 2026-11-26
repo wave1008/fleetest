@@ -925,6 +925,7 @@ public final class StepExecutor {
         scrollSwipesThisStep = nil
         slowDragsThisStep = nil
         gestureDeliveredThisStep = false
+        actsOnFallbackTreeThisStep = false
         noteCodesThisStep = []
         rendererAsksThisStep = [:]
         absenceReadWhileStoppedThisStep = nil
@@ -1390,6 +1391,9 @@ public final class StepExecutor {
     var failureKindThisStep: StepFailureKind?
     /// このステップの判定の足跡(execute が StepOutcome.trace に載せる。上限は `StepTraceLimits`)
     var traceThisStep = StepTraceBuffer()
+    /// このステップの対象を予備のドライバ(inapp-boost の XCUITest)の木で解決したか。主のドライバ(in-app)の ref 表に結びつく照会
+    /// (`touchLands` の `axHit`)を、別の番号の木で引かないための印
+    var actsOnFallbackTreeThisStep = false
     /// 足跡用: 直近のスクロール探索で最後に撃った1本の種類(`swipe` = 払い・`*-drag` / `*-swipe` = 寄せなどの回復)と、
     /// 内容が動いた容器。`runScrollSearch` の入口で捨てる。判定には使わない
     var scrollTraceLastSend = "none"

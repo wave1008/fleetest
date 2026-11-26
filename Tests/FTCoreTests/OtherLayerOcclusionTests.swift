@@ -462,6 +462,8 @@ private final class FakeQueryDriver: AppDriver, @unchecked Sendable {
     private(set) var taps: [String] = []
     private(set) var queries: [HitTestQuery] = []
     private(set) var landsAsked: [[Int]] = []
+    var delivery: TapDelivery?
+    var lastTapDelivery: TapDelivery? { delivery }
 
     init(elements: [ElementInfo], screen: FTRect, answer: HitTestAnswer, lands: TouchLandsResponse? = nil) {
         self.elements = elements
@@ -496,5 +498,42 @@ private final class FakeQueryDriver: AppDriver, @unchecked Sendable {
     func swipe(_ direction: FTSwipeDirection) async throws {}
     func snapshot() async throws -> SnapshotResponse {
         SnapshotResponse(sessionBundleID: nil, screen: screen, elements: elements, truncatedCount: 0)
+    }
+}
+
+/// AX の当たり判定の照会(`axHitElsewhere`)の門: 主が in-app(inapp-boost)で主の木で解決した回だけ聞く・activate で押した回は疑いを捨てる
+final class AXHitProbeWiringTests: XCTestCase {
+    private let screen = FTRect(x: 0, y: 0, width: 402, height: 874)
+
+    /// 縮んだヘッダの裏のボタン(中心 (66,90))に、木の先に並ぶ題名の枠が重なる形。z は無い
+    private func tree() -> [ElementInfo] {
+        [ElementInfo(ref: 1, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil, enabled: true,
+                     frame: FTRect(x: 0, y: 0, width: 402, height: 874), depth: 0),
+         ElementInfo(ref: 2, type: "staticText", identifier: "txt_title", label: "題名", value: nil, placeholder: nil, enabled: true,
+                     frame: FTRect(x: 56, y: 80, width: 226, height: 28), depth: 1),
+         ElementInfo(ref: 3, type: "button", identifier: "btn_follow", label: "フォロー", value: nil, placeholder: nil, enabled: true,
+                     frame: FTRect(x: 16, y: 66, width: 101, height: 48), depth: 1)]
+    }
+
+    private func run(inAppPrimary: Bool, delivery: TapDelivery? = nil) async -> (FakeQueryDriver, StepExecutor) {
+        let driver = FakeQueryDriver(elements: tree(), screen: screen, answer: .hittable(true),
+                                     lands: TouchLandsResponse(receiver: "View", lands: [3], unresolved: [], axHit: 2))
+        driver.delivery = delivery
+        let executor = StepExecutor(driver: driver, primaryCaptureOmitsSystemUI: inAppPrimary, isAndroid: false, tunables: RunTunables())
+        _ = await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "btn_follow")))
+        return (driver, executor)
+    }
+
+    func testAskedOnlyWhenTheInAppBridgeIsPrimary() async {
+        let (inApp, executor) = await run(inAppPrimary: true)
+        XCTAssertEqual(inApp.landsAsked, [[3]])
+        XCTAssertEqual(executor.lastInteraction?.axHitSuspect, "#txt_title")
+        let (xcuitest, _) = await run(inAppPrimary: false)
+        XCTAssertTrue(xcuitest.landsAsked.isEmpty, "答えの無い XCUITest へ聞いた: \(xcuitest.landsAsked)")
+    }
+
+    func testActivatePressDropsTheSuspect() async {
+        let (_, executor) = await run(inAppPrimary: true, delivery: .activate)
+        XCTAssertNil(executor.lastInteraction?.axHitSuspect, "activate は座標を撃たない = 名指さない")
     }
 }

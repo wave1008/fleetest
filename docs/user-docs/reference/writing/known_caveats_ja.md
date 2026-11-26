@@ -227,7 +227,7 @@
 - [対象の中心がタブバーや固定フッタの下にあると、見えている部分を押す](../commands/tap_ja.md#注意点) — まず一覧を送って外し、外せなければ見えている部分を押します。薄すぎる(8pt/8dp 未満)と失敗します。
 - [スクロールで隠れた対象がナビバーの下にあると scroll: が要る](../commands/tap_ja.md#注意点) — `scroll:` が無いと何も押さず失敗し、向きを案内します。`scroll: .up` 等を書きます。
 - [対象が見つからず手前の窓やモーダルがツリーから外しているときは失敗文が名指す](../commands/tap_ja.md#注意点) — 失敗文が窓やモーダルを名指ししても、`waitSeconds:` を伸ばして待つのは無駄です(閉じるまで対象は戻りません)。前のステップで閉じるか `irregularHandler` で宣言します。
-- [重なりの順を知れない画面では推測せず対象の中心を押す](../commands/tap_ja.md#注意点) — SwiftUI・Compose Multiplatform・Flutter・xcuitest・MCP 操作が該当し、覆われていると別の物を押します。
+- [重なりの順を知れない画面では推測せず対象の中心を押す](../commands/tap_ja.md#注意点) — SwiftUI・Compose Multiplatform・Flutter・xcuitest・MCP 操作が該当し、覆われていると別の物を押します。ただし xcuitest モード(と inapp-boost で対象を XCUITest のツリーで見つけたステップ)は、対象の枠に重なる要素の文字が描かれていれば押さずに失敗します。
 - [アプリが落ちて別のアプリが前面のときは失敗する](../commands/tap_ja.md#注意点) — 同じ `#id` を持つ別のアプリを誤って操作しないための断りです。
 - [tap は対象が enabled になるまで待ってから実行する](../commands/tap_ja.md#注意点) — `waitSeconds:`(既定 5 秒)まで待ち、なお無効でもそのまま実行します。
 - [要素が現れるまでの待ちは短い(約 0.7 秒)](../commands/tap_ja.md#注意点) — 遷移後に遅れて出る要素は `tap("#btn", waitSeconds: 5)` か `waitForDisplay` で待ちます。

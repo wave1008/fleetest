@@ -155,6 +155,27 @@ extension StepExecutor {
     /// (シートの中の行のことがある)なので、閉じる・畳む相手は「それを持つシート・パネル」と言う。`step` が分かれば `scroll:` の
     /// 書き方を出し分ける(書いた手 = 探索が送っても出せなかったので足せと言わない・`scroll:` を受けないコマンドは先に送る手)。
     /// nil = scroll: を勧めない(失敗後の案内・探索が覆いを見ない経路 = iOS の当たり判定の断り)
+    /// 撃つ前の確かめ: 塗り順の分からない木で、中心に重なる要素の文字が対象の枠に描かれているか(画素 = OCR)。
+    /// 木の枠が描画とずれる形(Flutter の Android のオートコンプリートの候補 = 枠の中心に欄が描かれ、押すと欄に当たる)と、
+    /// 覆われた要素を押す形(塗り順の無い iOS の木 = in-app の activate は覆いに依らず要素へ届く = 人には押せない物を押す)を言う
+    func preTapDrawnCover(_ element: ElementInfo, in snapshot: SnapshotResponse,
+                          phase: inout PhaseAccumulator) async -> (element: ElementInfo, text: String)? {
+        guard !paintOrderIsReal(snapshot.elements), let own = Self.drawnText(of: element) else { return nil }
+        return await coverDrawnOver(element, ownText: own, elements: snapshot.elements, screen: snapshot.screen,
+                                    keyboardShown: KeyboardWait.isShown(snapshot), phase: &phase)
+    }
+
+    /// XCUITest が座標で押す回(xcuitest モード・inapp-boost で XCUITest へ切り替えた回)は、覆いの文字が読めたら撃たずに断る文
+    /// (DR-234: 回帰 1,783 本で誤検知 0・xcuitest の貼り付く見出しで赤 6/6 に付いた)。in-app の activate と Android は nil = 注記のまま
+    func drawnCoverRefusal(_ drawnCover: (element: ElementInfo, text: String)?, step: FlowStep, viaFallbackXCUITest: Bool) -> String? {
+        guard let drawnCover, !isAndroid, !primaryCaptureOmitsSystemUI || viaFallbackXCUITest else { return nil }
+        let name = drawnCover.element.identifier.map { "#\($0)" } ?? "a \(drawnCover.element.type)"
+        noteCodesThisStep.insert(.tapTargetDrawnOver)
+        return "did not touch \(step.locatorSummary): where its frame is, the screen shows the text of \(name)"
+            + " (\"\(drawnCover.text)\") instead of its own, so a touch there would land on \(name)"
+            + " (nothing was touched). " + Self.uncoverRemedy(cover: name, step: step)
+    }
+
     static func uncoverRemedy(cover: String, step: FlowStep?) -> String {
         let close = "If \(cover) is part of a sheet or panel, close or collapse it first"
         guard let step else { return close + "; otherwise scroll the list before this step until the target is clear of it" }
@@ -282,9 +303,11 @@ extension StepExecutor {
                 suspect = TapTargetGeometry.pinnedBandCovering(element, in: snapshot.elements, container: container)
             }
             if let suspect { noteCoverSuspect(TapTargetGeometry.describe(suspect), for: element) }
-            else if !isAndroid, snapshot.elements.allSatisfy({ $0.z == nil }),
+            else if !isAndroid, primaryCaptureOmitsSystemUI, !actsOnFallbackTreeThisStep,
+                    snapshot.elements.allSatisfy({ $0.z == nil }),
                     TapTargetGeometry.centreOverlappedOutsideLineage(element, in: snapshot.elements) {
-                // 他の判定が何も言わなかった形への警告だけ(拒否も撃ち方の変更もしない。in-app 以外は nil = 黙る)。
+                // 他の判定が何も言わなかった形への警告だけ(拒否も撃ち方の変更もしない)。`/touchlands` は in-app だけが答える =
+                // 主が in-app(inapp-boost)で、主の木で解決した回だけ聞く(XCUITest の木の ref を in-app の答えで引かない)。
                 // 問い合わせは木の上で別の要素が中心に重なるタップだけ(普通のタップに往復を足さない)。
                 // 答えは赤の案内を組む時点で名指す(`coveredTouchHint`)
                 let lands = askedLands

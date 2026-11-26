@@ -548,7 +548,7 @@ public enum TapTargetGeometry {
     /// 中心は見えている帯の外)。in-app の木では同じボタンの下端が容器の下端に張り付き、こちらより前の段で拾う。
     /// 高さ 0 の子は数えない(描かれていない子を「潰れた」と言わない)。要素が床の2倍に満たなければ言わない(要素ごと小さい)。
     /// 固定の実アプリのコーパスで発火は1件(Android の画面の最下端で切れた行 = 真陽性。`SweepHarnessTests` が件数で固定)。
-    /// Android は文言を弱める(枠が見えている所に切られて届く)。**警告専用**
+    /// Android は文言を弱める(枠が見えている所に切られて届く)。床は pt の値のまま = px の Android の木では出にくい(漏れる側・誤って出す側ではない)。**警告専用**
     static func collapsedLabelInside(_ element: ElementInfo, in elements: [ElementInfo]) -> ElementInfo? {
         guard platformShouldResolve(element),
               element.frame.height >= 2 * minimumVisibleTapExtent else { return nil }

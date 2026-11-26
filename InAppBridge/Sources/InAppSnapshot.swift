@@ -514,13 +514,16 @@ enum InAppSnapshot {
     /// `UIFocusItemScrollableContainer`(Compose)= contentOffset・contentSize・visibleSize。値は容器自身の実寸(pt)で、
     /// Flutter の縮んだ AX 矩形の補正(`rescaleBelow`)は枠だけに掛ける(実測: Flutter の棚 bounds 402x120 は画面の実寸)
     private static func scrollExtent(_ node: NSObject) -> ScrollExtent? {
+        let raw: (CGPoint, CGSize, CGSize)
         if let scrollView = node as? UIScrollView {
-            let offset = scrollView.contentOffset, content = scrollView.contentSize, visible = scrollView.bounds.size
-            return ScrollExtent(offsetX: offset.x, offsetY: offset.y, contentWidth: content.width, contentHeight: content.height,
-                                visibleWidth: visible.width, visibleHeight: visible.height)
-        }
-        guard let container = node as? (any UIFocusItemScrollableContainer) else { return nil }
-        let offset = container.contentOffset, content = container.contentSize, visible = container.visibleSize
+            raw = (scrollView.contentOffset, scrollView.contentSize, scrollView.bounds.size)
+        } else if let container = node as? (any UIFocusItemScrollableContainer) {
+            raw = (container.contentOffset, container.contentSize, container.visibleSize)
+        } else { return nil }
+        let (offset, content, visible) = raw
+        let values = [offset.x, offset.y, content.width, content.height, visible.width, visible.height]
+        // 非有限(見積もりの無限の広さ・レイアウト中の NaN)を1つでも送ると JSONEncoder が投げ、/snapshot ごと答えられなくなる
+        guard values.allSatisfy(\.isFinite) else { return nil }
         return ScrollExtent(offsetX: offset.x, offsetY: offset.y, contentWidth: content.width, contentHeight: content.height,
                             visibleWidth: visible.width, visibleHeight: visible.height)
     }
