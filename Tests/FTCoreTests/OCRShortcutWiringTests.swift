@@ -16,8 +16,9 @@ final class OCRShortcutWiringTests: XCTestCase {
     func testExecutorPassesTheLiveInFlightCountAndReadyState() throws {
         let text = try String(contentsOf: assertFile, encoding: .utf8)
         let calls = text.components(separatedBy: "RegionText.shouldTakeShortcut(").dropFirst()
-        // occlusionFlip の近道と、古いと判定した絵の確認(staleFrameShowsExpectedText)の2箇所。増えたら見直す
-        XCTAssertEqual(calls.count, 2, "門の呼び出しの数が変わった(増えた口も生の状態を渡すか見直す)")
+        // 撃つ前の覆いの読み(coverDrawnOver = DR-233)・occlusionFlip の近道・古いと判定した絵の確認(staleFrameShowsExpectedText)の
+        // 3箇所。増えたら見直す
+        XCTAssertEqual(calls.count, 3, "門の呼び出しの数が変わった(増えた口も生の状態を渡すか見直す)")
         for call in calls {
             let head = String(call.prefix(200))
             XCTAssertTrue(head.contains("ready: RegionText.isModelReady"), "ready を生の状態から渡していない: \(head)")

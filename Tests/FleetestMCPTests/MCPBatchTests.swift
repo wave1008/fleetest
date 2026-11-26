@@ -555,13 +555,14 @@ final class MCPBatchTests: XCTestCase {
     func testUnsupportedLabelIsRejectedByName() async {
         do {
             _ = try await server.call(tool: "ft_batch",
-                                      args: steps("tap '#a' containerInference: true"))
+                                      args: steps("irregularHandler '#a' dismiss: '#b' maxDismissals: 3"))
             XCTFail("未対応ラベルが通った")
         } catch {
+            // DSL にはあって ft_batch が受けない引数(tap の引数は全部受けるようになった)
             let message = error.localizedDescription
-            XCTAssertTrue(message.contains("containerInference"), message)
+            XCTAssertTrue(message.contains("maxDismissals"), message)
             XCTAssertTrue(message.contains("does not support"), message)
-            XCTAssertTrue(message.contains("selector"), message)
+            XCTAssertTrue(message.contains("dismiss"), message)
         }
         XCTAssertEqual(driver.calls, [])
     }

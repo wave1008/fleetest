@@ -242,8 +242,11 @@ final class BlankFrameDetectorTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/FTCore/StepExecutor+VisibilityPipeline.swift")
         let code = try String(contentsOf: url, encoding: .utf8)
-        guard let check = code.range(of: "BlankFrameDetector.enclosingWebViewFrame(of: element, in: elements)"),
-              let read = code.range(of: "RegionText.resolveWithinBudget(") else {
+        // 比べるのは可視性検証の段の並び(stage…)の中だけ。撃つ前の覆いの読み(coverDrawnOver)も OCR を読むが段の前にある別の関数
+        guard let stages = code.range(of: "private func stageRowCheckDecision("),
+              let check = code.range(of: "BlankFrameDetector.enclosingWebViewFrame(of: element, in: elements)",
+                                     range: stages.upperBound..<code.endIndex),
+              let read = code.range(of: "RegionText.resolveWithinBudget(", range: stages.upperBound..<code.endIndex) else {
             return XCTFail("WebView 領域の見送りか OCR の読みが見当たらない")
         }
         XCTAssertLessThan(check.lowerBound, read.lowerBound)

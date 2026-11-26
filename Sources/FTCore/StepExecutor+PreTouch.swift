@@ -209,6 +209,9 @@ extension StepExecutor {
             // なったときだけ失敗の文言で名指す(`lastTapHint`)。重なりは画面の大きさで変わり書く時点では避けられないので、
             // 実際に効かなかった回(= 赤)にだけ、直す先(シナリオ)を案内する。判定は足さない(既存の疑いを写すだけ)
             var suspect: ElementInfo?
+            // 下の当たり判定の照会の答え(聞いたら AX の当たり判定もそこから読む = 同じ点を2回聞かない)
+            var askedLands = false
+            var priorLands: TouchLandsResponse?
             let kindResult = TapTargetGeometry.advisoryKindResult(for: element, in: snapshot.elements,
                                                                   screen: snapshot.screen, naming: occluderNaming)
             if case .overlayCovering(let over)? = kindResult.kind {
@@ -229,6 +232,7 @@ extension StepExecutor {
                     // true も誤ることがある(SwiftUI の半分のシートの裏の行)。対象に届かず覆いに届くと言い切れたときだけ断る(自前描画・xcuitest モードは素通り)
                     let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY,
                                                         refs: [element.ref] + covers.map(\.ref))
+                    askedLands = true; priorLands = lands
                     if let landed = TapTargetGeometry.touchLandsOnCoverInstead(lands, target: element.ref, covers: covers) {
                         let name = TapTargetGeometry.describe(landed)
                         return .refuse("did not touch \(step.locatorSummary): the app's hit test says a touch at its position lands on"
@@ -239,6 +243,7 @@ extension StepExecutor {
                 if hit == .hittable(false) {
                     let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY,
                                                         refs: [element.ref] + covers.map(\.ref))
+                    askedLands = true; priorLands = lands
                     guard TapTargetGeometry.touchClearsCovers(lands, target: element.ref, covers: covers.map(\.ref)) else {
                         let name = TapTargetGeometry.describe(cover)
                         return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position —"
@@ -257,6 +262,7 @@ extension StepExecutor {
                 if hit == .hittable(false) {
                     let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY,
                                                         refs: [element.ref, outside.ref])
+                    askedLands = true; priorLands = lands
                     guard TapTargetGeometry.touchClearsCovers(lands, target: element.ref, covers: [outside.ref]) else {
                         return .refuse("did not touch \(step.locatorSummary): the platform reports it cannot be hit at its position"
                             + " (something else is drawn over it) — nothing was touched. "
@@ -281,7 +287,8 @@ extension StepExecutor {
                 // 他の判定が何も言わなかった形への警告だけ(拒否も撃ち方の変更もしない。in-app 以外は nil = 黙る)。
                 // 問い合わせは木の上で別の要素が中心に重なるタップだけ(普通のタップに往復を足さない)。
                 // 答えは赤の案内を組む時点で名指す(`coveredTouchHint`)
-                let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY, refs: [element.ref])
+                let lands = askedLands
+                    ? priorLands : await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY, refs: [element.ref])
                 if let other = TapTargetGeometry.axHitElsewhere(target: element, in: snapshot.elements, axHit: lands?.axHit),
                    lastInteraction?.target.ref == element.ref {
                     lastInteraction?.axHitSuspect = TapTargetGeometry.describe(other)

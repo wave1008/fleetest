@@ -543,7 +543,7 @@ public enum TapTargetGeometry {
 
     /// **容器の縁が木に無いまま切られた押せる要素**: 中の文字の子(ラベルあり・要素の幅の内側)の高さだけが
     /// `minimumVisibleTapExtent` 未満に潰れている。XCUITest の木は CMP の容器を全画面 `scrollView (0,0 402x874)` と申告するので
-    /// `clippedAtContainerEdge` の「縁の一致」が成り立たない(実測 2026-11-26・SUT Store の住所フォーム・xcuitest モード:
+    /// `clippedAtContainerEdge` の「縁の一致」が成り立たない(実測・SUT Store の住所フォーム・xcuitest モード:
     /// `button "保存" id=btn_save (16,789 370x48)` の中の `staticText "保存" (187,801 28x4)`。中心を押しても保存されない =
     /// 中心は見えている帯の外)。in-app の木では同じボタンの下端が容器の下端に張り付き、こちらより前の段で拾う。
     /// 高さ 0 の子は数えない(描かれていない子を「潰れた」と言わない)。要素が床の2倍に満たなければ言わない(要素ごと小さい)。

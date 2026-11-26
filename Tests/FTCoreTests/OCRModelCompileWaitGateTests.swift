@@ -18,8 +18,11 @@ final class OCRModelCompileWaitGateTests: XCTestCase {
     func testWaitsBeforeTheShortcutOnlyWhenNotReadyAndNothingAbandoned() throws {
         let text = source
         XCTAssertFalse(text.isEmpty, "走査対象が読めていない")
+        // 近道の門は撃つ前の覆いの読み(coverDrawnOver。待たずにその時の状態で決める)にもあり、そちらはファイルの前にある =
+        // 待ちと組になる門は「待ちの後で最初の門」(occlusionFlip の近道)
         guard let waitCall = text.range(of: "RegionText.awaitModelCompile(mode: occlusionOCRMode)"),
-              let shortcutCall = text.range(of: "RegionText.shouldTakeShortcut(mode: occlusionOCRMode")
+              let shortcutCall = text.range(of: "RegionText.shouldTakeShortcut(mode: occlusionOCRMode",
+                                            range: waitCall.upperBound..<text.endIndex)
         else { return XCTFail("待ちゲートか近道ゲートの呼び出しが見つからない(書式が変わった)") }
         XCTAssertLessThan(waitCall.lowerBound, shortcutCall.lowerBound,
                           "待ちは近道のゲートより前で評価する(待った後に isModelReady を読み直すため)")
@@ -33,7 +36,8 @@ final class OCRModelCompileWaitGateTests: XCTestCase {
     func testWaitedTimeIsChargedToGuardAndOCRPhasesAndNoted() throws {
         let text = source
         guard let waitCall = text.range(of: "let waitOutcome = await RegionText.awaitModelCompile(mode: occlusionOCRMode)"),
-              let shortcutCall = text.range(of: "RegionText.shouldTakeShortcut(mode: occlusionOCRMode")
+              let shortcutCall = text.range(of: "RegionText.shouldTakeShortcut(mode: occlusionOCRMode",
+                                            range: waitCall.upperBound..<text.endIndex)
         else { return XCTFail("待ちゲートの呼び出しが見つからない") }
         let block = String(text[waitCall.lowerBound..<shortcutCall.lowerBound])
         XCTAssertTrue(block.contains("phase.guardMs += waitedMs"), "待った時間を guardMs へ計上していない")
