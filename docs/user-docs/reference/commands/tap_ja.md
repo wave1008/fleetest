@@ -37,7 +37,7 @@ tap(x: 120, y: 640)                    // セレクタで指せないときだ�
   出てこない形なので、`scroll:` が無ければ何も押さずにステップを失敗にし、送る向き(`scroll: .up` 等)を案内します。
   `scroll:` を書くと、対象が覆いの下から出るまで一覧を送ってから押します。
   失敗文は `did not touch <セレクタ>: its centre is under <覆っている物>, and touching it there would land on something else (nothing was touched). Add scroll: .up so the list is scrolled until the target comes out`(向きは状況に合うもの)の形です。
-- **対象が見つからず、手前の窓やモーダルが対象をツリーから外しているとき**: iOS の inapp-boost モードだけ、アプリが「別の窓が手前にある」「モーダルビュー(`accessibilityViewIsModal`)が開いていて外側の要素がツリーから外れている」と申告します。このとき失敗文がその窓やモーダルを名指します(窓: `a window in front of the app at (x,y WxH) covers N element(s), which are left out of the tree; the target may be behind it. Close that window … — waiting will not bring the target back` / モーダル: `a modal view (accessibilityViewIsModal) at (x,y WxH) is open and left N element group(s) out of the tree; if the target is behind it, close the modal (dismiss the dialog) first …`)。**これに `waitSeconds:` を伸ばして対処しないでください**。窓やモーダルを閉じるまで対象は戻ってきません。前のステップでダイアログやシートを閉じるか、`irregularHandler` で宣言してください。xcuitest モードと Android にはこの申告が無く、従来どおりの「見つからない」の文言になります。
+- **対象が見つからず、手前の窓やモーダルが対象をツリーから外しているとき**: iOS の inapp-boost モードだけ、アプリが「別の窓が手前にある」「モーダルビュー(`accessibilityViewIsModal`)が開いていて外側の要素がツリーから外れている」と申告します。このとき失敗文がその窓やモーダルを名指します(窓: `a window in front of the app at (x,y WxH) covers N element(s), which are left out of the tree; the target may be behind it. Close that window … — waiting will not bring the target back` / モーダル: `a modal view or popup layer at (x,y WxH) is open and left N element group(s) out of the tree; if the target is behind it, close the modal (dismiss the dialog) first …`)。**これに `waitSeconds:` を伸ばして対処しないでください**。窓やモーダルを閉じるまで対象は戻ってきません。前のステップでダイアログやシートを閉じるか、`irregularHandler` で宣言してください。xcuitest モードと Android にはこの申告が無く、従来どおりの「見つからない」の文言になります。
 - **重なりの順を知れない画面**(SwiftUI・Compose Multiplatform・Flutter のアプリ、iOS の xcuitest モード、MCP の操作)では、
   ツールは手前かどうかを推測せず、対象の中心を押します。重なりは端末の画面の大きさで変わるので、シナリオを書く時点では
   避けられません。押した後に結果を確かめるステップが失敗し、その直前の操作の対象に別の要素が重なっていた疑いがあれば、
@@ -45,6 +45,10 @@ tap(x: 120, y: 640)                    // セレクタで指せないときだ�
   ようシナリオの直し方を案内します。直すのはあなたです(失敗した端末の画面を見て判断してください)。
   iOS では、プラットフォームが「その位置では押せない」と答えたときだけ、押さずに失敗にします。このときの文言は、手前のシートやパネルを
   閉じるか、このステップの前に一覧を送って対象を外すよう案内します。
+  iOS の xcuitest モードでは、対象の中心に別の要素が重なっているとき、押す前に対象の枠に描かれた文字を画面から読みます。
+  対象の文字ではなく重なっている要素の文字が描かれていれば、押すとそちらに当たるので、押さずに失敗にします
+  (`did not touch <セレクタ>: where its frame is, the screen shows the text of <要素> … (nothing was touched)`)。
+  inapp-boost モードと Android では押したうえで注記を付けます。
 - **アプリが落ちて別のアプリが前面に出ているとき**: 起動したアプリのプロセスが居ないのに、画面のツリーが別のアプリのものなら、
   そのツリーの要素を押したり確かめたりせず、ステップを失敗にします(同じ `#id` を持つ別のアプリを誤って操作しないため)。
 - **`tap` は対象が操作可能になるまで待ってから実行します。** 画面が出た直後は、要素はツリーに

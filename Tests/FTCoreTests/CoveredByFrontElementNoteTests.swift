@@ -147,14 +147,15 @@ final class TapTargetDrawnOverTests: XCTestCase {
                                     placeholder: nil, enabled: true, frame: FTRect(x: 10, y: 315, width: 300, height: 40), depth: 3)
 
     private func tap(read: [String], delivery: TapDelivery? = nil, isAndroid: Bool = true,
-                     framework: AppUIFramework = .flutter) async -> StepOutcome {
+                     framework: AppUIFramework = .flutter, inAppPrimary: Bool = false,
+                     log: CallLog = CallLog()) async -> StepOutcome {
         RegionText.readRecognizeOverrideForTesting = { _ in read }
         RegionText.modelReadyOverrideForTesting = true
-        let driver = FakeAppDriver(name: "primary", log: CallLog(), snapshotElements: [[option, field]],
+        let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [[option, field]],
                                    screenshots: [StepExecutorTests.inkedPNG])
         driver.tapDeliveryAnswer = delivery
-        let executor = StepExecutor(driver: driver, occlusionOCRMode: .on, isAndroid: isAndroid, tunables: RunTunables(),
-                                    uiFramework: framework)
+        let executor = StepExecutor(driver: driver, primaryCaptureOmitsSystemUI: inAppPrimary, occlusionOCRMode: .on,
+                                    isAndroid: isAndroid, tunables: RunTunables(), uiFramework: framework)
         return await executor.execute(FlowStep(action: "tap", locator: FlowLocator(id: "auto_opt_japan"), timeout: 0))
     }
 
@@ -172,9 +173,23 @@ final class TapTargetDrawnOverTests: XCTestCase {
 
     /// in-app が activate で押した回は要素へ届くが、画面では覆われている = 「人には押せない物を押した」と言う(塗り順の無い iOS の木)
     func testActivateDeliverySaysAPersonCouldNotTapIt() async {
-        let outcome = await tap(read: ["Ja"], delivery: .activate, isAndroid: false, framework: .swiftUI)
+        let outcome = await tap(read: ["Ja"], delivery: .activate, isAndroid: false, framework: .swiftUI, inAppPrimary: true)
         XCTAssertTrue(outcome.notes.contains(.tapTargetDrawnOver), "\(outcome.notes)")
         XCTAssertTrue(outcome.driverFallback?.contains("a person could not tap it") == true, outcome.driverFallback ?? "nil")
         XCTAssertFalse(outcome.driverFallback?.contains("may have landed on that element") == true, outcome.driverFallback ?? "nil")
+    }
+
+    /// XCUITest が座標で押す iOS(xcuitest モード)は、覆いの文字が読めたら撃たずに断る(DR-234)。自分の文字なら撃つ
+    func testCoordinateTouchOnIOSIsRefusedBeforeTapping() async {
+        let log = CallLog()
+        let outcome = await tap(read: ["Ja"], isAndroid: false, framework: .swiftUI, log: log)
+        guard case .failed(let message) = outcome.status else { return XCTFail("断らなかった: \(outcome.status)") }
+        XCTAssertTrue(message.contains("did not touch") && message.contains("shows the text of a textField (\"Ja\")"), message)
+        XCTAssertTrue(message.contains("nothing was touched"), message)
+        XCTAssertFalse(log.entries.contains { $0.contains(".tap(") }, "撃った: \(log.entries)")
+        let ownLog = CallLog()
+        let own = await tap(read: ["Japan"], isAndroid: false, framework: .swiftUI, log: ownLog)
+        guard case .passed = own.status else { return XCTFail("自分の文字で断った: \(own.status)") }
+        XCTAssertTrue(ownLog.entries.contains { $0.contains(".tap(") }, "\(ownLog.entries)")
     }
 }

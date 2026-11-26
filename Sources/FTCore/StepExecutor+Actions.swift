@@ -1306,6 +1306,16 @@ extension StepExecutor {
                     drawnCover = await coverDrawnOver(element, ownText: own, elements: snapshot.elements, screen: snapshot.screen,
                                                       keyboardShown: KeyboardWait.isShown(snapshot), phase: &phase)
                 }
+                // XCUITest が座標で押す回(xcuitest モード・inapp-boost で XCUITest へ切り替えた回)は、覆いの文字が読めたら撃たずに断る
+                // (DR-234: 回帰 1,783 本で誤検知 0・xcuitest の貼り付く見出しで赤 6/6 に付いた)。in-app の activate と Android は注記のまま
+                if let drawnCover, !isAndroid, !primaryCaptureOmitsSystemUI || switchedToFallbackDriver {
+                    let name = drawnCover.element.identifier.map { "#\($0)" } ?? "a \(drawnCover.element.type)"
+                    noteCodesThisStep.insert(.tapTargetDrawnOver)
+                    return StepOutcome(status: failedWithoutKind(
+                        "did not touch \(step.locatorSummary): where its frame is, the screen shows the text of \(name)"
+                            + " (\"\(drawnCover.text)\") instead of its own, so a touch there would land on \(name)"
+                            + " (nothing was touched). " + Self.uncoverRemedy(cover: name, step: step)))
+                }
                 do {
                     try await RefExpectationScope.firing(element) { try await actingDriver.tap(ref: element.ref) }
                     let pressedByActivate = actingDriver.lastTapDelivery == .activate
