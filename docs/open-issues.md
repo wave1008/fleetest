@@ -69,6 +69,7 @@
 - 処理(2026-11-26): XCUITest ランナーを起こす前(`BridgeProvisioner` の供給で `ensureBooted` の直後)に、外観を反対へ1度変えて外観の部品が「changing style」を記録したかを統合ログで読み、元へ戻す。記録しなければ SpringBoard を起こし直して1回だけ確かめ直す(`SimulatorAppearanceArbiter`)。手元 Sim -08 で、ランナーの起動の前に外観が dark → light と1往復し(反応あり = 起こし直さない・約4秒)、続く表示条件のシナリオが緑なことを確認。起こし直す側は壊れた SpringBoard を作れないので単体テストだけ。ランナーを使い回す run では確かめない(従来の検出と回復)。きっかけ(起動の時に何が壊すか)は未特定のまま
 - xcuitest モードの全体の回帰(2026-11-26 夕・652aa2c): E2E の4 SUT の「表示条件」S0010 が手元・M1Max・M1Ultra で `textIs "#txt_appearance" == "dark"` の赤(4本)。どのレーンも起動中の XCUITest ブリッジを使い回した(`reusing the running xcuitest bridge`)= 使い回す台では SpringBoard を起こし直さない設計(`restartAllowed` が偽)の範囲
 - 全体の回帰(2026-11-26 夜・c38ddf4f1・inapp-boost と Android): 「表示条件を切り替えられること」S0010 が4 SUT で `setAppearance .dark` の段の赤(手元の CMP -06・Flutter -01、M1Max の iOS、M1Ultra の RN)。4本とも振り直しで緑になり、対象は合格。供給の確かめ(`SimulatorAppearanceArbiter`)は「部品が反応しない → SpringBoard を起こし直す」を手元で4台(-04・-06・-07・-08)、「確かめられない(部品の起動の行がログに無い)」を10回(M1Max・M1Ultra が中心)出した。**手元の -06 は供給で起こし直した台なのに、その後のシナリオで届かなかった** = 起こし直しの後にまた壊れる形(11/24 の「1 run に6回」と同型)
+- 全体の回帰(2026-11-27 未明・064380e5b): 同じ S0010 が2本で `setAppearance .dark` の段の赤(手元の Flutter -07・M1Ultra の RN -05)。2本とも振り直し(`display settings that did not reach the app … requeued`)で緑になり、24 対象すべて合格
 
 ### OI-378 Android の Emulator で、入力した欄を ACTION_SET_TEXT の後に見つけ直せず赤(文字は入っている)
 - 状態: 再現済み
@@ -278,6 +279,7 @@
 - 観測: 失敗時の木はアプリの一覧(ドロワー。`apps_list_view`・`search_container_all_apps`)と、ホームのドック(`hotseat` (19,2263 1242x550)・「電話」(105,2263 192x216) 等)が同時に載っていた。`FTE2ERN` の枠 (35,2110 303x337) の中心 (186,2278) にドックの「電話」が重なる。`AppIconLocator.isFreeToTap` が偽になる枝は覆い(`OcclusionGeometry.occluder`)と一覧の縁での切れ(`containerClippingAnyType`)の2つで、失敗文はどちらか言わない = 覆いの枝と読むのは推測
 - 未観測(次に測る): 偽にしたのが覆いと切れのどちらの枝か・ドックが手前と読まれた z の値(結果 JSON に失敗時の木の z が残らない)と、ドックが木に残ったのがドロワーを開く途中の一時の形か、開き切った後も残る形か
 - 検証の所要(11/26): 報告と結果の読み 約5分 + 単独の 3 周 約6分
+- 全体の回帰(2026-11-27 未明・064380e5b): 出なかった(E2E-RN の Android は M1Max の 52 本すべて緑)
 
 ### OI-173 SwiftUI の FAB を容器の外と読む(M1Ultra の負荷の下だけ)
 - 状態: 再現済み
