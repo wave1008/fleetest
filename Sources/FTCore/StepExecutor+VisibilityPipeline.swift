@@ -940,16 +940,30 @@ extension StepExecutor {
     /// **上端で除く帯は木から決める**(いちばん上の要素の上端まで・下限は従来の2行)。ステータスバーの高さは機種で違い
     /// (iPhone 17 Pro は 62pt = 7.1% で、固定の2行 = 6.25% から時計がはみ出して一色と判定されなかった)、
     /// 一律に増やすと上端近くにだけ中身のある画面を「何も描かれていない」と言う。上端近くの中身は木に載るので帯は広がらない
-    static func blankAppAreaFact(screenshot: Data, elements: [ElementInfo], screen: FTRect) -> String {
+    /// **キーボードが出ていれば、その上端より上だけを見る**(`keyboard` = 判定に渡すのと同じ申告の枠)。キーボードは別のウィンドウで
+    /// アプリが描けなくても描かれるので、含めるとアプリの面が無地でも一色にならず、白紙の公表(`RenderCollapse.judge` は除いて見る)と
+    /// 失敗文の事実が食い違った(Android の Emulator: 面が真っ黒でキーボードだけ描かれた回に、公表はされたのに失敗文に一言が無かった)
+    static func blankAppAreaFact(screenshot: Data, elements: [ElementInfo], screen: FTRect, keyboard: FTRect?) -> String {
         let contentTop = elements.map(\.frame.y).filter { $0 > screen.y }.min().map { $0 - screen.y } ?? 0
+        if KeyboardWait.onScreen(keyboard, screen: screen), let keyboard {
+            let top = screen.y + max(contentTop, screen.height * RenderCollapse.systemBandFraction)
+            guard keyboard.y - top >= 1,
+                  RenderCollapse.isUniform(pngData: screenshot,
+                                           region: FTRect(x: screen.x, y: top, width: screen.width, height: keyboard.y - top),
+                                           screen: screen) == true
+            else { return "" }
+            return Self.blankAppAreaFactText
+        }
         let rows = screen.height > 0
             ? Int((contentTop / screen.height * Double(BlankFrameDetector.blackFrameGrid)).rounded(.up)) : 0
         guard BlankFrameDetector.isUniform(pngData: screenshot,
                                            ignoringTopRows: max(rows, BlankFrameDetector.blackFrameIgnoredTopRows))
         else { return "" }
-        return " — the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen,"
-            + " not just at this element)"
+        return Self.blankAppAreaFactText
     }
+
+    static let blankAppAreaFactText = " — the whole app area of the screenshot is a single colour (nothing is drawn anywhere on screen,"
+        + " not just at this element)"
 
     /// 可視性検証の赤に添える「スクロール容器に切られている」の事実(判定は `TapTargetGeometry.centreOutsideScrollContainer`)
     static func scrollContainerClipFact(element: ElementInfo, elements: [ElementInfo]) -> String {
@@ -967,7 +981,7 @@ extension StepExecutor {
     /// (実測: Simulator の CMP で文字だけが画面ごと消え、要素ごとの「木にはあるが見えない」として赤になった)
     static func undrawnScreenFact(screenshot: Data, elements: [ElementInfo], screen: FTRect,
                                   keyboard: FTRect?, inkThreshold: Double) -> String {
-        let blank = blankAppAreaFact(screenshot: screenshot, elements: elements, screen: screen)
+        let blank = blankAppAreaFact(screenshot: screenshot, elements: elements, screen: screen, keyboard: keyboard)
         guard blank.isEmpty else { return blank }
         guard case .noTextDrawn(let count) = RenderCollapse.judge(
             pngData: screenshot, elements: elements, screen: screen, keyboard: keyboard,
