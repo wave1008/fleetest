@@ -770,7 +770,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 評価 8回目(11/23): 本番で同じ形が 4 回(dc_rn_ios の手元 Sim -08・ip_va_cmp の手元 iPad Air 13 で 2 回・r2_e2ey_cmp_4a の手元 Emu)。切り抜きはどれも文字が鮮明。マシンの Vision は alive・ホストの負荷 25〜40(13 の作成セッションが並行)。DR-216 の見直す条件(負荷の低い機械・時間帯)には当たらない
 - 関連の直し(2026-11-25 夜): OCR が等倍で0行のときだけ、文字の領域の検出で文字の矩形から切り直して1回読むようにした(`RegionText.readTextRegion`)。保存してある切り出し 553 枚で等倍0行の 368 枚のうち 5 枚(描かれた文字)がこれで読めた。この項目の「確かめの OCR も文字なし」の回のうち、文字が鮮明な切り出しに効く見込み(この項目の回の切り出しでは未確認)。見直す条件は変えない
 
-### OI-282 注記・読み返しの誤誘導(CMP iOS の入力の反映を「アプリが消費した」・短い画面に「モーダルかも」・装飾の重なりを「貼り付く見出し」・隠し入力欄の焦点)
+### OI-282 注記の誤誘導の残り(OTP の装飾ボックスの重なりに「may have hit」・⑧の文言が両方の可能性を言う)
 - 状態: 再現済み
 - 確認: 657e032d1(2026-11-19)
 - 属性: 据え置き
@@ -918,7 +918,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 観測(2026-11-25・全マシンの回帰と手元 Sim の反復・E2EX-RN の xcuitest モード `貼り付く見出しのリストを扱えること.S0010`): `tap("#row_s_B1", scroll: .up)` の探索が行を貼り付く見出し `#hdr_B (16,157 370x33)` の下(行 `(32,163 338x44)` = 中心が見出しの帯の中)で止め、tap が見出しに当たって ✅・続く `textIs` が赤(回帰で1回)。手元の反復は今日の前のコミット 90fb61a66 で 6/8 緑・今日のコード(29c559d73 とXCUITest ランナーの keptDepth の変更)で 4/11 緑 = どちらも揺れる。差は回数が少なく偶然と区別できない(据え置きのまま。率が下がり続けるなら探索の止まり方を測る)
 - 棚卸し(2026-11-25 夜): 新しい材料なし(xcuitest モードの木の形)
 
-### OI-205 Android の Flutter のオートコンプリートの候補への tap が選ばずに緑(a11y の枠が描画とずれる)・CMP のドロップダウンを開いたままの type の文言・セレクタの末尾の空白ほか
+### OI-205 Android の Flutter のオートコンプリートの候補への tap が選ばずに緑(a11y の枠が描画とずれる)・セレクタの末尾の空白ほか
 - 状態: 再現済み
 - 確認: ad54d899c(2026-11-10)
 - 属性: 据え置き・木に材料なし
@@ -933,7 +933,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/10(⑦ は据え置き): ⑦ は書き方で空白の扱いが割れる形(フィルタの値は項の端の空白を落とす = `#a && text=b` の書き方を許すため・ワイルドカードは項の中の空白を残す)で、どちらへ揃えてもセレクタの一致が変わる。11/9 のユーザー決定「セレクタの空白は今のまま」の範囲なので、決定が無い限り直さない
 - 棚卸し(2026-11-25 夜): 材料の候補あり(枠が描画とずれる形)。対象の枠を OCR で読み、自分の文字が読めず別の要素の文字が読めれば手前を決められる(OI-387 の検知と同じ材料)。オートコンプリートの候補は重なる要素が木に無い形なので、この検知は当たらない(未測定)
 - 次の一手の条件(2026-11-26): ①は、押す前の OCR を「対象の中心に、ラベル付きの別の要素が重なる」ときだけに絞れば、全 tap の費用にはならない(OI-170 と同じ形)。ただし 11/10 のユーザー決定(押す前の OCR は入れない)を変えることになるので、検証の側の同じ判定(`covered-by-front-element-read-on-screen`)の誤検知を全体の回帰で確かめた後に、判断をもらう
-- 処理(2026-11-26・DR-233): ①は撃つ前に候補の枠を OCR で読み、欄の文字(値 "Ja")が描かれていれば注記 `tap-target-drawn-over` を付けるようにした(合否は変えない = 押した後の値の確かめが赤にする)。手元 Emu -01 で 3/3 注記が付いた。撃つ前に断る・描かれた位置を押す、へ上げるかは全体の回帰で誤検知 0 を確かめてから(⑤〜⑦は従来の記載のまま)
+- 処理(2026-11-26・DR-233): ①は撃つ前に候補の枠を OCR で読み、欄の文字(値 "Ja")が描かれていれば注記 `tap-target-drawn-over` を付けるようにした(合否は変えない = 押した後の値の確かめが赤にする)。手元 Emu -01 で 3/3 注記が付いた。撃つ前に断る・描かれた位置を押す、へ上げるかは全体の回帰で誤検知 0 を確かめてから(⑤は 11/13 の c9fdc9f54 で解消。⑥⑦は従来の記載のまま)
 
 ### OI-202 iOS の CMP 検索バーの value の説明文を中身と読む注記・Duo の形・MCP の文言・SE3 の in-app ブリッジが供給から落ちるほか
 - 状態: 再現済み
@@ -968,16 +968,16 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 出典: `_work/explore-20261109k/findings-duo.md`(49周目・11/9)。①`ios-duo`(inapp-boost)で `fold()` の後に入力画面で `type(replace:)` すると、キーボードで画面が上へ押し上げられ、`#txt_echo_single`(枠 (16,-9 94x20) = 上端で半分切れている)への `textIs("single=fold2")` が「the text drawn there reads "single=1010a2"」で赤(duo F1 2/2。木の text と欄の値は期待どおり・開いた状態では 3/3 緑・同じシナリオの1周目は緑)
 - 据え置きの理由: 原因は材料不足(上端で切れた絵の OCR の誤読か、切り出しの位置かを分ける材料が無い)
 
-### OI-209 this* だけのシナリオがステップ0件で赤(1回)・値の改行で表示が割れる・MCP の複数行の欄への type をキーボードの下と断る・ft_scroll_to の文言ほか
+### OI-209 this* だけのシナリオがステップ0件で赤(1回)・値の改行で表示が割れる・ft_scroll_to の文言ほか
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 据え置き
-- 運用: ①再実行で吸収(4回中1回)②⑤合否に響かない(表示・文言)③④誤った赤(MCP だけ)
+- 運用: ①再実行で吸収(4回中1回)②⑤合否に響かない(表示・文言)④誤った赤(MCP だけ)
 - 優先度: 低 — 誤った赤・文言・MCP だけ
 
 出典: `_work/explore-20261109i/findings-*.md`(48周目・11/9)。①`this*` だけのシナリオが 28ms でステップ0件・失敗文なしの赤(ilocal F1 4回中1回。結果 JSON は passed:false・steps 0・workerAnomalies なし・クラッシュ報告なし。回し直すと緑)②値に改行を含む `this*` のステップの説明と失敗文が2行に割れる(ilocal F2 2/2)③MCP の `ft_batch` で単一行の欄へ type した直後に、上 39pt が見えている複数行の欄への type / clearInput / doubleTap を「中心がキーボードの下」と断る・対処文の ft_hide_keyboard ではこの画面のキーボードを閉じられない(duo F2 7/7)④「a b」の複数行の欄への type(replace) が「could not empty the field」で赤になり値が「 b」に壊れた(duo F3 1回の連鎖だけ・新しい状態からは 0/5)⑤ft_scroll_to が上端から一部はみ出た要素に2回払って何も動かなかったのに「scrolled to」と返す(duo F1 5/5)。ほかに、絵文字の扱いが部分一致(書記素の単位)と正規表現(UTF-16 の単位)で割れる(値 "👍🏽" に `textContains("👍")` は赤・`textMatches("👍")` は緑 = im4 の参考)
-- 2026-11-25(③の再確認・手元の iPhone Duo(iOS 27.2)-01・新しい fleetest-mcp を stdin で起こして): `ft_batch` の `type '#field_single' 'abc'` → `type '#field_multiline' 'x'` の2行目が「the target's centre (191, 375) is under the soft keyboard and the keyboard could not be closed without side effects (tapping (378, 344) above the keyboard did not close it) — nothing was typed」で断られる(キーボード (0,374 466x304) = 中心が上端の 1pt 下)。`ft_batch` は DSL と同じ StepExecutor を通るので、③は MCP だけの形ではない(DSL の type も同じ判定)。**③は直した(2026-11-25)**: キーボードを副作用なく閉じられず、欄の上側が見えているときは、見えている部分を押して焦点が立ったのを確かめてから打つ・消す(焦点が立たなければ打たずに断る・押し直さない)。iPhone Duo の inapp-boost・xcuitest で type と clearInput が緑(注記「tapped its visible part above the keyboard and confirmed focus moved to it」)・通常の iPhone の Simulator の両モードは変わらず緑。材料はある(キーボードの枠の申告と欄の枠 = 欄の上側は見えている)。直すなら「中心がキーボードの下でも、欄の見えている部分を押して焦点を立ててから打つ」で、入力の経路を触るので inapp-boost と xcuitest の両方で確かめる
-- 据え置きの理由: ①④原因は材料不足 ②⑤文言・表示 ③MCP だけの判定。正規表現の照合は UTF-16 の単位(書記素の途中に一致の範囲が落ちても見つける)で、部分一致は書記素の単位のまま
+- 2026-11-25(③の再確認・手元の iPhone Duo(iOS 27.2)-01・新しい fleetest-mcp を stdin で起こして): `ft_batch` の `type '#field_single' 'abc'` → `type '#field_multiline' 'x'` の2行目が「the target's centre (191, 375) is under the soft keyboard and the keyboard could not be closed without side effects (tapping (378, 344) above the keyboard did not close it) — nothing was typed」で断られる(キーボード (0,374 466x304) = 中心が上端の 1pt 下)。`ft_batch` は DSL と同じ StepExecutor を通るので、③は MCP だけの形ではない(DSL の type も同じ判定)。**③は直した(2026-11-25)**: キーボードを副作用なく閉じられず、欄の上側が見えているときは、見えている部分を押して焦点が立ったのを確かめてから打つ・消す(焦点が立たなければ打たずに断る・押し直さない)。iPhone Duo の inapp-boost・xcuitest で type と clearInput が緑(注記「tapped its visible part above the keyboard and confirmed focus moved to it」)・通常の iPhone の Simulator の両モードは変わらず緑。(f72c623c0)
+- 据え置きの理由: ①④原因は材料不足 ②⑤文言・表示。正規表現の照合は UTF-16 の単位(書記素の途中に一致の範囲が落ちても見つける)で、部分一致は書記素の単位のまま
 
 ### OI-208 正規表現の値の中の `&&` で切れる・キーボードの下と言い切る失敗文
 - 状態: 再現済み
@@ -989,17 +989,17 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 出典: `_work/explore-20261109h/findings-*.md`(47周目・11/9)。②セレクタの `textMatches=` の値の `&&` / `>>` で値が切れ「the same condition is written twice」で断る・切れたことを言わない(amax F2 4/4・ilocal F2 3/3・im4・phys)③キーボードより上に実在する要素の「見つからない」の失敗文が「キーボードの下で木から消えた・hideKeyboard せよ」と言い切る(phys F2 2/2。`keyboardResizedHint` は窓が縮んだかだけを条件にする)
 - 据え置きの理由: ②③文言・誤った赤(沈黙しない)
 
-### OI-207 MCP の ft_status が返らない(1回)・ft_batch の引数・不正な正規表現の失敗文
+### OI-207 MCP の ft_status が返らない(1回)・ft_batch の引数
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 据え置き
-- 運用: ②③④合否に響かない(MCP だけ・文言)
+- 運用: ②③合否に響かない(MCP だけ)
 - 優先度: 低 — MCP か文言
 
 出典: `_work/explore-20261109g/findings-*.md`(46周目・11/9)。②MCP の `ft_status` が -01 で 60 秒以上・-02 で 90 秒以上返らず記録にも残らなかった(duo F4 1/1。同じ時刻に自分の run が -01 のブリッジを起動中)③MCP の `ft_batch` が結合文字・異体字セレクタで始まる引数(`'́x'`・`'️'`)を引用符の文字列として読めずに断る(duo F3)④正規表現が不正なとき・空のときの DSL の赤に理由の行が付かない(ilocal F3)
-- 据え置きの理由: ②原因は材料不足(46周目に1回・48周目に MCP の ft_status {udid: -01} が 193.6 秒返らず、その間に MCP サーバ自身が -01 の XCUITest ブリッジを起こしていた = duo F5。失敗文は「tried 0s ago」で理由の本文が空)③MCP の ft_batch の引数の字句解析だけの形 ④文言だけ
+- 据え置きの理由: ②原因は材料不足(46周目に1回・48周目に MCP の ft_status {udid: -01} が 193.6 秒返らず、その間に MCP サーバ自身が -01 の XCUITest ブリッジを起こしていた = duo F5。失敗文は「tried 0s ago」で理由の本文が空)③MCP の ft_batch の引数の字句解析だけの形(④は 11/25 の 94d0ed48c で直した)
 
-### OI-206 Android の E2EX-CMP のホームで固定の題を容器の外と読む・数値比較の this* が全角・桁区切りを読まない・Flutter の起動直後の type の read back の赤
+### OI-206 数値比較の this* が全角・桁区切りを読まない・Flutter の起動直後の type の read back の赤
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-09)
 - 属性: 据え置き
@@ -1008,7 +1008,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 出典: `_work/explore-20261109f/findings-*.md`(45周目・11/9)。①Android の E2EX-CMP のホームで、一覧の上に固定の題 `#txt_screen_title` を「容器の外の残り」と読み、`select` が毎回約 5.7 秒の再解決・`tap` は払いを撃って一覧の位置を戻す(alocal F3 DSL 6/6・MCP 5/5。他の SUT のホームでは起きない)②数値比較の `this*` は正規化前の値を `Double()` で読み、"5"+ZWSP・" 5"・全角の "１０"・"1,200" を赤にする・失敗文が数値に読めなかったことを言わない(amax F2 4/4)③Flutter で起動直後の最初の `type('#field_auto >> .textField')` が、欄に入っているのに「read back ""」の 500 で赤(phys F1 9回中7回。同じ画面で clearInput → type は 4/4 ok)④→ OI-196 ⑤
 - 11/9(46周目の回し直し): ①は直っていない(alocal DSL 6/6・select のたびに 7 回の再解決の注記)②は直っていない(amax 4/4)③は直っていない(phys 実機 6 回中 3 回・赤の回も欄に "Ja" が入っている)・47周目も直っていない(phys 4 回中 4 回)
-- 据え置きの理由: ①原因は材料不足(固定の題をなぜ容器の外と読むか)②数値の読み方を広げるのは書式の解釈の決定が要る ③原因は材料不足
+- 据え置きの理由: (①は 11/25 に解消)②数値の読み方を広げるのは書式の解釈の決定が要る ③原因は材料不足
 - 2026-11-25(①の再確認・手元の Emulator・E2EX-CMP のホーム): `select("#txt_screen_title")` を3回続けて 0.36〜0.61 秒・再解決の注記なし(11/9 は毎回約 5.7 秒・7 回の再解決)= 解消(11/18 の keptDepth の門 c516bddf6 と同じ形の見込み。この画面の木の keptDepth は確かめていない)。残りは②③
 - 測る口(2026-11-25): ①の容器の外の判定を判定の足跡 `container-outside`(選んだ容器の枠・外と読んだか・容器が画面からはみ出ていたか)に残す
 
@@ -1053,15 +1053,17 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 11/8: ①の全数(39cf36280 の回帰・1,099 本): 注記は7か所(E2EX-RN の iOS のメニュー・ダイアログ・長押しメニューで、項目を押して閉じた直後の結果欄の `select`)だけで、7か所とも閉じかけのメニューがまだ木の上で手前に残る間の読み。同じ手順を手元の8台と M1Max の4台へ同時に回すと、直後に読むと 12/12 で注記が付き、1秒待つと 0/12(合否はすべて緑)= 遷移の途中の覆い。このまま赤へ上げると正しいシナリオを赤にする(12/12)。赤にするなら覆いが外れるまで待つ形が要るが、遷移の完了は待たない方針と衝突するので、警告のまま据え置く
 - 関連(2026-11-25 夜): 塗り順の分からない木(SwiftUI・CMP・Flutter)でも、重なるラベル付きの要素の文字が対象の枠に描かれていれば、画素(OCR)で読んで注記 `covered-by-front-element-read-on-screen` を付けるようにした(OI-387。合否は変えない)
 
-### OI-197 SwiftUI の back() の直後の木に前の画面の BackButton が残る・xcuitest の実機でモーダルの裏への tap が警告付きの ✅
+### OI-197 xcuitest の実機でモーダルの裏への tap が警告付きの ✅
 - 状態: 再現済み
 - 確認: コミット未記録(2026-11-07)
 - 属性: 据え置き
-- 運用: ②合否に響かない ⑥要注意 — xcuitest モードの実機だけ。別ウィンドウのモーダルの裏への `tap` が警告付きの ✅
-- 優先度: 低 — 遷移の間の木と、xcuitest モードの設計(警告のみ)
+- 運用: ⑥要注意 — xcuitest モードの実機だけ。別ウィンドウのモーダルの裏への `tap` が警告付きの ✅
+- 優先度: 低 — xcuitest モードの設計(警告のみ)
 
 出典: `_work/explore-20261107j/findings-*.md`(39周目・11/7)。②SwiftUI で `back()` の直後の木に前の画面の `#BackButton` が残り `exist` / `tap` が ✅(im4 F1・6/6)。手元の8台で直後 8/8・0.5 秒後 6/8・1 秒後 0/8 = 戻る遷移のフェードの間(画面にも描かれている) ⑥xcuitest モードの実機で別ウィンドウのモーダルの裏のボタンへの `tap` が「the tap will land on that overlay」と警告して撃ち ✅(phys F1・2/2。`OverlayWindowOcclusion` は警告のみの設計。inapp-boost は撃つ前に断る)
-- 据え置きの理由: ②遷移の完了は待たない方針 ⑥xcuitest モードは警告だけの設計
+- 据え置きの理由: ⑥xcuitest モードは警告だけの設計
+- ②は消えた(2026-11-26・04f90dc2a・手元 Sim・E2EY-iOS・inapp-boost): `tap("#nav_links")` / `tap("#nav_nested")` → `back()` の直後の `exist("#BackButton", waitSeconds: 0)` が 10/10 not found(11/7 は直後 8/8 で残った)。iOS ブリッジ 317・318 の去り際の戻るボタンを木に載せない直し(`InAppSnapshot.isLeavingBackButton`)の効き目
+- 検証の所要(11/26): 台帳とコードの読み(エージェント) + 一時シナリオを書いて `run-file` で5回(1回 約30秒) = 約10分
 
 ### OI-204 MCP の back と ft_type(replace:) の断りの文言
 - 状態: 再現済み
@@ -1142,7 +1144,7 @@ iOS の `back()` は画面に押せる自前の「戻る」(`#btn_back`)があ�
 - 運用: ①要注意 — Android で別アプリを `launchApp` した後の否定(`notExist`・`countIs 0`)は緑のまま、注記 `absence-checked-on-another-app` が付く。対象アプリを確かめるなら否定を書く前に戻す
 - 優先度: 低 — 注記で知らせる・直さないと決めた
 
-出典: `_work/explore-20261106h/findings-*.md`(24周目・11/6)。①Android で `launchApp("com.android.settings")` のように別のアプリを起こした後の `notExist`・`countIs 0` が緑(amax F3・4/4)。原因(report-mand): `launchApp(<別>)` は `appMayHaveLeft` を落とす(`FTRuntime` の `noteAppMayHaveLeft(false)`)ので門が照会せず、照会しても候補は `[lastLaunched, appUnderTest]`(`StepExecutor.backgroundedAppRefusal`)で前面の起こしたアプリが通る = 起こしたアプリを対象と読む設計の帰結
+出典: `_work/explore-20261106h/findings-*.md`(24周目・11/6)。①Android で `launchApp("com.android.settings")` のように別のアプリを起こした後の `notExist`・`countIs 0` が緑(amax F3・4/4)。原因(report-mand): `launchApp(<別>)` は `appMayHaveLeft` を落とす(`FTRuntime` の `noteAppMayHaveLeft(false)`)ので門が照会せず、照会しても候補は起こしたアプリ(`lastLaunchedAppBundleID`)と対象のアプリ(`StepExecutor+AppLeftRefusal.swift` の `backgroundedAppRefusal`)で前面の起こしたアプリが通る = 起こしたアプリを対象と読む設計の帰結
 - 据え置きの理由(ユーザー決定 11/6): 別のアプリを意図して検証するシナリオがあり、書き手の意図はツールに分からないので門は変えない。注記 `absence-checked-on-another-app`(`StepExecutor.absenceReadAnotherApp`)で知らせる
 
 ### OI-172 in-app の当たり判定が「中心に撃つと別の物に当たる」と名指ししても、合成タッチで撃って ✅ を返す
