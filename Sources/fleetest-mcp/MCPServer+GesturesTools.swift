@@ -1018,6 +1018,9 @@ extension MCPServer {
         if let snapshot, let refusal = Self.aboveScreenRefusal(element, screen: snapshot.screen, label: "[\(element.ref)]") {
             throw MCPError(refusal)
         }
+        // 塗り順(DR-235)は木を撮った直後に聞く: ダンプは聞いた瞬間のもので、間の探針の往復の分だけ画面が先へ進みうる
+        // (中心の照合は同じ木の ref かしか言えない)
+        let naming = await refOccluderNaming(snapshot, driver: driver, args: args, askingFor: element).withOS(isAndroid: isAndroid)
         // 覆う面・木と画面の食い違い(ft_tap の verifiedRef と同じ探針・同じメモ。SpringBoard へ attach 中は言わない)
         var screenProbe = ""
         if let snapshot, launchedBundleIDs[Self.sessionKey(args)] != "com.apple.springboard" {
@@ -1032,9 +1035,7 @@ extension MCPServer {
             screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0))
             + RefGuard.overlapWarning(found: element, in: snapshot?.elements ?? [],
                                       screen: snapshot?.screen ?? FTRect(x: 0, y: 0, width: 0, height: 0),
-                                      naming: await refOccluderNaming(snapshot, driver: driver, args: args, askingFor: element)
-                                          .withOS(isAndroid: isAndroid),
-                                      operation: operation)
+                                      naming: naming, operation: operation)
             + (TapTargetGeometry.pinnedBandNote(for: element, in: snapshot?.elements ?? [], operation: "touch") ?? "")
             // 容器の縁にまたがる行は、ft_tap / ft_long_press と同じく ref を引く全ての操作で言う(判定は `straddleWarning` の1箇所)
             + Self.straddleWarning(element, in: snapshot?.elements ?? [], operation: operation)

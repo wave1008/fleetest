@@ -415,9 +415,15 @@ extension StepExecutor {
     /// 判定規則は pointIsTakenByFrontElement と1つの実装を共有する(片方だけ変わらないように)
     static func frontElementTakingPoint(x: Double, y: Double, of element: ElementInfo,
                                         in elements: [ElementInfo]) -> ElementInfo? {
-        guard let index = elements.firstIndex(where: { $0.ref == element.ref }) else { return nil }
+        elementsTakingPoint(x: x, y: y, of: element, in: elements).first
+    }
+
+    /// 同上の候補の全部(木の順)。先頭が `frontElementTakingPoint`。塗り順の答え(DR-235)で選び直す呼び手が使う
+    static func elementsTakingPoint(x: Double, y: Double, of element: ElementInfo,
+                                    in elements: [ElementInfo]) -> [ElementInfo] {
+        guard let index = elements.firstIndex(where: { $0.ref == element.ref }) else { return [] }
         let ownRefs = Set(LocatorResolver.descendants(of: element, in: elements).map(\.ref))
-        return elements[elements.index(after: index)...].first { other in
+        return elements[elements.index(after: index)...].filter { other in
             guard !ownRefs.contains(other.ref) else { return false }
             return other.frame.containsClosed(x: x, y: y)
         }

@@ -418,6 +418,7 @@ public final class StepExecutor {
         semanticsOrderUnavailableApp = nil
         semanticsOrderCache = nil
         paintRanksCache = nil
+        semanticsOrderTransientMiss = nil
         armUnregisteredSystemAlertProbe()
         firstFrameGatePending = true
         pendingLaunchSettle = true
@@ -1407,6 +1408,8 @@ public final class StepExecutor {
     /// そのアプリへは聞き直さない(聞くたびにブリッジが pidof と logcat を読む)。アプリを起こし直したら捨てる(`noteAppLaunched`。新しい pid は
     /// ログに URI を出し直す)
     var semanticsOrderUnavailableApp: String?
+    /// 一時的な理由で答えられなかった直近の木の署名(`askSemanticsOrder`。同じ木の2回目で控える)
+    var semanticsOrderTransientMiss: String?
     /// 足跡用: 直近のスクロール探索で最後に撃った1本の種類(`swipe` = 払い・`*-drag` / `*-swipe` = 寄せなどの回復)と、
     /// 内容が動いた容器。`runScrollSearch` の入口で捨てる。判定には使わない
     var scrollTraceLastSend = "none"
@@ -1783,12 +1786,19 @@ public final class StepExecutor {
             of: element, in: snapshot.elements)
         var takerSuppressed = false
         if let front = taker {
-            // 撃つ前の木 = ブリッジの直近の木なので聞いてよい(DR-235)。奥と答えたら奪う相手ではない
-            let naming = await resolvingPaintOrder(snapshot, fetch: true, { $0 },
-                                                   suppressed: { !$0.mayName(front, element) && !$0.answeredBehind(front, element) })
-            if !naming.mayName(front, element) {
+            // 撃つ前の木 = ブリッジの直近の木なので聞いてよい(DR-235)。奥と答えたら同じ点の他の候補で見直し、全部が奥なら奪う相手ではない
+            let candidates = Self.elementsTakingPoint(x: element.frame.centerX, y: element.frame.centerY,
+                                                      of: element, in: snapshot.elements)
+            let naming = await resolvingPaintOrder(snapshot, fetch: true, { $0 }, suppressed: { naming in
+                naming.reconsideredCover(front, target: element, candidates: candidates)
+                    .map { !naming.mayName($0, element) } ?? false
+            })
+            let reconsidered = naming.reconsideredCover(front, target: element, candidates: candidates)
+            if let reconsidered, naming.mayName(reconsidered, element) {
+                taker = reconsidered
+            } else {
                 taker = nil
-                takerSuppressed = !naming.answeredBehind(front, element)
+                takerSuppressed = reconsidered != nil
             }
         }
         lastInteraction = LastInteraction(

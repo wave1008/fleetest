@@ -69,4 +69,32 @@ final class OccluderNamingMCPTests: XCTestCase {
         let reasonOnly = SemanticsOrderResponse(dump: nil, nodes: nil, reason: "no-vm-service")
         XCTAssertEqual(MCPServer.inSessionRefs(reasonOnly, base: 100), reasonOnly)
     }
+
+    /// VM サービスが無いと答えたアプリへは、木が変わっても聞き直さない(DSL の `semanticsOrderUnavailableApp` と同じ)。ft_launch で捨てる
+    func testMissingVMServiceIsRememberedPerSession() async {
+        let server = MCPServer(write: { _ in }, makeDriver: { _ in FakeDriver() }, recordSnapshot: { _, _, _ in })
+        server.androidUIFrameworkLookup = { _, _ in .flutter }
+        let args: [String: Any] = ["platform": "android", "serial": "emulator-5554"]
+        let key = MCPServer.sessionKey(args)
+        server.bridges[key] = "android"
+        let driver = FakeDriver()
+        driver.semanticsOrderAnswer = SemanticsOrderResponse(dump: nil, nodes: nil, reason: "no-vm-service")
+        let screen = FTRect(x: 0, y: 0, width: 400, height: 800)
+        func tree(rowY: Double) -> (SnapshotResponse, ElementInfo) {
+            let target = ElementInfo(ref: 1, type: "button", identifier: "fab", label: "追加", value: nil, placeholder: nil,
+                                     enabled: true, frame: FTRect(x: 0, y: 300, width: 400, height: 60), depth: 1)
+            let row = ElementInfo(ref: 2, type: "button", identifier: "row", label: "行", value: nil, placeholder: nil,
+                                  enabled: true, frame: FTRect(x: 0, y: rowY, width: 400, height: 60), depth: 1)
+            return (SnapshotResponse(sessionBundleID: "com.example.release", screen: screen, elements: [target, row],
+                                     truncatedCount: 0), target)
+        }
+        let (first, target) = tree(rowY: 320)
+        _ = await server.refOccluderNaming(first, driver: driver, args: args, askingFor: target)
+        let (second, _) = tree(rowY: 310)
+        _ = await server.refOccluderNaming(second, driver: driver, args: args, askingFor: target)
+        XCTAssertEqual(driver.semanticsOrderCalls, 1, "同じアプリには聞き直さない(聞くたびにブリッジが pidof と logcat を読む)")
+        server.semanticsOrderUnavailableApps[key] = nil
+        _ = await server.refOccluderNaming(second, driver: driver, args: args, askingFor: target)
+        XCTAssertEqual(driver.semanticsOrderCalls, 2, "控えを捨てたら聞く")
+    }
 }

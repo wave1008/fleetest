@@ -137,9 +137,14 @@ extension StepExecutor {
               // 容器の外へはみ出して描かれていない行は、覆われているのではなく描かれていない(
               // 固定領域の echo が「覆い」に見えるだけ)
               !Self.isClippedAwayByItsContainer(element, in: elements),
-              let cover = OcclusionSuspicion.covering(element: element, in: elements, screen: screen)
+              let chosen = OcclusionSuspicion.covering(element: element, in: elements, screen: screen)
         else { return ("", false) }
-        guard naming.mayName(cover, element) else { return ("", !naming.answeredBehind(cover, element)) }
+        // 塗り順が「覆いは奥」と答えた組は同じ枠の他の候補で見直す(DR-235)
+        guard let cover = naming.reconsideredCover(chosen, target: element,
+                                                   candidates: OcclusionSuspicion.coverings(element: element, in: elements,
+                                                                                            screen: screen))
+        else { return ("", false) }
+        guard naming.mayName(cover, element) else { return ("", true) }
         // **`TapTargetGeometry.describe` と同じ「名指し」**。失敗文言に混ぜる
         // 説明であって、読み手がそのまま貼れるセレクタである保証はしない(エスケープ未対応)
         let label = cover.identifier.map { "#\($0)" } ?? cover.label.map { "\"\($0)\"" } ?? cover.type
@@ -163,7 +168,7 @@ extension StepExecutor {
                 keyboardShown: KeyboardWait.isShown(snapshot), keyboard: snapshot.keyboardFrame,
                 looseMatch: LocatorResolver.quality(of: other, for: locator) == .substring,
                 perStepGuard: step.occlusionGuard,
-                expectedIsUserText: locator.label != nil, phase: &phase)
+                expectedIsUserText: locator.label != nil, app: snapshot.sessionBundleID, phase: &phase)
             if flip == nil, !guardFrameStaleThisEval { return other }
         }
         return nil
@@ -634,7 +639,7 @@ extension StepExecutor {
                     looseMatch: d.quality == .substring, perStepGuard: step.occlusionGuard,
                     // #4: label セレクタ一致はユーザー期待値。結合ラベル `, ` 規則を当てず
                     // exist("Hello, World") でガードがスキップされる欠陥を防ぐ(textEquals と同契約)。
-                    expectedIsUserText: step.locator?.label != nil, phase: &phase) {
+                    expectedIsUserText: step.locator?.label != nil, app: snapshot.sessionBundleID, phase: &phase) {
                     // 同じセレクタの別の一致の文字が見えていれば緑(画像の説明ラベルが文字の型で木に出て、木の順で先に掴まれる形)。
                     // 別の一致も同じ検証を通すので、見えていない文字の緑は増えない
                     if let other = try await visibleOtherMatch(of: step, besides: d.element, in: snapshot,
@@ -870,7 +875,7 @@ extension StepExecutor {
                         elements: snapshot.elements, screen: snapshot.screen,
                         keyboardShown: KeyboardWait.isShown(snapshot), keyboard: snapshot.keyboardFrame,
                         looseMatch: loose, perStepGuard: step.occlusionGuard,
-                        expectedIsUserText: true, phase: &phase) {
+                        expectedIsUserText: true, app: snapshot.sessionBundleID, phase: &phase) {
                         // 同じセレクタの別の一致で、値が同じ答えに合い文字が見えていれば緑(exist の `visibleOtherMatch` と同じ)
                         if let other = try await visibleOtherMatch(
                             of: step, besides: element, in: snapshot,

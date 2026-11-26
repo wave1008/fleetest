@@ -93,6 +93,7 @@ final class MCPServer {
     var sheetRescueFutile: SessionMap<Set<String>> { SessionMap(server: self, path: \.sheetRescueFutile) }
     var pendingWarnings: SessionMap<[String]> { SessionMap(server: self, path: \.pendingWarnings) }
     var lastScreenProbe: SessionMap<(fingerprint: Int, warning: String)> { SessionMap(server: self, path: \.lastScreenProbe) }
+    var semanticsOrderUnavailableApps: SessionMap<String> { SessionMap(server: self, path: \.semanticsOrderUnavailableApp) }
     var connections: SessionMap<String> { SessionMap(server: self, path: \.connection) }
     var connectedPorts: SessionMap<UInt16> { SessionMap(server: self, path: \.connectedPort) }
     var hybridFallbackPorts: SessionMap<UInt16> { SessionMap(server: self, path: \.hybridFallbackPort) }

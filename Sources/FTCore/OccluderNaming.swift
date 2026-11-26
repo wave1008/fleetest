@@ -55,6 +55,20 @@ public struct OccluderNamingContext: Equatable, Sendable {
         return paintRanks?.inFront(occluder, of: target) == false
     }
 
+    /// 木の順で選んだ覆い `cover` を、塗り順の答えで見直す(DR-235)。`candidates` = 呼び手の判定が同じ点・枠に重なると数えた相手の全部
+    /// (木の順で選ぶ前の集合)。`cover` が奥と答えられた組だけ見直す(それ以外は `cover` のまま):
+    /// 手前と答えられた候補があればその最前面(名指せる)/ 答えの無い候補が残れば木の順でその最前面(今の規則のまま = 注意)/
+    /// 全部が奥と答えられたら nil(疑いごと外す)。**`cover` 1つの答えで外すと、木の順で選ばれなかった本当の覆いを黙って素通しする**
+    /// (Flutter の木の順は塗り順ではない = 選ばれた1つが奥でも、同じ点に手前の別の要素がありうる)
+    public func reconsideredCover(_ cover: ElementInfo, target: ElementInfo,
+                                  candidates: @autoclosure () -> [ElementInfo]) -> ElementInfo? {
+        guard answeredBehind(cover, target), let ranks = paintRanks else { return cover }
+        let others = candidates().filter { $0.ref != cover.ref && $0.ref != target.ref }
+        let inFront = others.filter { ranks.inFront($0, of: target) == true }
+        if let front = inFront.max(by: { (ranks.ranks[$0.ref] ?? 0) < (ranks.ranks[$1.ref] ?? 0) }) { return front }
+        return others.filter { ranks.inFront($0, of: target) == nil }.max { PaintOrder.drawnAbove($1, $0) }
+    }
+
     /// 今の規則では名指せない組で、名指しを塗り順で決めた(手前でも奥でも)
     public func decidedByPaintRanks(_ occluder: ElementInfo, _ target: ElementInfo) -> Bool {
         guard !OccluderNaming.mayName(occluder: occluder, target: target, isAndroid: isAndroid, framework: framework) else { return false }

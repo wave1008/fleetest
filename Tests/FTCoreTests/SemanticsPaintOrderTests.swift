@@ -141,7 +141,7 @@ final class SemanticsPaintOrderTests: XCTestCase {
     /// 3画面の全要素で: 答えが無いと名指しを抑える組は、答えがあれば「覆いが手前」なら名指し、「奥」なら疑いごと外す。
     /// 答えで決まらない組(対応の無い要素)は DR-230 のまま抑える
     func testAdvisoryFollowsTheAnswerForEverySuppressedPair() throws {
-        var named = 0, cleared = 0, kept = 0
+        var named = 0, cleared = 0, kept = 0, keptForOther = 0
         for name in ["half", "fab", "hide"] {
             let (dump, snapshot) = try load(name)
             let answer = try XCTUnwrap(PaintRankAnswer.make(response: response(dump, snapshot), elements: snapshot.elements))
@@ -159,23 +159,35 @@ final class SemanticsPaintOrderTests: XCTestCase {
                     guard case .overlayCovering(let o)? = after.kind else { XCTFail("\(name) ref \(target.ref): 名指していない"); continue }
                     XCTAssertEqual(o.ref, over.ref); XCTAssertFalse(after.namingSuppressed); named += 1
                 case false?:
-                    XCTAssertFalse(after.namingSuppressed, "\(name) ref \(target.ref): 奥の覆いの注意が残った")
-                    if case .overlayCovering? = after.kind { XCTFail("\(name) ref \(target.ref): 奥の覆いを名指した") }
-                    cleared += 1
+                    if case .overlayCovering(let o)? = after.kind, o.ref == over.ref { XCTFail("\(name) ref \(target.ref): 奥の覆いを名指した") }
+                    // 同じ点の他の候補に答えの無いものが残れば注意を残す(`reconsideredCover`)。固定データの答えは identifier から組むので、
+                    // identifier の無い容器(scrollView)は答えが無い側に入る(実際のブリッジは仮想の要素すべてに答える)
+                    let others = OcclusionGeometry.overlayCoverings(target, in: snapshot.elements, screen: snapshot.screen)
+                        .filter { $0.ref != over.ref }
+                    if others.contains(where: { answer.inFront($0, of: target) == nil }) {
+                        XCTAssertTrue(after.namingSuppressed, "\(name) ref \(target.ref): 答えの無い候補が残るのに注意を外した")
+                        keptForOther += 1
+                    } else {
+                        XCTAssertFalse(after.namingSuppressed, "\(name) ref \(target.ref): 奥の覆いの注意が残った")
+                        cleared += 1
+                    }
                 case nil:
                     XCTAssertTrue(after.namingSuppressed); kept += 1
                 }
             }
         }
         // 段0の3画面の実数。named = 半分のシートの行が本文の行を覆う7組 / cleared = FAB・下のバーとそのボタン・シートの見出しが
-        // 手前の9組(DR-230 の名指さない注意が外れていた組)/ kept = identifier の無い要素(対応が取れない)。採り直したら1件ずつ絵で確かめてから直す
-        XCTAssertEqual([named, cleared, kept], [Self.expectedNamed, Self.expectedCleared, Self.expectedKept],
-                       "named=\(named) cleared=\(cleared) kept=\(kept)")
+        // 手前の9組のうち、同じ点の他の候補も全部答えのある4組(DR-230 の名指さない注意が外れる組)/ kept = identifier の無い要素(対応が取れない)。採り直したら1件ずつ絵で確かめてから直す
+        // keptForOther = 選んだ覆いは奥だが、同じ点の identifier の無い一覧の容器に答えが無い5組(注意を残す)
+        XCTAssertEqual([named, cleared, kept, keptForOther],
+                       [Self.expectedNamed, Self.expectedCleared, Self.expectedKept, Self.expectedKeptForOther],
+                       "named=\(named) cleared=\(cleared) kept=\(kept) keptForOther=\(keptForOther)")
     }
 
     static let expectedNamed = 7
-    static let expectedCleared = 9
+    static let expectedCleared = 4
     static let expectedKept = 3
+    static let expectedKeptForOther = 5
 }
 
 /// 実行機の上の配線(DR-235): 検証の V3 で、覆いが塗り順で手前なら注記を立てる・名指せる組や覆いの無い要素では聞かない
@@ -198,7 +210,7 @@ final class SemanticsPaintOrderExecutorTests: XCTestCase {
 
     private func evidence(_ target: ElementInfo, _ elements: [ElementInfo]) -> VisibilityEvidence {
         VisibilityEvidence(element: target, expectedText: target.label ?? "", elements: elements, screen: screen,
-                           keyboardShown: false, looseMatch: false, expectedIsUserText: false, perStepGuard: nil)
+                           keyboardShown: false, looseMatch: false, expectedIsUserText: false, perStepGuard: nil, app: nil)
     }
 
     func testCoverInFrontOnFlutterIsReported() async {
@@ -242,6 +254,65 @@ final class SemanticsPaintOrderExecutorTests: XCTestCase {
         let aloneCovered = await alone.coveredInPaintRanks(evidence(far, [row, sheet, far]))
         XCTAssertFalse(aloneCovered)
         XCTAssertEqual(aloneDriver.semanticsOrderCalls, 0, "覆いの無い要素では聞かない")
+    }
+
+    /// 木の順で選んだ覆いが奥と答えられても、同じ点の別の候補が手前と答えられたらそちらを名指す・答えの無い候補が残れば注意を残す
+    /// (選んだ1つの答えで疑いごと外すと、木の順で選ばれなかった本当の覆いを黙って素通しする)
+    func testOtherCandidatesAreReconsideredWhenTheChosenCoverIsBehind() {
+        let row = el(1, "row", y: 300), bar = el(2, "bottom_bar", y: 320), panel = el(3, "panel", y: 310)
+        let dump = "SemanticsNode#0\n ├─SemanticsNode#13\n ├─SemanticsNode#11\n └─SemanticsNode#12\n"
+        func naming(_ nodes: [ElementInfo]) -> OccluderNamingContext {
+            let response = SemanticsOrderResponse(
+                dump: dump, nodes: nodes.map { .init(ref: $0.ref, semanticsId: $0.ref + 10, cx: $0.frame.centerX, cy: $0.frame.centerY) },
+                reason: nil)
+            return OccluderNamingContext(isAndroid: true, framework: .flutter,
+                                         paintRanks: PaintRankAnswer.make(response: response, elements: [row, bar, panel]))
+        }
+        let elements = [row, bar, panel]
+        XCTAssertEqual(OcclusionGeometry.overlayCovering(row, in: elements, screen: screen)?.ref, panel.ref, "木の順では panel を選ぶ")
+        // ダンプの順: panel(13) < row(11) < bar(12) = panel は奥・bar は手前
+        let answered = naming(elements)
+        XCTAssertEqual(answered.reconsideredCover(panel, target: row, candidates: [bar, panel])?.ref, bar.ref)
+        guard case .overlayCovering(let named)? = TapTargetGeometry.advisoryKindResult(
+            for: row, in: elements, screen: screen, naming: answered).kind else { return XCTFail("覆いを名指していない") }
+        XCTAssertEqual(named.ref, bar.ref, "手前と答えられた bar を名指す")
+        let barUnanswered = naming([row, panel])
+        XCTAssertEqual(barUnanswered.reconsideredCover(panel, target: row, candidates: [bar, panel])?.ref, bar.ref)
+        XCTAssertTrue(TapTargetGeometry.advisoryKindResult(for: row, in: elements, screen: screen, naming: barUnanswered)
+            .namingSuppressed, "答えの無い候補が残れば注意を残す")
+        XCTAssertNil(answered.reconsideredCover(panel, target: row, candidates: [panel]), "全部が奥なら疑いごと外す")
+        XCTAssertEqual(answered.reconsideredCover(bar, target: row, candidates: [bar, panel])?.ref, bar.ref, "奥と答えられていなければそのまま")
+    }
+
+    /// 一時的な理由(締め切り等)は同じ木でもう1回だけ聞き、2回続けば控える。聞き直しても変わらない理由は1回目で控える
+    func testTransientReasonIsAskedOnceMoreOnTheSameTree() async {
+        let row = el(1, "row", y: 300), sheet = el(2, "sheet_row", y: 320)
+        let driver = FakeAppDriver(name: "p", log: CallLog())
+        driver.semanticsOrderAnswer = SemanticsOrderResponse(dump: nil, nodes: nil, reason: "timeout")
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .flutter)
+        for _ in 0..<3 { _ = await executor.paintRanks(elements: [row, sheet], app: "com.example.flutter") }
+        XCTAssertEqual(driver.semanticsOrderCalls, 2, "1回目の締め切りは控えず聞き直す・2回続けば控える")
+
+        let lasting = FakeAppDriver(name: "p", log: CallLog())
+        lasting.semanticsOrderAnswer = SemanticsOrderResponse(dump: nil, nodes: nil, reason: "multiple-hosts")
+        let lastingExecutor = StepExecutor(driver: lasting, isAndroid: true, tunables: RunTunables(), uiFramework: .flutter)
+        for _ in 0..<2 { _ = await lastingExecutor.paintRanks(elements: [row, sheet], app: "com.example.flutter") }
+        XCTAssertEqual(lasting.semanticsOrderCalls, 1, "木の形の理由は聞き直しても変わらない")
+    }
+
+    /// 検証の段も木のアプリを鍵に「VM サービス無し」を覚える(木が変わるたびに聞き直さない)
+    func testVerificationStageRemembersMissingVMServiceByTheTreesApp() async {
+        let row = el(1, "row", y: 300), sheet = el(2, "sheet_row", y: 320)
+        let driver = FakeAppDriver(name: "p", log: CallLog())
+        driver.semanticsOrderAnswer = SemanticsOrderResponse(dump: nil, nodes: nil, reason: "no-vm-service")
+        let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .flutter)
+        func evidence(_ elements: [ElementInfo]) -> VisibilityEvidence {
+            VisibilityEvidence(element: row, expectedText: "row", elements: elements, screen: screen, keyboardShown: false,
+                               looseMatch: false, expectedIsUserText: false, perStepGuard: nil, app: "com.example.release")
+        }
+        _ = await executor.coveredInPaintRanks(evidence([row, sheet]))
+        _ = await executor.coveredInPaintRanks(evidence([row, el(2, "sheet_row", y: 330)]))
+        XCTAssertEqual(driver.semanticsOrderCalls, 1, "木が変わっても同じアプリには聞き直さない")
     }
 }
 
@@ -334,6 +405,9 @@ final class SemanticsOrderWireSyncTests: XCTestCase {
         let java = try source("AndroidRunner/src/com/example/ftbridge/FlutterSemanticsOrder.java")
         XCTAssertTrue(java.contains("REASON_NO_VM_SERVICE = \"\(StepExecutor.noVMServiceReason)\""),
                       "控えの鍵の語(no-vm-service)がブリッジと割れた = 控えが黙って効かなくなる")
+        let bridgeReasons = Set(java.matches(of: /static final String REASON_\w+ = "([a-z-]+)";/).map { String($0.output.1) })
+        XCTAssertTrue(StepExecutor.lastingReasons.isSubset(of: bridgeReasons),
+                      "聞き直さない理由の語がブリッジと割れた = 控えるはずの答えを毎回聞き直す: \(StepExecutor.lastingReasons.subtracting(bridgeReasons))")
     }
 
     func testBudgetsArePinned() throws {

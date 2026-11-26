@@ -43,7 +43,7 @@ extension StepExecutor {
             element: element, expectedText: textToVerify,
             elements: tree.elements, screen: tree.screen,
             keyboardShown: KeyboardWait.isShown(tree), keyboard: tree.keyboardFrame,
-            looseMatch: false, perStepGuard: step.occlusionGuard, phase: &phase)
+            looseMatch: false, perStepGuard: step.occlusionGuard, app: tree.sessionBundleID, phase: &phase)
         // 素通りの段(対象外の型・段が未設定・絵が古い 等)は文字を読まずに nil を返すので、画素に文字を読めた回だけ採る
         // 検証が素通りの段(対象外の型)で降りて画素を読まなかった行は、その枠を OCR で1回読む。XCUITest の木の行は
         // 入力欄の子(標準アプリのリマインダーの題名 = `textField "タイトル"`)を持つので行の確かめ(V4)に乗らず、見えていても採れなかった。

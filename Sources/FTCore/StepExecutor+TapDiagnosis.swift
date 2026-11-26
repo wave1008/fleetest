@@ -108,8 +108,8 @@ extension StepExecutor {
         if answer == nil {
             noteCodesThisStep.insert(.semanticsOrderUnavailable)
             traceThisStep.append(.semanticsOrder, ["outcome": "unavailable", "reason": Self.unavailableReason(response)])
-            // ブリッジが答えられないと言った回だけ控える(木の食い違いは控えない)
-            if response?.reason != nil { paintRanksCache = (signature, nil) }
+            // ブリッジが答えられないと言い、その答えを控えた回だけ控える(木の食い違い・1回目の一時的な理由は控えない)
+            if response?.reason != nil, semanticsOrderCache?.signature == signature { paintRanksCache = (signature, nil) }
         } else {
             traceThisStep.append(.semanticsOrder, ["outcome": "answered"])
             paintRanksCache = (signature, answer)
@@ -140,6 +140,14 @@ extension StepExecutor {
         // (同じ内容の木を次に撮れば、ブリッジの直近の木と合いうる)。理由付きの答えはブリッジの直近の木についてで、ホストの木と同じかは
         // 確かめられない(別の呼び手が間に撮った木の答えが混ざりうる)が、倒れる先は答え無し = DR-230 のまま
 
+        // 一時的な理由(締め切り・ダンプの失敗等)は同じ木でもう1回だけ聞く(たまたま遅かった1回で、その画面の間ずっと答え無しにしない)。
+        // 2回続けば控える(同じ画面で毎回締め切りを払わない = 払うのは1画面あたり最大2回)
+        if let reason = response?.reason, !Self.lastingReasons.contains(reason) {
+            guard semanticsOrderTransientMiss == signature else {
+                semanticsOrderTransientMiss = signature
+                return response
+            }
+        }
         if response?.reason != nil || PaintRankAnswer.make(response: response, elements: elements) != nil {
             semanticsOrderCache = (signature, response)
         }
@@ -147,7 +155,10 @@ extension StepExecutor {
     }
 
     /// ブリッジの理由の語彙(FlutterSemanticsOrder.java の REASON_NO_VM_SERVICE と同じ綴り。`SemanticsOrderWireSyncTests`)
-    static let noVMServiceReason = "no-vm-service"
+    public static let noVMServiceReason = "no-vm-service"
+    /// 聞き直しても変わらない理由(木の形・アプリのビルド)。これ以外(no-snapshot / no-pid / dump-failed / timeout / empty-dump)は一時的。
+    /// 綴りは FlutterSemanticsOrder.java の REASON_*(`SemanticsOrderWireSyncTests`)
+    static let lastingReasons: Set<String> = ["no-virtual-nodes", "multiple-hosts", noVMServiceReason]
 
     /// `TapTargetGeometry.occlusionAdvisory` の文言を返し、名指しを抑えたら事実として注記 `occluderNamingSuppressed` を残す
     func occlusionAdvisoryNoted(for element: ElementInfo, in snapshot: SnapshotResponse) async -> String? {

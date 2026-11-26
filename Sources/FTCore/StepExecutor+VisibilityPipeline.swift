@@ -85,6 +85,8 @@ struct VisibilityEvidence {
     let looseMatch: Bool
     let expectedIsUserText: Bool
     let perStepGuard: Bool?
+    /// 木のアプリ(`SnapshotResponse.sessionBundleID`)。塗り順の「VM サービス無し」の控えの鍵(DR-235)
+    let app: String?
     /// V4 の結果。OCR の読みだけで決める行か
     var rowCheckByOCR = false
     /// V4 を通った印。V1〜V3 で返った出口には `rowLabelNotRead` の付け外しを掛けない(今の挙動)
@@ -106,7 +108,8 @@ struct VisibilityEvidence {
     var emptyTranscriptOnInk = ""
 
     init(element: ElementInfo, expectedText: String, elements: [ElementInfo], screen: FTRect,
-         keyboardShown: Bool, looseMatch: Bool, expectedIsUserText: Bool, perStepGuard: Bool?) {
+         keyboardShown: Bool, looseMatch: Bool, expectedIsUserText: Bool, perStepGuard: Bool?, app: String?) {
+        self.app = app
         self.element = element
         self.expectedText = expectedText
         self.elements = elements
@@ -149,7 +152,7 @@ extension StepExecutor {
     func occlusionFlip(element: ElementInfo, expectedText: String, elements: [ElementInfo],
                               screen: FTRect, keyboardShown: Bool, keyboard: FTRect? = nil,
                               looseMatch: Bool, perStepGuard: Bool?,
-                              expectedIsUserText: Bool = false,
+                              expectedIsUserText: Bool = false, app: String?,
                               phase: inout PhaseAccumulator) async throws -> StepResult.Status? {
         // 段の外に残す: 段が読む状態の初期化(V1 より前 = 無効でも毎回行う今の順)
         guardFrameStaleThisEval = false
@@ -157,7 +160,7 @@ extension StepExecutor {
         var evidence = VisibilityEvidence(
             element: element, expectedText: expectedText, elements: elements, screen: screen,
             keyboardShown: keyboardShown, looseMatch: looseMatch, expectedIsUserText: expectedIsUserText,
-            perStepGuard: perStepGuard)
+            perStepGuard: perStepGuard, app: app)
         for stage in VisibilityStage.allCases {
             switch try await runVisibilityStage(stage, &evidence, phase: &phase) {
             case .next:
@@ -273,11 +276,15 @@ extension StepExecutor {
 
     /// 中心を覆う要素(`OcclusionGeometry.overlayCovering`・木の順を手前と見ない)が、名指しを止める組(`OccluderNaming`)で、
     /// アプリの VM サービスの塗り順(DR-235)では対象より手前か。聞くのは覆いの候補がある回だけ(普通の検証に往復を足さない)
+    /// 木の順で選んだ覆いが奥と答えられたら、同じ点の他の候補で見直す(`OccluderNamingContext.reconsideredCover`)
     func coveredInPaintRanks(_ e: VisibilityEvidence) async -> Bool {
         guard isAndroid,
-              let cover = OcclusionGeometry.overlayCovering(e.element, in: e.elements, screen: e.screen, paintOrderIsReal: false),
-              !OccluderNaming.mayName(occluder: cover, target: e.element, isAndroid: isAndroid, framework: uiFramework),
-              let ranks = await paintRanks(elements: e.elements, app: nil) else { return false }
+              let chosen = OcclusionGeometry.overlayCovering(e.element, in: e.elements, screen: e.screen, paintOrderIsReal: false),
+              !OccluderNaming.mayName(occluder: chosen, target: e.element, isAndroid: isAndroid, framework: uiFramework),
+              let ranks = await paintRanks(elements: e.elements, app: e.app) else { return false }
+        let naming = OccluderNamingContext(isAndroid: isAndroid, framework: uiFramework, paintRanks: ranks)
+        guard let cover = naming.reconsideredCover(chosen, target: e.element, candidates: OcclusionGeometry.overlayCoverings(
+            e.element, in: e.elements, screen: e.screen, paintOrderIsReal: false)) else { return false }
         return ranks.inFront(cover, of: e.element) == true
     }
 

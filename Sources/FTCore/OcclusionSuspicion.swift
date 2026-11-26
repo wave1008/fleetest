@@ -69,12 +69,23 @@ public enum OcclusionSuspicion {
     /// 逆に**シートの裏に潜った地図 chrome は1件も拾えなかった**(シートが chrome より先に出るため)。
     public static func covering(element: ElementInfo, in elements: [ElementInfo],
                                 screen: FTRect, overlapFraction: Double = 0.4) -> ElementInfo? {
-        let t = element.frame
-        let area = max(1, t.width * t.height)
         // **いちばん手前を返す**(レビュー指摘)。配列順で最初に見つけたものを返すと、
         // 重なりが複数あるとき中間層(暗幕など)を名指しして、実際に見えている最前面を素通しする。
         // 塗り順が採れるなら最前面は計算できるので、そちらを答えにする
         var frontmost: ElementInfo?
+        for other in coverings(element: element, in: elements, screen: screen, overlapFraction: overlapFraction) {
+            if let best = frontmost, !PaintOrder.drawnAbove(other, best) { continue }
+            frontmost = other
+        }
+        return frontmost
+    }
+
+    /// `covering` の候補の全部(木の順)。`covering` はこの中の最前面。塗り順の答え(DR-235)で最前面を選び直す呼び手が使う
+    public static func coverings(element: ElementInfo, in elements: [ElementInfo],
+                                 screen: FTRect, overlapFraction: Double = 0.4) -> [ElementInfo] {
+        let t = element.frame
+        let area = max(1, t.width * t.height)
+        var found: [ElementInfo] = []
         // 自分の祖先・子孫と、id を載せた包みと同じ枠の唯一の入力欄(Flutter の非マージ Semantics)は覆いではない
         let own = TapTargetGeometry.lineage(of: element, in: elements)
         let enclosedInput = TypeReadback.isTextInput(element) ? nil : TypeReadback.sameFrameInput(of: element, in: elements)
@@ -91,10 +102,9 @@ public enum OcclusionSuspicion {
                 guard let drawn = ScrollGeometry.intersection(other.frame, clip),
                       intersectionArea(t, drawn) / area >= overlapFraction else { continue }
             }
-            if let best = frontmost, !PaintOrder.drawnAbove(other, best) { continue }
-            frontmost = other
+            found.append(other)
         }
-        return frontmost
+        return found
     }
 
     static func intersectionArea(_ a: FTRect, _ b: FTRect) -> Double {

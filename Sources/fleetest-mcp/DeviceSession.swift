@@ -156,6 +156,9 @@ struct DeviceSession {
     /// 覆う面が出た/消えた画面(静止画面へ出た Control Center 等)は、次に木が変わるまで
     /// 再確認しない —— 見逃しはそこまでに限られる(verifiedRef 参照)
     var lastScreenProbe: (fingerprint: Int, warning: String)?
+    /// ブリッジが塗り順(DR-235)に「VM サービスが無い」と答えたアプリ(木の `sessionBundleID`)。聞き直さない
+    /// (聞くたびにブリッジが pidof と logcat を読む)。ft_launch で捨てる(新しい pid はログに URI を出し直す。DSL の `semanticsOrderUnavailableApp`)
+    var semanticsOrderUnavailableApp: String?
     /// 接続先の宛先(ft_status が見せる)。**#2/#5 の取り違えは「今どこに繋がっているか」が
     /// 見えないまま起きる** —— 既定 8123 が死んでいても、はぐれエミュレータを掴んでいても、
     /// 応答だけ見ると正常に見える

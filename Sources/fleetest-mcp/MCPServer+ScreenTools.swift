@@ -185,8 +185,14 @@ extension MCPServer {
                            askingFor target: ElementInfo) async -> OccluderNamingContext {
         let base = refOccluderNaming(tree, driver: driver, args: args)
         guard let tree, base.isAndroid, Self.namingSuppressed(for: target, in: tree, naming: base) else { return base }
-        guard let answer = PaintRankAnswer.make(response: Self.inSessionRefs(await driver.semanticsOrder(),
-                                                                         base: refGenerations[Self.sessionKey(args)]?.last?.base ?? 0),
+        let key = Self.sessionKey(args)
+        // VM サービスが無いと答えたアプリへは聞き直さない(アプリが分からない木では控えを引かず、残さない)
+        if let app = tree.sessionBundleID, semanticsOrderUnavailableApps[key] == app { return base }
+        let response = await driver.semanticsOrder()
+        if response?.reason == StepExecutor.noVMServiceReason, let app = tree.sessionBundleID {
+            semanticsOrderUnavailableApps[key] = app
+        }
+        guard let answer = PaintRankAnswer.make(response: Self.inSessionRefs(response, base: refGenerations[key]?.last?.base ?? 0),
                                                 elements: tree.elements) else { return base }
         return OccluderNamingContext(isAndroid: base.isAndroid, framework: base.framework, paintRanks: answer)
     }
@@ -957,11 +963,12 @@ extension MCPServer {
     /// 名指さない組(`OccluderNaming`)でも**断りは残す**(保存は永続)。文言から相手の名前と断言を外す(先頭の "nothing was saved" は保つ)
     static func captureCoverRefusal(_ element: ElementInfo, in elements: [ElementInfo], screen: FTRect,
                                     naming: OccluderNamingContext) -> String? {
-        guard let cover = OcclusionGeometry.overlayCovering(
-            element, in: elements, screen: screen,
-            paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: naming.isAndroid, framework: naming.framework)) else { return nil }
-        // 塗り順が「覆いは奥」と答えた組は見本の覆いではない(DR-235)
-        if naming.answeredBehind(cover, element) { return nil }
+        let paintOrderIsReal = PaintOrder.isReal(in: elements, isAndroid: naming.isAndroid, framework: naming.framework)
+        guard let chosen = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen,
+                                                             paintOrderIsReal: paintOrderIsReal),
+              // 塗り順が「覆いは奥」と答えた組は同じ点の他の候補で見直し、全部が奥なら見本の覆いではない(DR-235)
+              let cover = naming.reconsideredCover(chosen, target: element, candidates: OcclusionGeometry.overlayCoverings(
+                  element, in: elements, screen: screen, paintOrderIsReal: paintOrderIsReal)) else { return nil }
         guard naming.mayName(cover, element) else {
             return "nothing was saved: \(RefGuard.describe(element)) may be covered by another element on this screen"
                 + " (paint order is not known here), so its capture could show something else. Check with ft_screenshot"

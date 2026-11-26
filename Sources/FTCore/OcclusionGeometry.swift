@@ -11,6 +11,15 @@ public enum OcclusionGeometry {
     /// タブより浅い遮蔽物 `#tab_controls` を実測で外してしまう。容器を数えない目的には祖先の除外で足りる)
     public static func occluder(of element: ElementInfo, in elements: [ElementInfo],
                          screen: FTRect, paintOrderIsReal: Bool = false) -> ElementInfo? {
+        // `max(by:)` の述語は「$0 が $1 より奥か」= $1 が手前なら $0 < $1。
+        // `drawnAbove` は z か ref の全順序なので、これで最前面がひとつ決まる
+        occluders(of: element, in: elements, screen: screen, paintOrderIsReal: paintOrderIsReal)
+            .max { PaintOrder.drawnAbove($1, $0) }
+    }
+
+    /// `occluder` の候補の全部(木の順)。`occluder` はこの中の最前面。塗り順の答え(DR-235)で最前面を選び直す呼び手が使う
+    public static func occluders(of element: ElementInfo, in elements: [ElementInfo],
+                                 screen: FTRect, paintOrderIsReal: Bool = false) -> [ElementInfo] {
         let cx = element.frame.x + element.frame.width / 2
         let cy = element.frame.y + element.frame.height / 2
         let excluded = TapTargetGeometry.lineage(of: element, in: elements, paintOrderIsReal: paintOrderIsReal)
@@ -107,9 +116,7 @@ public enum OcclusionGeometry {
             let screenArea = screen.width * screen.height
             return screenArea > 0 && otherArea < screenArea * TapTargetGeometry.fullScreenContainerAreaRatio
         }
-        // `max(by:)` の述語は「$0 が $1 より奥か」= $1 が手前なら $0 < $1。
-        // `drawnAbove` は z か ref の全順序なので、これで最前面がひとつ決まる
-        return elements.filter(isOccluder).max { PaintOrder.drawnAbove($1, $0) }
+        return elements.filter(isOccluder)
     }
 
     /// **容器の中に居るのに、後から描かれた別要素に中心を覆われている**要素の遮蔽物。
@@ -120,6 +127,14 @@ public enum OcclusionGeometry {
     /// **木の順序(= 描画順)で後ろにあるものだけ**を遮蔽とみなすのが要点。これを外すと、
     /// 先に並ぶ大きな背景パネルが端の要素を「覆っている」ことになる誤検知に逆戻りする。
     /// 祖先・子孫の除外、残像の除外、丸ごと包む相手の除外は `occluder` と共有する
+    /// `overlayCovering` が選びうる相手の全部(木の順。対象より手前に描かれるものだけ)。最前面が `overlayCovering`
+    public static func overlayCoverings(_ element: ElementInfo, in elements: [ElementInfo],
+                                        screen: FTRect, paintOrderIsReal: Bool = false) -> [ElementInfo] {
+        guard !isUntappableGhost(element, in: elements, screen: screen) else { return [] }
+        return occluders(of: element, in: elements, screen: screen, paintOrderIsReal: paintOrderIsReal)
+            .filter { PaintOrder.drawnAbove($0, element) }
+    }
+
     public static func overlayCovering(_ element: ElementInfo, in elements: [ElementInfo],
                                 screen: FTRect, paintOrderIsReal: Bool = false) -> ElementInfo? {
         guard !isUntappableGhost(element, in: elements, screen: screen) else { return nil }

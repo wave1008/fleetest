@@ -30,6 +30,13 @@ final class FakeDriver: AppDriver, @unchecked Sendable {
         ],
         truncatedCount: 0)
     var screenshotData = Data([0x89, 0x50, 0x4E, 0x47])
+    /// `semanticsOrder()` の答え(DR-235)と、聞かれた回数
+    var semanticsOrderAnswer: SemanticsOrderResponse?
+    private(set) var semanticsOrderCalls = 0
+    func semanticsOrder() async -> SemanticsOrderResponse? {
+        semanticsOrderCalls += 1
+        return semanticsOrderAnswer
+    }
 
     struct Boom: Error, LocalizedError {
         let what: String

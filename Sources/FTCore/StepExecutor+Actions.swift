@@ -991,7 +991,7 @@ extension StepExecutor {
                 elements: snapshot.elements, screen: snapshot.screen,
                 keyboardShown: KeyboardWait.isShown(snapshot),
                 looseMatch: false, perStepGuard: step.occlusionGuard,
-                expectedIsUserText: step.locator?.label != nil, phase: &phase) != nil {
+                expectedIsUserText: step.locator?.label != nil, app: snapshot.sessionBundleID, phase: &phase) != nil {
                 // **「見えない」と出た回だけ、木と絵を1回撮り直してから決める**(遷移の途中の1枚で決めていた = 速く返った tap の
                 // 直後の select が固定領域のラベルを空にした・手元 4/16)。待ちの秒数は置かない(FM の応答を待つ間に遷移は終わっている)。
                 // 撮り直しは1回だけ = 本当に見えない要素の select を締切まで待たせない
@@ -1008,7 +1008,7 @@ extension StepExecutor {
                        elements: retaken.elements, screen: retaken.screen,
                        keyboardShown: KeyboardWait.isShown(retaken),
                        looseMatch: false, perStepGuard: step.occlusionGuard,
-                       expectedIsUserText: step.locator?.label != nil, phase: &phase) == nil {
+                       expectedIsUserText: step.locator?.label != nil, app: retaken.sessionBundleID, phase: &phase) == nil {
                     element = again
                     snapshot = retaken
                     resolvedElementThisStep = again

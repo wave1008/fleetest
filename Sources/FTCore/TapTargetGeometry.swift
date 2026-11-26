@@ -437,11 +437,13 @@ public enum TapTargetGeometry {
         if let scroller = outsideDeclaredScroller(element, in: elements, screen: screen) {
             return result(.scrolledOut(scroller))
         }
-        if let over = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen,
-                                                        paintOrderIsReal: paintOrderIsReal) {
+        if let chosen = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen,
+                                                          paintOrderIsReal: paintOrderIsReal),
+           // 塗り順が「覆いは奥」と答えた組は同じ点の他の候補で見直し、全部が奥なら疑いごと外す(DR-235)
+           let over = naming.reconsideredCover(chosen, target: element, candidates: OcclusionGeometry.overlayCoverings(
+               element, in: elements, screen: screen, paintOrderIsReal: paintOrderIsReal)) {
             if naming.mayName(over, element) { return result(.overlayCovering(over)) }
-            // 塗り順が「覆いは奥」と答えた組は疑いごと外す(注意も出さない = 範囲を狭める向き。DR-235)
-            if !naming.answeredBehind(over, element) { suppressed = true }
+            suppressed = true
         }
         if let inner = missesItsOwnContent(element, in: elements, screen: screen) {
             return result(.missedContent(inner))
