@@ -1,0 +1,1154 @@
+{
+  "elements" : [
+    {
+      "clickable" : true,
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 189,
+        "width" : 1090,
+        "x" : 95,
+        "y" : 264
+      },
+      "identifier" : "search_container_all_apps",
+      "keptDepth" : 0,
+      "label" : "検索",
+      "labelSource" : "desc",
+      "ref" : 1,
+      "renderer" : "view",
+      "type" : "clickable",
+      "z" : 70
+    },
+    {
+      "clickable" : true,
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 144,
+        "width" : 144,
+        "x" : 107,
+        "y" : 287
+      },
+      "identifier" : "g_icon",
+      "keptDepth" : 1,
+      "label" : "Google アプリ",
+      "labelSource" : "desc",
+      "ref" : 2,
+      "renderer" : "view",
+      "type" : "image",
+      "z" : 73
+    },
+    {
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 172,
+        "width" : 754,
+        "x" : 263,
+        "y" : 273
+      },
+      "identifier" : "typeahead_input",
+      "keptDepth" : 1,
+      "ref" : 3,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 74
+    },
+    {
+      "clickable" : true,
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 172,
+        "width" : 754,
+        "x" : 263,
+        "y" : 273
+      },
+      "identifier" : "input",
+      "keptDepth" : 2,
+      "placeholder" : "ウェブなどを検索します",
+      "ref" : 4,
+      "renderer" : "view",
+      "type" : "textField",
+      "z" : 75
+    },
+    {
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 144,
+        "width" : 288,
+        "x" : 885,
+        "y" : 287
+      },
+      "identifier" : "end_icons",
+      "keptDepth" : 1,
+      "ref" : 5,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 76
+    },
+    {
+      "clickable" : true,
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 144,
+        "width" : 144,
+        "x" : 885,
+        "y" : 287
+      },
+      "identifier" : "mic_icon",
+      "keptDepth" : 2,
+      "label" : "音声検索",
+      "labelSource" : "desc",
+      "ref" : 6,
+      "renderer" : "view",
+      "type" : "image",
+      "z" : 77
+    },
+    {
+      "clickable" : true,
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 144,
+        "width" : 144,
+        "x" : 1029,
+        "y" : 287
+      },
+      "identifier" : "lens_icon",
+      "keptDepth" : 2,
+      "label" : "Google レンズ",
+      "labelSource" : "desc",
+      "ref" : 7,
+      "renderer" : "view",
+      "type" : "button",
+      "z" : 78
+    },
+    {
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 156,
+        "width" : 156,
+        "x" : 1017,
+        "y" : 281
+      },
+      "identifier" : "action_btn_container",
+      "keptDepth" : 1,
+      "ref" : 8,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 72
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 108,
+        "width" : 1280,
+        "x" : 0,
+        "y" : 156
+      },
+      "identifier" : "bottom_sheet_handle_area",
+      "keptDepth" : 0,
+      "ref" : 9,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 34
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 12,
+        "width" : 96,
+        "x" : 592,
+        "y" : 204
+      },
+      "identifier" : "bottom_sheet_handle",
+      "keptDepth" : 0,
+      "ref" : 10,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 35
+    },
+    {
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 2493,
+        "width" : 1280,
+        "x" : 0,
+        "y" : 363
+      },
+      "identifier" : "apps_list_view",
+      "keptDepth" : 0,
+      "ref" : 11,
+      "renderer" : "view",
+      "scrollActions" : [
+        "forward"
+      ],
+      "scrollable" : true,
+      "type" : "collectionView",
+      "z" : 36
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 35,
+        "y" : 930
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "カメラ",
+      "ref" : 12,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 37
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 338,
+        "y" : 930
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "カレンダー",
+      "ref" : 13,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 38
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 640,
+        "y" : 930
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "ドライブ",
+      "ref" : 14,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 39
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 943,
+        "y" : 930
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "ファイル",
+      "ref" : 15,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 40
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 35,
+        "y" : 1267
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "フォト",
+      "ref" : 16,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 41
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 338,
+        "y" : 1267
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "マップ",
+      "ref" : 17,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 42
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 640,
+        "y" : 1267
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "メッセージ",
+      "ref" : 18,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 43
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 943,
+        "y" : 1267
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "緊急情報",
+      "ref" : 19,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 44
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 35,
+        "y" : 1604
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "時計",
+      "ref" : 20,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 45
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 338,
+        "y" : 1604
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "設定",
+      "ref" : 21,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 46
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 640,
+        "y" : 1604
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "電話",
+      "ref" : 22,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 47
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 943,
+        "y" : 1604
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "連絡先",
+      "ref" : 23,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 48
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 35,
+        "y" : 1941
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "Chrome",
+      "ref" : 24,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 49
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 338,
+        "y" : 1941
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2E",
+      "ref" : 25,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 50
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 640,
+        "y" : 1941
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2E Android",
+      "ref" : 26,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 51
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 943,
+        "y" : 1941
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2EX",
+      "ref" : 27,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 52
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 35,
+        "y" : 2278
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2EX Android",
+      "ref" : 28,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 53
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 338,
+        "y" : 2278
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2EX Flutter",
+      "ref" : 29,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 54
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 303,
+        "x" : 640,
+        "y" : 2278
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2EX RN",
+      "ref" : 30,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 55
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 337,
+        "width" : 302,
+        "x" : 943,
+        "y" : 2278
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2EY",
+      "ref" : 31,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 56
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 241,
+        "width" : 303,
+        "x" : 35,
+        "y" : 2615
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2EY Android",
+      "ref" : 32,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 57
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 241,
+        "width" : 302,
+        "x" : 338,
+        "y" : 2615
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2EY Flutter",
+      "ref" : 33,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 58
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 241,
+        "width" : 303,
+        "x" : 640,
+        "y" : 2615
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "FT E2EY RN",
+      "ref" : 34,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 59
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 241,
+        "width" : 302,
+        "x" : 943,
+        "y" : 2615
+      },
+      "identifier" : "icon",
+      "keptDepth" : 1,
+      "label" : "ft_e2e_flutter",
+      "ref" : 35,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 60
+    },
+    {
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 609,
+        "width" : 1280,
+        "x" : 0,
+        "y" : 363
+      },
+      "identifier" : "all_apps_header",
+      "keptDepth" : 0,
+      "ref" : 36,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 61
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 330,
+        "width" : 1210,
+        "x" : 35,
+        "y" : 471
+      },
+      "identifier" : "prediction_row",
+      "keptDepth" : 1,
+      "ref" : 37,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 62
+    },
+    {
+      "clickable" : true,
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 330,
+        "width" : 302,
+        "x" : 35,
+        "y" : 471
+      },
+      "identifier" : "icon",
+      "keptDepth" : 2,
+      "label" : "FT E2E",
+      "ref" : 38,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 63
+    },
+    {
+      "clickable" : true,
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 330,
+        "width" : 302,
+        "x" : 337,
+        "y" : 471
+      },
+      "identifier" : "icon",
+      "keptDepth" : 2,
+      "label" : "FT E2EX Android",
+      "ref" : 39,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 64
+    },
+    {
+      "clickable" : true,
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 330,
+        "width" : 303,
+        "x" : 639,
+        "y" : 471
+      },
+      "identifier" : "icon",
+      "keptDepth" : 2,
+      "label" : "FT E2EX",
+      "ref" : 40,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 65
+    },
+    {
+      "clickable" : true,
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 330,
+        "width" : 303,
+        "x" : 942,
+        "y" : 471
+      },
+      "identifier" : "icon",
+      "keptDepth" : 2,
+      "label" : "ft_e2e_flutter",
+      "ref" : 41,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 66
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 129,
+        "width" : 1210,
+        "x" : 35,
+        "y" : 801
+      },
+      "identifier" : "apps_divider_view",
+      "keptDepth" : 1,
+      "label" : "すべてのアプリ",
+      "labelSource" : "desc",
+      "ref" : 42,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 67
+    },
+    {
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 2451,
+        "width" : 144,
+        "x" : 1136,
+        "y" : 405
+      },
+      "identifier" : "scroll_letter_layout",
+      "keptDepth" : 0,
+      "ref" : 43,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 69
+    },
+    {
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 2451,
+        "width" : 96,
+        "x" : 1184,
+        "y" : 405
+      },
+      "identifier" : "fast_scroller",
+      "keptDepth" : 0,
+      "ref" : 44,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 68
+    },
+    {
+      "depth" : 7,
+      "enabled" : true,
+      "frame" : {
+        "height" : 550,
+        "width" : 1242,
+        "x" : 19,
+        "y" : 2263
+      },
+      "identifier" : "hotseat",
+      "keptDepth" : 0,
+      "ref" : 45,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 6
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 216,
+        "width" : 192,
+        "x" : 105,
+        "y" : 2263
+      },
+      "keptDepth" : 1,
+      "label" : "電話",
+      "ref" : 46,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 8
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 216,
+        "width" : 193,
+        "x" : 397,
+        "y" : 2263
+      },
+      "keptDepth" : 1,
+      "label" : "メッセージ",
+      "ref" : 47,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 9
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 216,
+        "width" : 193,
+        "x" : 690,
+        "y" : 2263
+      },
+      "keptDepth" : 1,
+      "label" : "Chrome",
+      "ref" : 48,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 10
+    },
+    {
+      "clickable" : true,
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 216,
+        "width" : 192,
+        "x" : 983,
+        "y" : 2263
+      },
+      "keptDepth" : 1,
+      "label" : "FT E2E Android",
+      "ref" : 49,
+      "renderer" : "view",
+      "type" : "staticText",
+      "z" : 11
+    },
+    {
+      "depth" : 8,
+      "enabled" : true,
+      "frame" : {
+        "height" : 183,
+        "width" : 1056,
+        "x" : 112,
+        "y" : 2508
+      },
+      "identifier" : "search_container_hotseat",
+      "keptDepth" : 1,
+      "label" : "Google",
+      "labelSource" : "desc",
+      "ref" : 50,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 12
+    },
+    {
+      "depth" : 9,
+      "enabled" : true,
+      "frame" : {
+        "height" : 163,
+        "width" : 1056,
+        "x" : 112,
+        "y" : 2517
+      },
+      "identifier" : "googleapp_search_widget_ghost_tap_targets",
+      "keptDepth" : 2,
+      "ref" : 51,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 13
+    },
+    {
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 163,
+        "width" : 1056,
+        "x" : 112,
+        "y" : 2517
+      },
+      "identifier" : "googleapp_search_widget_ghost_tap_targets_4dp",
+      "keptDepth" : 3,
+      "ref" : 52,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 14
+    },
+    {
+      "clickable" : true,
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 163,
+        "width" : 140,
+        "x" : 112,
+        "y" : 2517
+      },
+      "identifier" : "googleapp_search_widget_ghost_google_logo",
+      "keptDepth" : 4,
+      "ref" : 53,
+      "renderer" : "view",
+      "type" : "clickable",
+      "z" : 15
+    },
+    {
+      "clickable" : true,
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 163,
+        "width" : 636,
+        "x" : 252,
+        "y" : 2517
+      },
+      "identifier" : "googleapp_search_widget_ghost_text_search",
+      "keptDepth" : 4,
+      "ref" : 54,
+      "renderer" : "view",
+      "type" : "clickable",
+      "z" : 16
+    },
+    {
+      "clickable" : true,
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 163,
+        "width" : 140,
+        "x" : 888,
+        "y" : 2517
+      },
+      "identifier" : "googleapp_search_widget_ghost_voice_search",
+      "keptDepth" : 4,
+      "ref" : 55,
+      "renderer" : "view",
+      "type" : "clickable",
+      "z" : 17
+    },
+    {
+      "clickable" : true,
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 163,
+        "width" : 140,
+        "x" : 1028,
+        "y" : 2517
+      },
+      "identifier" : "googleapp_search_widget_ghost_lens",
+      "keptDepth" : 4,
+      "ref" : 56,
+      "renderer" : "view",
+      "type" : "clickable",
+      "z" : 18
+    },
+    {
+      "depth" : 10,
+      "enabled" : true,
+      "frame" : {
+        "height" : 140,
+        "width" : 1056,
+        "x" : 112,
+        "y" : 2529
+      },
+      "identifier" : "googleapp_search_widget_two_right_icons",
+      "keptDepth" : 3,
+      "ref" : 57,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 19
+    },
+    {
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 140,
+        "width" : 1056,
+        "x" : 112,
+        "y" : 2529
+      },
+      "identifier" : "googleapp_search_widget_background_protection",
+      "keptDepth" : 4,
+      "ref" : 58,
+      "renderer" : "view",
+      "type" : "image",
+      "z" : 20
+    },
+    {
+      "clickable" : true,
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 140,
+        "width" : 1056,
+        "x" : 112,
+        "y" : 2529
+      },
+      "identifier" : "googleapp_search_widget_background",
+      "keptDepth" : 4,
+      "label" : "Google 検索",
+      "labelSource" : "desc",
+      "ref" : 59,
+      "renderer" : "view",
+      "type" : "image",
+      "z" : 21
+    },
+    {
+      "depth" : 11,
+      "enabled" : true,
+      "frame" : {
+        "height" : 140,
+        "width" : 1056,
+        "x" : 112,
+        "y" : 2529
+      },
+      "identifier" : "googleapp_search_plate",
+      "keptDepth" : 4,
+      "ref" : 60,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 22
+    },
+    {
+      "clickable" : true,
+      "depth" : 13,
+      "enabled" : true,
+      "frame" : {
+        "height" : 140,
+        "width" : 140,
+        "x" : 112,
+        "y" : 2529
+      },
+      "identifier" : "googleapp_search_widget_google_logo",
+      "keptDepth" : 5,
+      "label" : "Google アプリ",
+      "labelSource" : "desc",
+      "ref" : 61,
+      "renderer" : "view",
+      "type" : "button",
+      "z" : 24
+    },
+    {
+      "depth" : 12,
+      "enabled" : true,
+      "frame" : {
+        "height" : 140,
+        "width" : 636,
+        "x" : 252,
+        "y" : 2529
+      },
+      "identifier" : "googleapp_search_edit_frame",
+      "keptDepth" : 5,
+      "ref" : 62,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 25
+    },
+    {
+      "clickable" : true,
+      "depth" : 13,
+      "enabled" : true,
+      "frame" : {
+        "height" : 140,
+        "width" : 140,
+        "x" : 888,
+        "y" : 2529
+      },
+      "identifier" : "googleapp_search_widget_voice_btn",
+      "keptDepth" : 5,
+      "label" : "音声検索",
+      "labelSource" : "desc",
+      "ref" : 63,
+      "renderer" : "view",
+      "type" : "button",
+      "z" : 27
+    },
+    {
+      "clickable" : true,
+      "depth" : 13,
+      "enabled" : true,
+      "frame" : {
+        "height" : 140,
+        "width" : 140,
+        "x" : 1028,
+        "y" : 2529
+      },
+      "identifier" : "googleapp_search_widget_lens_btn",
+      "keptDepth" : 5,
+      "label" : "カメラ検索",
+      "labelSource" : "desc",
+      "ref" : 64,
+      "renderer" : "view",
+      "type" : "button",
+      "z" : 29
+    },
+    {
+      "depth" : 7,
+      "enabled" : true,
+      "frame" : {
+        "height" : 544,
+        "width" : 1280,
+        "x" : 0,
+        "y" : 2312
+      },
+      "identifier" : "overview_actions_view",
+      "keptDepth" : 0,
+      "ref" : 65,
+      "renderer" : "view",
+      "type" : "other",
+      "z" : 31
+    }
+  ],
+  "safeAreaTop" : {
+    "measured" : true,
+    "top" : 156
+  },
+  "screen" : {
+    "height" : 2856,
+    "width" : 1280,
+    "x" : 0,
+    "y" : 0
+  },
+  "sessionBundleID" : "com.google.android.apps.nexuslauncher",
+  "truncatedCount" : 0
+}

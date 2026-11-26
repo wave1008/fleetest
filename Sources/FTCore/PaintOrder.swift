@@ -27,6 +27,14 @@ public enum PaintOrder {
         return elements.allSatisfy { $0.z != nil }
     }
 
+    /// **その組の z が本物の塗り順か**を要素ごとの申告で決める版(`isReal` はアプリ全体のフレームワークで決める)。
+    /// Android のブリッジが両方を実体の View(`renderer == "view"`)と申告した組だけ true —— z は View の描画順
+    /// (`getDrawingOrder`)を根から積んだ通し番号なので、実体の View どうしなら塗り順。仮想ノード・Compose・申告の無い組は false
+    /// (推測しない側)。フレームワークの答えが無いアプリ(ランチャー等の他のアプリ)の木でも、申告があれば言える
+    public static func isRealForPair(_ a: ElementInfo, _ b: ElementInfo) -> Bool {
+        a.renderer == "view" && b.renderer == "view" && a.z != nil && b.z != nil
+    }
+
     /// `candidate` が `element` より手前に描かれているか。
     ///
     /// **両方が `z` を持つときだけ z を信じる** —— 片方だけ nil の木(打ち切りや別ブリッジの混在)で

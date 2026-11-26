@@ -20,9 +20,13 @@ public enum AppIconLocator {
     /// 枠がスクロール容器の縁で切り詰められていない(`TapTargetGeometry.containerClippingAnyType` = 型の門なし。アイコンは staticText で、門のある版では切れを見ない)。
     /// **Android のランチャーのドロワーは行が検索バー・上端で切れて縮み、切れた枠の中心がバーの中に入る**
     /// (Pixel 3a: 撃った点が検索バー右端のボタンの中)。判定は共有の幾何で、ランチャーの id・語に依らない
+    /// **覆いの候補のうち、z が本物の塗り順の組(`PaintOrder.isRealForPair`)で奥と分かるものは覆いに数えない** ——
+    /// Pixel のランチャーはドロワーを開いている間も描いていないドック(z がドロワーの行より小さい)を木に残し、
+    /// ドックのアイコンの枠に中心が入った行を押さずに赤にしていた。申告の無い組は今までどおり覆いに数える
     public static func isFreeToTap(_ icon: ElementInfo, in snapshot: SnapshotResponse) -> Bool {
-        OcclusionGeometry.occluder(of: icon, in: snapshot.elements, screen: snapshot.screen) == nil
-            && TapTargetGeometry.containerClippingAnyType(icon, in: snapshot.elements) == nil
+        let covers = OcclusionGeometry.occluders(of: icon, in: snapshot.elements, screen: snapshot.screen)
+            .filter { !(PaintOrder.isRealForPair($0, icon) && !PaintOrder.drawnAbove($0, icon)) }
+        return covers.isEmpty && TapTargetGeometry.containerClippingAnyType(icon, in: snapshot.elements) == nil
     }
 
     /// 撃ってよい候補の先頭(木の並び順)。**Android だけ**覆い・切れで絞る(同名が重複して出る形でも見えている方を取る)。
