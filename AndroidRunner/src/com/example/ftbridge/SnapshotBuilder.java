@@ -881,6 +881,11 @@ final class SnapshotBuilder {
             case "StaticText":
             case "Image":
                 return hasText;
+            // 名前のある Slider は id が無くても残す。RN のボトムシートの面は SeekBar「Bottom Sheet」として a11y に出るが
+            // id が無く落ちていた = 見出しの帯の下の行を覆う面が木に無く、覆いを名指せなかった(実測 2026-11 E2EY-RN の半分のシート:
+            // [0,1638][1280,2784]。生の木 uiautomator dump にはある)
+            case "Slider":
+                return hasText || !node.resourceID.isEmpty();
             default:
                 return !node.resourceID.isEmpty();
         }
