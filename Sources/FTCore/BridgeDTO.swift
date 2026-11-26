@@ -50,7 +50,7 @@ public enum BridgeAPI {
     /// - ソースの分割・コメントだけの変更は指紋の貼り替えだけでよい(版は据え置き)
     /// - **撤去した版の番号は再利用しない**(37・48 は欠番): その版が稼働中の環境を確実に入れ替えるため
     /// 各版で何を変えたかは `git log -L '/bridgeProtocolVersion =/,+1:Sources/FTCore/BridgeDTO.swift'` で引く
-    public static let bridgeProtocolVersion = 318
+    public static let bridgeProtocolVersion = 319
 
     /// `ErrorResponse.reason` の値: ref が指していた要素が、撃つ時点でもう同じ場所に居ない(古い ref)。
     /// **何も撃たずに断った**ことを保証する(422)。ホストは新しい木から引き直して撃ち直してよい。
@@ -789,6 +789,12 @@ public struct ElementInfo: Codable, Sendable {
     /// (`OcclusionEligibility.drawsOwnTitle`)。省略に「描かない」の意味は無い
     public var drawnTitle: String?
 
+    /// **スクロール容器の内容の広さ**(iOS の in-app ブリッジだけが、`UIScrollView` / `UIFocusItemScrollableContainer` が読めたときに送る。
+    /// 省略 = 測っていない: Android・xcuitest・容器でない要素。DR-75)。in-app の木は容器の子を画面の縁で切るので、
+    /// 縁をまたぐ子が木に載らず横の棚の「先がある」は子の枠からは分からない。`scrollActions` の代わりではない(iOS はそれを送らない)。
+    /// 追加 optional フィールドなので bridgeProtocolVersion の判断は変更側(`drawnTitle` と同じ方針)
+    public var scrollExtent: ScrollExtent?
+
     public init(ref: Int, type: String, identifier: String?, label: String?, value: String?,
                 placeholder: String?, enabled: Bool, frame: FTRect, depth: Int,
                 checked: Bool? = nil, web: Bool? = nil, focused: Bool? = nil,
@@ -796,7 +802,8 @@ public struct ElementInfo: Codable, Sendable {
                 axClass: String? = nil, scrollActions: [String]? = nil,
                 inOverlayWindow: Bool? = nil, clickable: Bool? = nil, keptDepth: Int? = nil,
                 labelSource: String? = nil, renderer: String? = nil, renderHost: Int? = nil,
-                drawnTitle: String? = nil) {
+                drawnTitle: String? = nil, scrollExtent: ScrollExtent? = nil) {
+        self.scrollExtent = scrollExtent
         self.drawnTitle = drawnTitle
         self.renderer = renderer
         self.renderHost = renderHost
@@ -849,12 +856,30 @@ public struct ElementInfo: Codable, Sendable {
         renderer = try container.decodeIfPresent(String.self, forKey: .renderer)
         renderHost = try container.decodeIfPresent(Int.self, forKey: .renderHost)
         drawnTitle = try container.decodeIfPresent(String.self, forKey: .drawnTitle)
+        scrollExtent = try container.decodeIfPresent(ScrollExtent.self, forKey: .scrollExtent)
     }
 
     /// 先頭 1 文字だけ小文字化する(`StaticText` → `staticText`)。冪等なので二重適用しても安全
     public static func normalizedType(_ type: String) -> String {
         guard let first = type.first, first.isUppercase else { return type }
         return first.lowercased() + type.dropFirst()
+    }
+}
+
+/// `ElementInfo.scrollExtent` の中身(pt。枠と同じ座標系)。実測(iOS 27.2 Simulator): CMP の横の棚 = offset (0,0)・content 435.3x120・
+/// visible 402x120(`UIFocusItemScrollableContainer`)/ Flutter の棚 = content 2132x120・bounds 402x120(`UIScrollView`)
+public struct ScrollExtent: Codable, Sendable, Equatable {
+    public var offsetX: Double
+    public var offsetY: Double
+    public var contentWidth: Double
+    public var contentHeight: Double
+    public var visibleWidth: Double
+    public var visibleHeight: Double
+    public init(offsetX: Double, offsetY: Double, contentWidth: Double, contentHeight: Double,
+                visibleWidth: Double, visibleHeight: Double) {
+        self.offsetX = offsetX; self.offsetY = offsetY
+        self.contentWidth = contentWidth; self.contentHeight = contentHeight
+        self.visibleWidth = visibleWidth; self.visibleHeight = visibleHeight
     }
 }
 
@@ -921,6 +946,7 @@ public struct SnapshotResponse: Codable, Sendable {
     /// **`accessibilityViewIsModal` の view があって、その外(奥の兄弟)を木から外した**申告。**in-app だけが申告する**
     /// (`InAppSnapshot.modalChildOnly`。XCUITest は OS が外した木をそのまま返すので外した事実を知らない)。
     /// 失敗の文で「対象はモーダルの外にあるので木に無い」と名指すためだけの材料(タップ判定には使わない)。外した物が無ければ nil
+    /// 出どころは `accessibilityViewIsModal` の view か、Compose の popup/dialog の層(`ModalScopeCover` 参照)
     public var modalScope: ModalScopeCover?
     /// **何を捨てたか**の内訳(`BridgeSnapshotThinning.tierKey` の値 → 件数)。
     /// `truncatedCount` は「何件落ちたか」しか言わないので、ホストは
@@ -995,7 +1021,8 @@ public struct FrontWindowCover: Codable, Sendable, Equatable {
 }
 
 /// `SnapshotResponse.modalScope` の中身。`droppedCount` = モーダルの view の外にあるとして木から外した、見えている兄弟の部分木の数
-/// (0 より大きい。要素数ではなく兄弟の数 = 外した先を降りて数えない)、`frames` = モーダルの view の枠(画面座標)
+/// (0 より大きい。要素数ではなく兄弟の数 = 外した先を降りて数えない)、`frames` = モーダルの view の枠(画面座標)。
+/// もう1つの出どころ: Compose の popup/dialog の層(`UIKitComposeSceneLayerView`)が開いていて本体の a11y の木が空のとき(droppedCount 1・frames = 層の中身の外接矩形)
 public struct ModalScopeCover: Codable, Sendable, Equatable {
     public let droppedCount: Int
     public let frames: [FTRect]
@@ -1942,9 +1969,24 @@ public struct TouchLandsResponse: Codable, Sendable, Equatable {
     public let lands: [Int]
     /// view を引けなかった ref(表に無い・UIView へ辿れない)。1つでもあれば呼び手は「分からない」と読む
     public let unresolved: [Int]
-    public init(receiver: String?, lands: [Int], unresolved: [Int]) {
+    /// 点で非公開の AX 当たり判定(`_accessibilityHitTest:withEvent:`)が答えた要素の ref(直近の /snapshot の木の要素のとき)。
+    /// 答えが無い・木の要素でない・セレクタが無いときは nil = 測っていない(DR-75)。**警告の材料だけ**: Compose の最小タッチ領域で
+    /// 枠の少し外の要素を返すことがあるので、呼び手は拒否にも操作の変更にも使わない
+    public let axHit: Int?
+    public init(receiver: String?, lands: [Int], unresolved: [Int], axHit: Int? = nil) {
         self.receiver = receiver
         self.lands = lands
         self.unresolved = unresolved
+        self.axHit = axHit
+    }
+
+    private enum CodingKeys: String, CodingKey { case receiver, lands, unresolved, axHit }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        receiver = try c.decodeIfPresent(String.self, forKey: .receiver)
+        lands = try c.decode([Int].self, forKey: .lands)
+        unresolved = try c.decode([Int].self, forKey: .unresolved)
+        axHit = try c.decodeIfPresent(Int.self, forKey: .axHit)
     }
 }

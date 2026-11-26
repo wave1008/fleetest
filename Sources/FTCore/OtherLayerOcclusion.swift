@@ -78,6 +78,25 @@ extension TapTargetGeometry {
         return covers.first { answer.lands.contains($0.ref) }
     }
 
+    /// 非公開の AX 当たり判定(`TouchLandsResponse.axHit`)が答えた要素が、対象でも対象の祖先・子孫でもないとき、その要素。
+    /// **警告の材料だけ**(Compose の最小タッチ領域で枠の少し外の要素を返しうる = 拒否・撃ち方の変更に使わない)。
+    /// 実測(CMP): 縮んだヘッダの裏のボタンの中心でナビバーのタイトルを返し、見えている行・手前のタブでは対象自身を返した。答えが無ければ nil
+    public static func axHitElsewhere(target: ElementInfo, in elements: [ElementInfo], axHit: Int?) -> ElementInfo? {
+        guard let axHit, !lineage(of: target, in: elements).contains(axHit) else { return nil }
+        return elements.first { $0.ref == axHit }
+    }
+
+    /// 対象の中心を、対象の祖先・子孫でない別の要素の枠が含むか(AX の当たり判定を聞くかの門。幾何の事実だけで、手前かは言わない)
+    public static func centreOverlappedOutsideLineage(_ target: ElementInfo, in elements: [ElementInfo]) -> Bool {
+        let centre = (x: target.frame.centerX, y: target.frame.centerY)
+        let family = lineage(of: target, in: elements)
+        return elements.contains { e in
+            !family.contains(e.ref) && e.frame.width > 0 && e.frame.height > 0
+                && e.frame.x <= centre.x && centre.x <= e.frame.x + e.frame.width
+                && e.frame.y <= centre.y && centre.y <= e.frame.y + e.frame.height
+        }
+    }
+
     private static func innermostScrollableAncestor(of element: ElementInfo, in elements: [ElementInfo]) -> ElementInfo? {
         ancestors(of: element, in: elements).first { $0.scrollable == true }
     }

@@ -92,6 +92,11 @@ extension StepExecutor {
     func coveredTouchHint() -> String {
         guard let last = lastInteraction else { return "" }
         guard let cover = last.coverSuspect else {
+            if let axHit = last.axHitSuspect, !last.coverSuspectSuppressed {
+                return " (when the preceding \(last.description) was fired, the accessibility hit test at the target's centre answered"
+                    + " \(axHit), so the touch may have landed on it instead — if that is why this step failed, fix the scenario so the"
+                    + " target is not covered at that step)"
+            }
             guard last.coverSuspectSuppressed else { return "" }
             // 名指しを抑えた組(DR-230)は相手の名前を言わずに疑いだけ言う
             noteCodesThisStep.insert(.occluderNamingSuppressed)

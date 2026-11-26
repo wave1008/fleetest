@@ -55,7 +55,12 @@ extension StepExecutor {
                 let eLeft = e.frame.x, eRight = e.frame.x + e.frame.width
                 return (eLeft < left - 1 && eRight > left + 1) || (eLeft < right - 1 && eRight > right + 1)
             }
-            return crosses && seen.insert(selector).inserted ? selector : nil
+            // in-app の木は棚の子を画面の縁で切る(縁をまたぐ子が載らない)ので、容器自身が申告する内容の広さでも見る
+            // (CMP 435>402・Flutter 2132>402 の実測。未申告 = nil は従来どおり子の枠だけ)
+            let extentRoom = container.scrollExtent.map {
+                $0.offsetX > 1 || $0.offsetX + $0.visibleWidth < $0.contentWidth - 1
+            } ?? false
+            return (crosses || extentRoom) && seen.insert(selector).inserted ? selector : nil
         }
     }
 

@@ -58,7 +58,7 @@ final class CoverReportInFailureMessagesTests: XCTestCase {
 
     func testScrollSearchNamesModalScope() async {
         let m = await reason(searchStep("scrollTo"), CoveredDriver(modal: modal))
-        XCTAssertTrue(m.contains("a modal view (accessibilityViewIsModal)"), m)
+        XCTAssertTrue(m.contains("a modal view or popup layer"), m)
         XCTAssertFalse(m.contains("waitSeconds:"), m)
     }
 
@@ -75,7 +75,7 @@ final class CoverReportInFailureMessagesTests: XCTestCase {
         XCTAssertTrue(covered.contains("element not found: id=gone"), covered)
         XCTAssertTrue(covered.contains("a window in front of the app"), covered)
         let modalMsg = await reason(step, CoveredDriver(modal: modal))
-        XCTAssertTrue(modalMsg.contains("a modal view (accessibilityViewIsModal)"), modalMsg)
+        XCTAssertTrue(modalMsg.contains("a modal view or popup layer"), modalMsg)
         let plain = await reason(step, CoveredDriver())
         XCTAssertFalse(plain.contains("a window in front"), plain)
         XCTAssertFalse(plain.contains("modal view"), plain)

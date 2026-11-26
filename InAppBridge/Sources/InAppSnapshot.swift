@@ -50,8 +50,21 @@ enum InAppSnapshot {
             if !modalFrames.contains(rect) { modalFrames.append(rect) }
             for sample in samples where modalSamples.count < modalDroppedSampleLimit { modalSamples.append(sample) }
         }
+        // Compose の popup/dialog の層(`UIKitComposeSceneLayerView`)。層が開いている間、本体の `AccessibilityRoot` は a11y の子が0個になる
+        // (実測 2026-11: CMP の Dialog・DropdownMenu。層の無い画面・インラインのパネルでは本体の根に子がある。全要素 accessibilityViewIsModal == false)。
+        // フレームワークのクラス名で見る(アプリ固有の id・ラベルは使わない)。1回の走査の中で数える
+        var layerNesting = 0
+        var layerSeen = false
+        var mainRoots = 0
+        var mainRootsWithChildren = 0
+        var layerFrames: [CGRect] = []
         var modalResult: ModalScopeCover? {
-            modalDropped > 0 ? ModalScopeCover(droppedCount: modalDropped, frames: modalFrames, droppedSamples: modalSamples) : nil
+            if modalDropped > 0 { return ModalScopeCover(droppedCount: modalDropped, frames: modalFrames, droppedSamples: modalSamples) }
+            guard layerSeen, mainRoots > 0, mainRootsWithChildren == 0 else { return nil }
+            let box = layerFrames.dropFirst().reduce(layerFrames.first ?? .zero) { $0.union($1) }
+            let rect = layerFrames.isEmpty ? [] : [FTRect(x: box.origin.x, y: box.origin.y, width: box.width, height: box.height)]
+            return ModalScopeCover(droppedCount: 1, frames: rect, droppedSamples: [
+                "Compose scene behind a popup layer (its accessibility tree is empty while the layer is open)"])
         }
         func record(_ window: UIWindow) {
             dropped += 1
@@ -225,6 +238,14 @@ enum InAppSnapshot {
         if isLeavingBackButton(node) { return }
         let flutter = rescaleBelow(node, inherited: inherited)
         let rescale = flutter?.rescale
+        let nodeClass = NSStringFromClass(Swift.type(of: node))
+        // 層の範囲は `UIKitComposeSceneLayerView` を直接の子に持つ入れ物の部分木(層の view 自身の下は背景の入力だけで、層の
+        // `AccessibilityRoot` は兄弟の OverlayInputView の下にある = 実測のダンプ)
+        let isComposeLayer = (node as? UIView)?.subviews.contains {
+            NSStringFromClass(Swift.type(of: $0)).contains("UIKitComposeSceneLayerView")
+        } ?? false
+        if isComposeLayer { tally.layerNesting += 1; tally.layerSeen = true }
+        defer { if isComposeLayer { tally.layerNesting -= 1 } }
 
         let type = elementType(node)
         // キーボードのキーは大量に写り込むため除外(入力は /type が担うので情報として不要)。
@@ -239,6 +260,9 @@ enum InAppSnapshot {
                 tally.record(covering)
             } else {
                 included = true
+                if tally.layerNesting > 0, !(info.frame.width >= screen.width - 1 && info.frame.height >= screen.height - 1) {
+                    tally.layerFrames.append(info.frame)
+                }
                 gathered.append(Gathered(
                     info: makeInfo(node, type: type, ref: 0, depth: depth, frame: info.frame),
                     frame: info.frame, node: node, clip: clip, rescale: rescale, parent: parent))
@@ -256,6 +280,10 @@ enum InAppSnapshot {
         // (XCUITest の木には出る = 型セレクタも id もブリッジで食い違う)
         if let view = node as? UIView, view.isAccessibilityElement, included { return }
         let allChildren = axChildren(node)
+        if tally.layerNesting == 0, nodeClass.contains("AccessibilityRoot") {
+            tally.mainRoots += 1
+            if !allChildren.isEmpty { tally.mainRootsWithChildren += 1 }
+        }
         let children = modalChildOnly(allChildren, tally: tally)
         let childClip = isScrollableContainer(node) == true
             ? (clip ?? .infinite).intersection(nodeFrame) : clip
@@ -478,7 +506,23 @@ enum InAppSnapshot {
             // スクロールできる容器か(scroll マーク・scrollFrame の空振り検出用)。
             // 判定は isScrollableContainer(Compose/Flutter も 2026-08-08 から判る。false は送らない)
             scrollable: Self.isScrollableContainer(node),
-            drawnTitle: type == .button ? drawnTitle(node) : nil)
+            drawnTitle: type == .button ? drawnTitle(node) : nil,
+            scrollExtent: Self.isScrollableContainer(node) == true ? scrollExtent(node) : nil)
+    }
+
+    /// スクロール容器の内容の広さ(`ElementInfo.scrollExtent`)。UIScrollView = contentOffset・contentSize・bounds.size /
+    /// `UIFocusItemScrollableContainer`(Compose)= contentOffset・contentSize・visibleSize。値は容器自身の実寸(pt)で、
+    /// Flutter の縮んだ AX 矩形の補正(`rescaleBelow`)は枠だけに掛ける(実測: Flutter の棚 bounds 402x120 は画面の実寸)
+    private static func scrollExtent(_ node: NSObject) -> ScrollExtent? {
+        if let scrollView = node as? UIScrollView {
+            let offset = scrollView.contentOffset, content = scrollView.contentSize, visible = scrollView.bounds.size
+            return ScrollExtent(offsetX: offset.x, offsetY: offset.y, contentWidth: content.width, contentHeight: content.height,
+                                visibleWidth: visible.width, visibleHeight: visible.height)
+        }
+        guard let container = node as? (any UIFocusItemScrollableContainer) else { return nil }
+        let offset = container.contentOffset, content = container.contentSize, visible = container.visibleSize
+        return ScrollExtent(offsetX: offset.x, offsetY: offset.y, contentWidth: content.width, contentHeight: content.height,
+                            visibleWidth: visible.width, visibleHeight: visible.height)
     }
 
     /// ボタンが**タイトルとして描いている文字**(`ElementInfo.drawnTitle`)。UIButton は `titleLabel` の表示中の文字。

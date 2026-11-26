@@ -31,6 +31,35 @@ final class HorizontalShelfHintTests: XCTestCase {
         XCTAssertFalse(hint.contains("card_1_03"), "対象がどの棚にあるかは言わない: \(hint)")
     }
 
+    /// 子が縁で切られて収まって見える棚(in-app の木)でも、容器の申告(content 435 > visible 402)があれば挙げる
+    private func extentTree(content: Double?) -> SnapshotResponse {
+        var snap = tree(overflow: false)
+        if let content {
+            snap.elements[1].scrollExtent = ScrollExtent(offsetX: 0, offsetY: 0, contentWidth: content, contentHeight: 150,
+                                                         visibleWidth: 370, visibleHeight: 150)
+        }
+        return snap
+    }
+
+    func testShelfWithClippedChildrenButWiderContentIsNamed() {
+        XCTAssertEqual(StepExecutor.horizontalOverflowingShelves(in: extentTree(content: 435)), ["#shelf_1"])
+    }
+
+    func testShelfWhoseExtentEqualsVisibleIsNotNamed() {
+        XCTAssertEqual(StepExecutor.horizontalOverflowingShelves(in: extentTree(content: 370)), [])
+    }
+
+    func testShelfWithoutExtentKeepsOldBehaviour() {
+        XCTAssertEqual(StepExecutor.horizontalOverflowingShelves(in: extentTree(content: nil)), [])
+        XCTAssertEqual(StepExecutor.horizontalOverflowingShelves(in: tree(overflow: true)), ["#shelf_1"])
+    }
+
+    func testShelfScrolledAwayFromStartIsNamed() {
+        var snap = extentTree(content: 370)
+        snap.elements[1].scrollExtent?.offsetX = 40
+        XCTAssertEqual(StepExecutor.horizontalOverflowingShelves(in: snap), ["#shelf_1"])
+    }
+
     func testShelfThatFitsIsNotNamed() {
         let hint = StepExecutor.scrollOffHint(FlowStep(action: "tap"), in: tree(overflow: false))
         XCTAssertFalse(hint.contains("withScrollRight"), hint)

@@ -1514,6 +1514,8 @@ public final class StepExecutor {
         /// 名指しを抑えた(`OccluderNaming`)疑い・手前の要素があったか。**案内を出す場面になったときだけ**注記
         /// `occluderNamingSuppressed` にする(記録の時点で付けると、何も出さない緑の手にも付く)
         var coverSuspectSuppressed = false
+        /// 撃つ前の AX 当たり判定(`TouchLandsResponse.axHit`)が対象の系列の外の要素を答えたときの名指し。警告だけ(`coveredTouchHint`)
+        var axHitSuspect: String?
         var pointTakenSuppressed = false
     }
 

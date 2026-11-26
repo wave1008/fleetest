@@ -40,7 +40,9 @@ final class ElementInfoCodingTests: XCTestCase {
             clickable: true,
             keptDepth: 3,
             labelSource: "desc",
-            renderer: "virtual", renderHost: 17, drawnTitle: "保存")
+            renderer: "virtual", renderHost: 17, drawnTitle: "保存",
+            scrollExtent: ScrollExtent(offsetX: 0, offsetY: 12, contentWidth: 435.3, contentHeight: 120,
+                                       visibleWidth: 402, visibleHeight: 120))
     }
 
     func testEveryFieldSurvivesAnEncodeDecodeRoundTrip() throws {
@@ -82,5 +84,26 @@ final class ElementInfoCodingTests: XCTestCase {
         for name in read {
             XCTAssertNotNil(json[name], "\(name) が JSON へ出ていない")
         }
+    }
+
+    /// scrollExtent は省略が「測っていない」(DR-75): 無い JSON は nil・値があれば往復で保たれ、nil のときはキーを出さない
+    func testScrollExtentAbsentAndPresent() throws {
+        var bare = ElementInfo(ref: 1, type: "other", identifier: nil, label: nil, value: nil, placeholder: nil,
+                               enabled: true, frame: FTRect(x: 0, y: 0, width: 1, height: 1), depth: 0)
+        let bareData = try JSONEncoder().encode(bare)
+        let bareJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: bareData) as? [String: Any])
+        XCTAssertNil(bareJSON["scrollExtent"])
+        XCTAssertNil(try JSONDecoder().decode(ElementInfo.self, from: bareData).scrollExtent)
+        let extent = ScrollExtent(offsetX: 3, offsetY: 0, contentWidth: 2132, contentHeight: 120, visibleWidth: 402, visibleHeight: 120)
+        bare.scrollExtent = extent
+        let back = try JSONDecoder().decode(ElementInfo.self, from: JSONEncoder().encode(bare))
+        XCTAssertEqual(back.scrollExtent, extent)
+    }
+
+    func testTouchLandsAxHitAbsentAndPresent() throws {
+        let old = Data(#"{"receiver":"V","lands":[1],"unresolved":[]}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(TouchLandsResponse.self, from: old).axHit)
+        let answer = TouchLandsResponse(receiver: "V", lands: [1], unresolved: [], axHit: 7)
+        XCTAssertEqual(try JSONDecoder().decode(TouchLandsResponse.self, from: JSONEncoder().encode(answer)), answer)
     }
 }

@@ -33,6 +33,39 @@ final class OtherLayerOcclusionTests: XCTestCase {
         return TapTargetGeometry.otherLayerCoverSuspect(target, in: tree, screen: screen)
     }
 
+    /// AX 当たり判定の警告(`axHitElsewhere`): 縮んだヘッダの裏のボタン(対象)の中心でナビバーのタイトルが答えた形
+    private func axTree() -> [ElementInfo] {
+        [element(1, "other", "root", FTRect(x: 0, y: 0, width: 402, height: 874), depth: 0),
+         element(2, "staticText", "title", FTRect(x: 100, y: 50, width: 200, height: 40), depth: 1),
+         element(3, "button", "follow", FTRect(x: 20, y: 40, width: 100, height: 60), depth: 1),
+         element(4, "staticText", "follow_caption", FTRect(x: 30, y: 50, width: 60, height: 20), depth: 2)]
+    }
+
+    func testAxHitOnAnotherElementIsReturned() {
+        let tree = axTree()
+        XCTAssertEqual(TapTargetGeometry.axHitElsewhere(target: tree[2], in: tree, axHit: 2)?.identifier, "title")
+    }
+
+    func testAxHitOnTargetItsChildItsAncestorOrNothingIsSilent() {
+        let tree = axTree()
+        XCTAssertNil(TapTargetGeometry.axHitElsewhere(target: tree[2], in: tree, axHit: 3))
+        XCTAssertNil(TapTargetGeometry.axHitElsewhere(target: tree[2], in: tree, axHit: 4))
+        XCTAssertNil(TapTargetGeometry.axHitElsewhere(target: tree[2], in: tree, axHit: 1))
+        XCTAssertNil(TapTargetGeometry.axHitElsewhere(target: tree[2], in: tree, axHit: nil))
+        XCTAssertNil(TapTargetGeometry.axHitElsewhere(target: tree[2], in: tree, axHit: 99), "木に無い ref は名指さない")
+    }
+
+    /// 問い合わせの門: 対象の中心に祖先・子孫でない別の要素が重なるタップだけ聞く(普通のタップに往復を足さない)
+    func testAxHitIsAskedOnlyWhenAnotherElementOverlapsTheCentre() {
+        let tree = axTree()
+        var overlapping = tree
+        overlapping[1] = element(2, "staticText", "title", FTRect(x: 56, y: 60, width: 226, height: 28), depth: 1)
+        XCTAssertTrue(TapTargetGeometry.centreOverlappedOutsideLineage(tree[2], in: overlapping), "中心 (70,70) にタイトルの枠が重なる")
+        XCTAssertFalse(TapTargetGeometry.centreOverlappedOutsideLineage(tree[2], in: tree), "タイトルが中心から外れていれば聞かない")
+        let alone = [tree[0], tree[2], tree[3]]
+        XCTAssertFalse(TapTargetGeometry.centreOverlappedOutsideLineage(tree[2], in: alone), "根(祖先)と自分の文字(子孫)だけなら聞かない")
+    }
+
     func testSheetShapeNamesTheOtherLayersRow() {
         XCTAssertEqual(suspect(sheetTree())?.identifier, "queue_row_03")
     }

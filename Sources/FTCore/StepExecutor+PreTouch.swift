@@ -276,6 +276,17 @@ extension StepExecutor {
                 suspect = TapTargetGeometry.pinnedBandCovering(element, in: snapshot.elements, container: container)
             }
             if let suspect { noteCoverSuspect(TapTargetGeometry.describe(suspect), for: element) }
+            else if !isAndroid, snapshot.elements.allSatisfy({ $0.z == nil }),
+                    TapTargetGeometry.centreOverlappedOutsideLineage(element, in: snapshot.elements) {
+                // 他の判定が何も言わなかった形への警告だけ(拒否も撃ち方の変更もしない。in-app 以外は nil = 黙る)。
+                // 問い合わせは木の上で別の要素が中心に重なるタップだけ(普通のタップに往復を足さない)。
+                // 答えは赤の案内を組む時点で名指す(`coveredTouchHint`)
+                let lands = await driver.touchLands(x: element.frame.centerX, y: element.frame.centerY, refs: [element.ref])
+                if let other = TapTargetGeometry.axHitElsewhere(target: element, in: snapshot.elements, axHit: lands?.axHit),
+                   lastInteraction?.target.ref == element.ref {
+                    lastInteraction?.axHitSuspect = TapTargetGeometry.describe(other)
+                }
+            }
             return .none
         case .visiblePart(let rect, let over)?:
             return .part(rect, note: "touched the part of the target not covered by \(TapTargetGeometry.describe(over))"

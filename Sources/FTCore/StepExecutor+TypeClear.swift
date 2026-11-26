@@ -730,7 +730,7 @@ extension StepExecutor {
         let frames = scope.frames.prefix(2).map { "(\(Int(saturating: $0.x)),\(Int(saturating: $0.y)) \(Int(saturating: $0.width))x\(Int(saturating: $0.height)))" }
             .joined(separator: ", ")
         let samples = scope.droppedSamples.isEmpty ? "" : " (" + scope.droppedSamples.joined(separator: "; ") + ")"
-        return " — a modal view (accessibilityViewIsModal) at \(frames) is open and left \(scope.droppedCount) element group(s) out of"
+        return " — a modal view or popup layer at \(frames) is open and left \(scope.droppedCount) element group(s) out of"
             + " the tree\(samples); if the target is behind it, close the modal (dismiss the dialog) first — waiting will not bring back"
             + " what is behind it"
     }
