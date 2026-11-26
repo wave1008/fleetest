@@ -138,6 +138,24 @@ final class ScreenStatePublicationTests: XCTestCase {
         XCTAssertEqual(sink.all, [nil])
     }
 
+    /// 白紙の赤の後の公表は、止まった所を足跡に残す(口が無い・絵が無い・判定の答え)
+    func testPublicationAfterNotRenderedLeavesATrace() {
+        let png = RenderCollapseTests.png()
+        let (executor, sink) = executor(png, redChecks: false)
+        executor.lastNotRenderedFrame = (png, elements(), screen)
+        executor.publishScreenStateAfterNotRendered()
+        XCTAssertEqual(sink.all, [.blank])
+        executor.publishScreenStateAfterNotRendered()   // 絵は1回で捨てる
+        executor.screenStatePublisher = nil
+        executor.publishScreenStateAfterNotRendered()
+        let traces = executor.traceThisStep.finished().map(\.facts)
+        XCTAssertEqual(traces.count, 3, "\(traces)")
+        XCTAssertEqual(traces.first?["finding"], "blank-app-area(\(texts.count))")
+        XCTAssertEqual(traces.first?["keyboard"], "none")
+        XCTAssertEqual(traces.dropFirst().first, ["publisher": "wired", "frame": "none"])
+        XCTAssertEqual(traces.last, ["publisher": "none"])
+    }
+
     func testWholeScreenBlankIsLeftAlone() async {
         let (executor, sink) = executor(RenderCollapseTests.png(statusBar: false), redChecks: false)
         _ = await verdict(executor)

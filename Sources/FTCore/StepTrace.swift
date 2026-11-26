@@ -18,6 +18,8 @@ public enum StepTraceStage: String, CaseIterable, Sendable {
     case scrollSearchEnd = "scroll-search-end"
     /// 可視性検証で FM が近い外れと判定したときの OCR 分岐
     case ocrNearMiss = "ocr-near-miss"
+    /// 可視性検証の `notRendered` の赤の後の白紙の公表(`publishScreenStateAfterNotRendered`)がどこまで進んだか
+    case screenStatePublish = "screen-state-publish"
     /// 上限を超えて捨てた足跡の数(`dropped`)。`StepTraceBuffer` だけが置く
     case traceTruncated = "trace-truncated"
 }

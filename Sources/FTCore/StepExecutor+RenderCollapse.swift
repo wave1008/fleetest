@@ -45,13 +45,33 @@ extension StepExecutor {
 
     /// テキストの可視性検証の赤が確定したときに、最後の `notRendered` の絵を1回判定して公表する。撮影は足さない。
     /// poll の途中で呼ばない(遷移の途中の1枚を白紙と呼ばない・1周ごとに失敗文の判定と二重になる)
+    /// 止まった所は足跡 `screen-state-publish` に残す(白紙の赤に `screen-blank` が立たなかった回を、口が無い・絵が無い・
+    /// 判定が言わない のどれかに分ける。控えの絵と木を判定に通すと「アプリの領域が一色」を返した回で立たなかった)
     func publishScreenStateAfterNotRendered() {
         defer { lastNotRenderedFrame = nil }
-        guard screenStatePublisher != nil, let frame = lastNotRenderedFrame else { return }
+        guard screenStatePublisher != nil else { return trace(.screenStatePublish, ["publisher": "none"]) }
+        guard let frame = lastNotRenderedFrame else {
+            return trace(.screenStatePublish, ["publisher": "wired", "frame": "none"])
+        }
         let finding = RenderCollapse.judge(pngData: frame.screenshot, elements: frame.elements, screen: frame.screen,
                                            keyboard: guardKeyboardFrame, inkThreshold: occlusionInkThreshold,
                                            minimumTextElements: RenderCollapse.minimumTextElements)
+        trace(.screenStatePublish, ["publisher": "wired", "frame": "kept",
+                                    "finding": finding.map(Self.traceValue) ?? "none",
+                                    "keyboard": guardKeyboardFrame.map(Self.traceFrame) ?? "none"])
         reflectScreenState(finding, clearsWhenHealthy: false)
+    }
+
+    static func traceValue(_ finding: RenderCollapse.Finding) -> String {
+        switch finding {
+        case .blankAppArea(let n): return "blank-app-area(\(n))"
+        case .wholeScreenBlank(let n): return "whole-screen-blank(\(n))"
+        case .noTextDrawn(let n): return "no-text-drawn(\(n))"
+        }
+    }
+
+    static func traceFrame(_ r: FTRect) -> String {
+        "\(Int(saturating: r.x.rounded())),\(Int(saturating: r.y.rounded())) \(Int(saturating: r.width.rounded()))x\(Int(saturating: r.height.rounded()))"
     }
 
     /// 検証が緑になったら、画素で文字を確かめたかで義務を貯める・下ろす(execute の assert の枝が呼ぶ)
