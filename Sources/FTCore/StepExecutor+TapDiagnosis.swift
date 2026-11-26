@@ -109,7 +109,8 @@ extension StepExecutor {
             noteCodesThisStep.insert(.semanticsOrderUnavailable)
             traceThisStep.append(.semanticsOrder, ["outcome": "unavailable", "reason": Self.unavailableReason(response)])
             // ブリッジが答えられないと言い、その答えを控えた回だけ控える(木の食い違い・1回目の一時的な理由は控えない)
-            if response?.reason != nil, semanticsOrderCache?.signature == signature { paintRanksCache = (signature, nil) }
+            if let reason = response?.reason,
+               semanticsOrderCache?.signature == signature || Self.lastingReasons.contains(reason) { paintRanksCache = (signature, nil) }
         } else {
             traceThisStep.append(.semanticsOrder, ["outcome": "answered"])
             paintRanksCache = (signature, answer)
@@ -129,7 +130,8 @@ extension StepExecutor {
     func askSemanticsOrder(elements: [ElementInfo], app: String?) async -> SemanticsOrderResponse? {
         let signature = Self.contentSignature(elements)
         if let cached = semanticsOrderCache, cached.signature == signature { return cached.response }
-        // アプリが分からない木(検証の段は bundle ID を持たない)では控えを引かず、残さない(起こしたアプリで代用すると、別のアプリの答えで
+        if let miss = semanticsOrderTransientMisses[signature], miss.count >= 2 { return miss.response }
+        // アプリが分からない木(`sessionBundleID` が無い)では控えを引かず、残さない(起こしたアプリで代用すると、別のアプリの答えで
         // 起こしたアプリを「VM サービス無し」と覚える)
         if let known = semanticsOrderUnavailableApp, known == app {
             return SemanticsOrderResponse(dump: nil, nodes: nil, reason: Self.noVMServiceReason)
@@ -143,10 +145,9 @@ extension StepExecutor {
         // 一時的な理由(締め切り・ダンプの失敗等)は同じ木でもう1回だけ聞く(たまたま遅かった1回で、その画面の間ずっと答え無しにしない)。
         // 2回続けば控える(同じ画面で毎回締め切りを払わない = 払うのは1画面あたり最大2回)
         if let reason = response?.reason, !Self.lastingReasons.contains(reason) {
-            guard semanticsOrderTransientMiss == signature else {
-                semanticsOrderTransientMiss = signature
-                return response
-            }
+            let count = (semanticsOrderTransientMisses[signature]?.count ?? 0) + 1
+            semanticsOrderTransientMisses[signature] = (count, response)
+            guard count >= 2 else { return response }
         }
         if response?.reason != nil || PaintRankAnswer.make(response: response, elements: elements) != nil {
             semanticsOrderCache = (signature, response)

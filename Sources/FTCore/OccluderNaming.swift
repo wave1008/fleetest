@@ -64,6 +64,10 @@ public struct OccluderNamingContext: Equatable, Sendable {
                                   candidates: @autoclosure () -> [ElementInfo]) -> ElementInfo? {
         guard answeredBehind(cover, target), let ranks = paintRanks else { return cover }
         let others = candidates().filter { $0.ref != cover.ref && $0.ref != target.ref }
+        // 今の規則で名指せる候補(別ウィンドウ・別の描画の層)は木の手前がそのまま塗り順 = 塗り順の答えより先に覆いと数える
+        if let nameable = others.filter({
+            OccluderNaming.mayName(occluder: $0, target: target, isAndroid: isAndroid, framework: framework)
+        }).max(by: { PaintOrder.drawnAbove($1, $0) }) { return nameable }
         let inFront = others.filter { ranks.inFront($0, of: target) == true }
         if let front = inFront.max(by: { (ranks.ranks[$0.ref] ?? 0) < (ranks.ranks[$1.ref] ?? 0) }) { return front }
         return others.filter { ranks.inFront($0, of: target) == nil }.max { PaintOrder.drawnAbove($1, $0) }

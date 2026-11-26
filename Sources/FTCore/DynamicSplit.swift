@@ -173,7 +173,7 @@ public enum DynamicSplit {
         func costOn(_ job: Job, _ lane: Lane) -> Double? {
             if let bound = job.boundEntry, bound != lane.entry { return nil }
             // 対象外で戻されたシナリオ(DR-214)は、試したエントリのレーンを置き場に数えない。数えると空いた速いレーンへ仮置きして
-            // 保留し、そのレーンは取れず、空いたレーンは見直しの時刻も作らないので run が止まる(11/26 のフル E2E の E2E-Android で約 25 分止まった)
+            // 保留し、そのレーンは取れず、空いたレーンは見直しの時刻も作らないので run が止まる
             if triedBy[job.head.unitKey]?.contains(lane.entry) == true { return nil }
             guard let chunk = job.chunk else { return estimateMs(job.head, lane.entry) }
             let sum = job.members.reduce(0) { $0 + estimateMs($1, lane.entry) }

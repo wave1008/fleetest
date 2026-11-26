@@ -418,7 +418,7 @@ public final class StepExecutor {
         semanticsOrderUnavailableApp = nil
         semanticsOrderCache = nil
         paintRanksCache = nil
-        semanticsOrderTransientMiss = nil
+        semanticsOrderTransientMisses = [:]
         armUnregisteredSystemAlertProbe()
         firstFrameGatePending = true
         pendingLaunchSettle = true
@@ -1408,8 +1408,9 @@ public final class StepExecutor {
     /// そのアプリへは聞き直さない(聞くたびにブリッジが pidof と logcat を読む)。アプリを起こし直したら捨てる(`noteAppLaunched`。新しい pid は
     /// ログに URI を出し直す)
     var semanticsOrderUnavailableApp: String?
-    /// 一時的な理由で答えられなかった直近の木の署名(`askSemanticsOrder`。同じ木の2回目で控える)
-    var semanticsOrderTransientMiss: String?
+    /// 一時的な理由で答えられなかった木の署名 → 回数と最後の答え(`askSemanticsOrder`。2回続いた木へは聞き直さない)。
+    /// 木ごとに持つ = `semanticsOrderCache` は1つの木しか持たないので、木が交互に替わると2回目を数えられず毎回締め切りを払う
+    var semanticsOrderTransientMisses: [String: (count: Int, response: SemanticsOrderResponse?)] = [:]
     /// 足跡用: 直近のスクロール探索で最後に撃った1本の種類(`swipe` = 払い・`*-drag` / `*-swipe` = 寄せなどの回復)と、
     /// 内容が動いた容器。`runScrollSearch` の入口で捨てる。判定には使わない
     var scrollTraceLastSend = "none"

@@ -282,6 +282,12 @@ final class SemanticsPaintOrderExecutorTests: XCTestCase {
             .namingSuppressed, "答えの無い候補が残れば注意を残す")
         XCTAssertNil(answered.reconsideredCover(panel, target: row, candidates: [panel]), "全部が奥なら疑いごと外す")
         XCTAssertEqual(answered.reconsideredCover(bar, target: row, candidates: [bar, panel])?.ref, bar.ref, "奥と答えられていなければそのまま")
+        // 今の規則で名指せる候補(別の描画の層)は、塗り順の答えより先に覆いと数える(木の手前がそのまま塗り順)
+        var native = el(4, "native_overlay", y: 330)
+        native.renderer = "view"
+        var virtualRow = row
+        virtualRow.renderer = "virtual"
+        XCTAssertEqual(answered.reconsideredCover(panel, target: virtualRow, candidates: [bar, panel, native])?.ref, native.ref)
     }
 
     /// 一時的な理由(締め切り等)は同じ木でもう1回だけ聞き、2回続けば控える。聞き直しても変わらない理由は1回目で控える
@@ -292,6 +298,16 @@ final class SemanticsPaintOrderExecutorTests: XCTestCase {
         let executor = StepExecutor(driver: driver, isAndroid: true, tunables: RunTunables(), uiFramework: .flutter)
         for _ in 0..<3 { _ = await executor.paintRanks(elements: [row, sheet], app: "com.example.flutter") }
         XCTAssertEqual(driver.semanticsOrderCalls, 2, "1回目の締め切りは控えず聞き直す・2回続けば控える")
+        // 木が交互に替わっても、それぞれの木の2回目で控える
+        let alternating = FakeAppDriver(name: "p", log: CallLog())
+        alternating.semanticsOrderAnswer = SemanticsOrderResponse(dump: nil, nodes: nil, reason: "timeout")
+        let alternatingExecutor = StepExecutor(driver: alternating, isAndroid: true, tunables: RunTunables(), uiFramework: .flutter)
+        let other = el(2, "sheet_row", y: 330)
+        for _ in 0..<3 {
+            _ = await alternatingExecutor.paintRanks(elements: [row, sheet], app: "com.example.flutter")
+            _ = await alternatingExecutor.paintRanks(elements: [row, other], app: "com.example.flutter")
+        }
+        XCTAssertEqual(alternating.semanticsOrderCalls, 4, "交互の木でも1つの木あたり最大2回")
 
         let lasting = FakeAppDriver(name: "p", log: CallLog())
         lasting.semanticsOrderAnswer = SemanticsOrderResponse(dump: nil, nodes: nil, reason: "multiple-hosts")
@@ -311,8 +327,11 @@ final class SemanticsPaintOrderExecutorTests: XCTestCase {
                                looseMatch: false, expectedIsUserText: false, perStepGuard: nil, app: "com.example.release")
         }
         _ = await executor.coveredInPaintRanks(evidence([row, sheet]))
-        _ = await executor.coveredInPaintRanks(evidence([row, el(2, "sheet_row", y: 330)]))
+        let moved = [row, el(2, "sheet_row", y: 330)]
+        _ = await executor.coveredInPaintRanks(evidence(moved))
         XCTAssertEqual(driver.semanticsOrderCalls, 1, "木が変わっても同じアプリには聞き直さない")
+        XCTAssertEqual(executor.paintRanksCache?.signature, StepExecutor.contentSignature(moved),
+                       "控えから答えた回も塗り順の控えに残す(同じ木で足跡と注記を重ねない)")
     }
 }
 

@@ -237,6 +237,8 @@ extension MCPServer {
         // ft_clear_app_data が実機で uninstall+install に化けるときの再インストール元
         // (installedPackagePaths 参照)
         installedPackagePaths[installKey] = packagePath
+        // 入れ直したアプリは新しい pid でログに VM サービスの URI を出し直しうる(DR-235)
+        semanticsOrderUnavailableApps[installKey] = nil
         // インストール直後の初回起動で権限アラートが出ることがある(systemAlertProbePending 参照)
         systemAlertProbePending.insert(installKey)
         // **既に起動していたアプリの上書きインストールは、たいてい実行中のプロセスを止める**
@@ -653,6 +655,7 @@ extension MCPServer {
             // 意図した再インストールなので、以後の別アプリの木は「すり替わり」ではない
             // (ft_terminate と同じ扱い)
             launchedBundleIDs[clearAppDataKey] = nil
+            semanticsOrderUnavailableApps[clearAppDataKey] = nil
             launchTimestamps[clearAppDataKey] = nil
             systemAlertProbePending.insert(clearAppDataKey)
             recordClearAppData(bundleID: bundleID, args: args)
@@ -794,6 +797,7 @@ extension MCPServer {
             guard simulatorUDID != nil else {
                 let launchedHere = launchedBundleIDs[terminateKey] != nil
                 launchedBundleIDs[terminateKey] = nil
+                semanticsOrderUnavailableApps[terminateKey] = nil
                 launchTimestamps[terminateKey] = nil
                 throw MCPError(Self.terminateNoSessionRefusal(bundleID: terminateBundleID, launchedHere: launchedHere))
             }
@@ -810,9 +814,12 @@ extension MCPServer {
                                            terminated: terminateBundleID) {
             toolStoppedBundleIDs[terminateKey] = "ft_terminate"
             systemAlertProbePending.remove(terminateKey)
+            // 止めたアプリは次に起こすと新しい pid でログに VM サービスの URI を出し直す(DR-235)
+            semanticsOrderUnavailableApps[terminateKey] = nil
         } else if stopsSessionApp {
             // iOS: 意図して落としたので、以後の別アプリの木は「すり替わり」ではない
             launchedBundleIDs[terminateKey] = nil
+            semanticsOrderUnavailableApps[terminateKey] = nil
             launchTimestamps[terminateKey] = nil
             toolStoppedBundleIDs[terminateKey] = nil
             systemAlertProbePending.remove(terminateKey)
