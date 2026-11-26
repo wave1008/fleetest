@@ -15,7 +15,7 @@ extension AndroidDriver {
     /// デバイス側の listen ポート(全デバイス共通。デバイス毎に独立 loopback なので衝突しない)
     static let bridgeDevicePort: UInt16 = 8123
     /// AndroidRunner/build.sh の VERSION_CODE と同期(不一致なら自動で再インストール)
-    public static let expectedBridgeVersionCode = 153
+    public static let expectedBridgeVersionCode = 154
     /// am instrument の起動コマンド自身の stdout/stderr の逃がし先(デバイス側。shell が書ける
     /// /data/local/tmp)。起動失敗時だけホストへ pull する(persistInstrumentFailureLog)
     static let instrumentDeviceLogPath = "/data/local/tmp/ftbridge-instrument.log"
@@ -235,6 +235,12 @@ extension AndroidDriver {
         guard let status = try? await BridgeClient(port: hostPort, timeoutSeconds: 2).status(), status.ready
         else { return nil }
         return status
+    }
+
+    /// 動いているブリッジにだけ聞く(起動し直さない = 名指しの材料のために画面を動かさない。`statusIfBridgeRunning` と同じ門)
+    public func semanticsOrder() async -> SemanticsOrderResponse? {
+        guard case .active(let client) = Self.getRegistry(bridgeKey) else { return nil }
+        return await client.semanticsOrder()
     }
 
     /// このプロセスの共有の控えで、その端末のブリッジが動いている(`.active`)か

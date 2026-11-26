@@ -451,6 +451,7 @@ public final class HybridFallbackDriver: AppDriver {
     public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
         await active.touchLands(x: x, y: y, refs: refs)
     }
+    public func semanticsOrder() async -> SemanticsOrderResponse? { await active.semanticsOrder() }
     // in-app の状態は primary(in-app)だけが答える(XCUITest 側は nil)
     public func inAppApplicationState() async -> String? { await primary.inAppApplicationState() }
     public func inAppDisplayReport() async -> InAppDisplayReport? { await primary.inAppDisplayReport() }

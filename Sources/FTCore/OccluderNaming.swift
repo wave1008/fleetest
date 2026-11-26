@@ -23,20 +23,37 @@ public enum OccluderNaming {
     }
 }
 
-/// 出口へ渡す「名指し」の材料(OS とアプリの答え)。**既定値を置かない** —— 呼び忘れをコンパイルで止める。
+/// 出口へ渡す「名指し」の材料(OS とアプリの答え・アプリの VM サービスの塗り順)。**既定値を置かない** —— 呼び忘れをコンパイルで止める。
 public struct OccluderNamingContext: Equatable, Sendable {
     public let isAndroid: Bool
     public let framework: AppUIFramework?
+    /// `OccluderNaming.mayName` が偽の組だけに効く塗り順(DR-235)。nil = 取っていない・取れなかった(DR-230 のまま)
+    public let paintRanks: PaintRankAnswer?
     /// 常に名指す。`advisoryKind` を撃ち方(`overlayCoveringForUncover` 等)に使う呼び手と、名指しを抑える理由が無い呼び手用
-    public static let alwaysName = OccluderNamingContext(isAndroid: false, framework: nil)
+    public static let alwaysName = OccluderNamingContext(isAndroid: false, framework: nil, paintRanks: nil)
 
-    public init(isAndroid: Bool, framework: AppUIFramework?) {
+    public init(isAndroid: Bool, framework: AppUIFramework?, paintRanks: PaintRankAnswer?) {
         self.isAndroid = isAndroid
         self.framework = framework
+        self.paintRanks = paintRanks
     }
 
+    /// 今の規則(`OccluderNaming.mayName`)が偽の組は、塗り順が「覆いが手前」と答えたときだけ名指す
     public func mayName(_ occluder: ElementInfo, _ target: ElementInfo) -> Bool {
-        OccluderNaming.mayName(occluder: occluder, target: target, isAndroid: isAndroid, framework: framework)
+        if OccluderNaming.mayName(occluder: occluder, target: target, isAndroid: isAndroid, framework: framework) { return true }
+        return paintRanks?.inFront(occluder, of: target) == true
+    }
+
+    /// 今の規則では名指せない組で、塗り順が「覆いは対象より奥」と答えた = 覆いの疑い自体が当たらない(注意も出さない。範囲を狭める向き)
+    public func answeredBehind(_ occluder: ElementInfo, _ target: ElementInfo) -> Bool {
+        guard !OccluderNaming.mayName(occluder: occluder, target: target, isAndroid: isAndroid, framework: framework) else { return false }
+        return paintRanks?.inFront(occluder, of: target) == false
+    }
+
+    /// 今の規則では名指せない組で、名指しを塗り順で決めた(手前でも奥でも)
+    public func decidedByPaintRanks(_ occluder: ElementInfo, _ target: ElementInfo) -> Bool {
+        guard !OccluderNaming.mayName(occluder: occluder, target: target, isAndroid: isAndroid, framework: framework) else { return false }
+        return paintRanks?.inFront(occluder, of: target) != nil
     }
 }
 

@@ -886,6 +886,15 @@ public final class BridgeClient: AppDriver, Sendable {
         try? await post("/tapprobe", body: TapProbeRequest(x: x, y: y), timeout: interactionTimeout)
     }
 
+    /// POST /semanticsorder(Android ブリッジだけ。DR-235)。直近の /snapshot の木について、Flutter の VM サービスの塗り順を返す。
+    /// 失敗(旧ブリッジの 404・通信断)は nil。上限はブリッジの中の HTTP(1回 500ms・最大4回)と shell(pidof・logcat)を足して収まる 5 秒
+    public func semanticsOrder() async -> SemanticsOrderResponse? {
+        struct Empty: Encodable {}
+        return try? await post("/semanticsorder", body: Empty(), timeout: Self.semanticsOrderTimeout)
+    }
+
+    static let semanticsOrderTimeout: TimeInterval = 5
+
     /// POST /touchlands(in-app ブリッジだけが答える。XCUITest ランナーは経路を持たず 404)。失敗は全部 nil = 答えられない
     public func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? {
         try? await post("/touchlands", body: TouchLandsRequest(x: x, y: y, refs: refs), timeout: interactionTimeout)

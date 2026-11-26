@@ -572,6 +572,13 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// z が木の順で塗り順ではないので、同じウィンドウの中の「手前」を根拠にしない(DR-230)。判定・撃ち方は変えない。事実だけ
     case occluderNamingSuppressed = "occluder-naming-suppressed"
 
+    /// 名指しを抑える組(`OccluderNaming`)を、アプリの VM サービスの塗り順(DR-235)で名指した・覆いの疑いから外した。判定・撃ち方は変えない
+    case occluderOrderFromSemantics = "occluder-order-from-semantics"
+
+    /// 名指しを抑える組で塗り順(DR-235)を聞いたが答えが無かった(release のビルド・旧ブリッジ・VM サービスが見つからない・木が撮り直された)。
+    /// DR-230 の挙動のまま。理由は足跡 `semantics-order` の `reason`。**率を見る注記**(debug のビルドで立ち続けるなら経路が効いていない)
+    case semanticsOrderUnavailable = "semantics-order-unavailable"
+
     /// dry-run で `type` の文字が空だった(DR-211)。デバイスを使わない dry-run では画面から読んだ値と run メモ(beforeRun が走らない)が
     /// 空になるので断らずに通し、事実を残す。デバイスでの実行は replace 無しの空の入力を今までどおり断る
     case dryRunEmptyText = "dry-run-empty-text"
@@ -809,6 +816,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
             return "not in the in-app tree, but found in the app's XCUITest tree and checked visible there"
         case .occluderNamingSuppressed:
             return "an overlapping element was not named: on an Android Flutter app the tree order is not the paint order"
+        case .occluderOrderFromSemantics:
+            return "whether an overlapping element is drawn in front was read from the app's Dart VM service (debug or profile build)"
+        case .semanticsOrderUnavailable:
+            return "the app's Dart VM service did not tell which overlapping element is drawn in front, so it was not named"
         case .descriptionOnlyLabelNotChecked:
             return "the label comes only from the accessibility description, which is not drawn on the screen, so the drawn text was not checked"
         case .xcuitestTreeNoMatch:

@@ -110,7 +110,7 @@ final class OI388OI389MCPParityTests: XCTestCase {
     func testCaptureRefusalNamesTheScrimOnRealPaintOrder() {
         let tree = scrimTree
         let refusal = MCPServer.captureCoverRefusal(tree[4], in: tree, screen: screen,
-                                                    naming: OccluderNamingContext(isAndroid: true, framework: .reactNative))
+                                                    naming: OccluderNamingContext(isAndroid: true, framework: .reactNative, paintRanks: nil))
         XCTAssertTrue(refusal?.contains("Bottom sheet backdrop") == true, refusal ?? "nil")
     }
 }

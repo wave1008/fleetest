@@ -42,7 +42,7 @@ final class OccluderNamingTests: XCTestCase {
         let target = el(1, "nav_heal", 16, 788, 370, 62)
         let overlay = el(2, "tab_controls", 134, 778, 134, 62)
         let tree = [target, overlay]
-        let flutter = OccluderNamingContext(isAndroid: true, framework: .flutter)
+        let flutter = OccluderNamingContext(isAndroid: true, framework: .flutter, paintRanks: nil)
 
         let named = TapTargetGeometry.advisoryKindResult(for: target, in: tree, screen: screen, naming: .alwaysName)
         guard case .overlayCovering? = named.kind else { return XCTFail("前提: 幾何は覆いと読む") }

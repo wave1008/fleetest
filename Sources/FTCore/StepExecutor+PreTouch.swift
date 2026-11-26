@@ -233,8 +233,9 @@ extension StepExecutor {
             // 下の当たり判定の照会の答え(聞いたら AX の当たり判定もそこから読む = 同じ点を2回聞かない)
             var askedLands = false
             var priorLands: TouchLandsResponse?
-            let kindResult = TapTargetGeometry.advisoryKindResult(for: element, in: snapshot.elements,
-                                                                  screen: snapshot.screen, naming: occluderNaming)
+            let kindResult = await resolvingPaintOrder(snapshot, fetch: true, {
+                TapTargetGeometry.advisoryKindResult(for: element, in: snapshot.elements, screen: snapshot.screen, naming: $0)
+            }, suppressed: \.namingSuppressed)
             if case .overlayCovering(let over)? = kindResult.kind {
                 suspect = over
             }

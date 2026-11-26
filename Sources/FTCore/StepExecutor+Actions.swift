@@ -1024,7 +1024,7 @@ extension StepExecutor {
         case "tap":
             // 飲まれたタップの証跡(LastInteraction 参照)。**操作の前**に採る = 比較の基準は
             // 「この操作を撃つ直前の画面」でなければ意味がない
-            recordInteraction(step: step, element: element, in: snapshot)
+            await recordInteraction(step: step, element: element, in: snapshot)
             lastTapTarget = element
             armKeyboardAppearanceWaitAfterFieldTap(element, in: snapshot)
             driverFallback = Self.joinNotes(driverFallback, enabledWaitNote)
@@ -1097,7 +1097,7 @@ extension StepExecutor {
                 // 長押しは press(ref:) = ブリッジが frame の中心へ解決するので、座標に依る
                 // チェーン(画面外・遮蔽・中身外し等)が言える。**keyboard/disabled はここでは
                 // 足さない**(上ですでに1回付けている。ここで足すと同文が2回付く)
-                adviseTarget(occlusionAdvisoryNoted(for: element, in: snapshot))
+                adviseTarget(await occlusionAdvisoryNoted(for: element, in: snapshot))
                 // 操作可能な帯に中心を覆われたままなら、覆われていない見えている部分を座標で押す(薄ければ撃たない)
                 switch await coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
@@ -1157,7 +1157,7 @@ extension StepExecutor {
                 snapshot = lifted.snapshot
                 // **飲まれたタップの基準を撮り直す**: 送った後の画面が「撃つ直前」なので、
                 // 古い基準のままだと自分のスクロールを「画面が変わった」と数えてしまう
-                recordInteraction(step: step, element: liftedElement, in: lifted.snapshot)
+                await recordInteraction(step: step, element: liftedElement, in: lifted.snapshot)
                 lastTapTarget = liftedElement
                 driverFallback = Self.joinNotes(driverFallback, lifted.note)
             }
@@ -1176,7 +1176,7 @@ extension StepExecutor {
             case .reached(let reached, let after, let note)?:
                 element = reached
                 snapshot = after
-                recordInteraction(step: step, element: reached, in: after)
+                await recordInteraction(step: step, element: reached, in: after)
                 lastTapTarget = reached
                 driverFallback = Self.joinNotes(driverFallback, note)
                 keyboardClosedThisStep = true
@@ -1193,7 +1193,7 @@ extension StepExecutor {
                     element = settledElement
                     snapshot = settledSnapshot
                     if relitAfterClose {
-                        recordInteraction(step: step, element: settledElement, in: settledSnapshot)
+                        await recordInteraction(step: step, element: settledElement, in: settledSnapshot)
                         lastTapTarget = settledElement
                     }
                     driverFallback = Self.joinNotes(driverFallback, note)
@@ -1217,7 +1217,7 @@ extension StepExecutor {
                         element = moved
                         resolvedElementThisStep = element
                         // 飲まれたタップの基準も撃つ直前の木にする(寄せた後と同じ)
-                        recordInteraction(step: step, element: moved, in: refreshed)
+                        await recordInteraction(step: step, element: moved, in: refreshed)
                         lastTapTarget = moved
                     }
                 }
@@ -1275,7 +1275,7 @@ extension StepExecutor {
                 if let band { driverFallback = Self.joinNotes(driverFallback, band.note) }
             } else if let band = await bandClearedTap(for: element.frame, snapshot: snapshot) {
                 // ref で撃つと frame の中心(帯の中)を押すので座標で撃つ
-                adviseTarget(occlusionAdvisoryNoted(for: element, in: snapshot))
+                adviseTarget(await occlusionAdvisoryNoted(for: element, in: snapshot))
                 try await actingDriver.tap(x: element.frame.centerX, y: band.y)
                 driverFallback = Self.joinNotes(driverFallback, band.note)
             } else {
@@ -1284,9 +1284,10 @@ extension StepExecutor {
                 // ここで足すと同文が2回付く)
                 // 中心の覆いの注記は撃った後に決める: in-app が activate で押したら座標を撃っていない = 覆いに当たりえない
                 // (UIKit の縁の帯・SwiftUI の貼り付くタブで、押せているのに「may have hit」が付いた)。失敗後の案内の疑いも捨てる
-                let centreResult = TapTargetGeometry.occlusionAdvisoryResult(
-                    for: element, in: snapshot.elements, screen: snapshot.screen,
-                    isAndroid: isAndroid, framework: uiFramework)
+                let centreResult = await resolvingPaintOrder(snapshot, fetch: true, {
+                    TapTargetGeometry.occlusionAdvisoryResult(for: element, in: snapshot.elements, screen: snapshot.screen,
+                                                              naming: $0)
+                }, suppressed: \.namingSuppressed)
                 let centreAdvisory = centreResult.text
                 // 抑止の事実は、注記を実際に出す所(下の2か所)でだけ残す
                 func adviseCentre() {
@@ -1735,7 +1736,7 @@ extension StepExecutor {
             // pinch / gesture は中心がキーボードの下ならそう言う(注記のみ。swipeBy は容器の枠がキーボードの下まで伸びるのが通常で、
             // 中心が下でも払いは画面の中で切られるので言わない = 毎回の注記にしない)
             let doubleTapAdvisory = action == "doubleTap"
-                ? TapTargetGeometry.advisoryResult(for: element, in: snapshot.elements,
+                ? await resolvingPaintOrder(snapshot, fetch: true, { naming in TapTargetGeometry.advisoryResult(for: element, in: snapshot.elements,
                                                screen: snapshot.screen,
                                                keyboardOcclusion: KeyboardOcclusion.resolve(reported: snapshot.keyboardFrame,
                                                   in: snapshot.elements, screen: snapshot.screen),
@@ -1745,7 +1746,7 @@ extension StepExecutor {
                                                safeAreaTop: TapTargetGeometry.topBandTapY(
                                                    for: element.frame, safeAreaTop: snapshot.safeAreaTop,
                                                    screen: snapshot.screen) == nil ? snapshot.safeAreaTop : .unknown,
-                                               isAndroid: isAndroid, framework: uiFramework)
+                                               naming: naming) }, suppressed: \.namingSuppressed)
                 : nil
             if doubleTapAdvisory?.namingSuppressed == true { noteCodesThisStep.insert(.occluderNamingSuppressed) }
             let gestureAdvisory = action == "doubleTap"
@@ -1765,7 +1766,7 @@ extension StepExecutor {
             if action == "doubleTap" {
                 // tap と同じく撃った要素の記録を残す(覆いの疑いの控え `noteCoverSuspect` は記録が無いと捨てられ、
                 // 後続の赤が覆いを名指せなかった)。入口は doubleTap の記録を消す = ここで作り直す
-                recordInteraction(step: step, element: element, in: snapshot)
+                await recordInteraction(step: step, element: element, in: snapshot)
                 switch await coveredTouchPlan(element, in: snapshot, step: step) {
                 case .none: break
                 case .refuse(let message): return StepOutcome(status: failedWithoutKind(message))

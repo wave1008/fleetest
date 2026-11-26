@@ -126,14 +126,20 @@ extension StepExecutor {
     /// `coveringHint` に、名指しを抑えたかを添えたもの(呼び手が注記 `occluderNamingSuppressed` を残す)
     static func coveringHintResult(element: ElementInfo?, elements: [ElementInfo], screen: FTRect,
                                    isAndroid: Bool, framework: AppUIFramework?) -> (hint: String, namingSuppressed: Bool) {
+        coveringHintResult(element: element, elements: elements, screen: screen,
+                           naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework, paintRanks: nil))
+    }
+
+    /// `naming` に塗り順の答え(DR-235)を載せられる版
+    static func coveringHintResult(element: ElementInfo?, elements: [ElementInfo], screen: FTRect,
+                                   naming: OccluderNamingContext) -> (hint: String, namingSuppressed: Bool) {
         guard let element,
               // 容器の外へはみ出して描かれていない行は、覆われているのではなく描かれていない(
               // 固定領域の echo が「覆い」に見えるだけ)
               !Self.isClippedAwayByItsContainer(element, in: elements),
               let cover = OcclusionSuspicion.covering(element: element, in: elements, screen: screen)
         else { return ("", false) }
-        guard OccluderNaming.mayName(occluder: cover, target: element, isAndroid: isAndroid, framework: framework)
-        else { return ("", true) }
+        guard naming.mayName(cover, element) else { return ("", !naming.answeredBehind(cover, element)) }
         // **`TapTargetGeometry.describe` と同じ「名指し」**。失敗文言に混ぜる
         // 説明であって、読み手がそのまま貼れるセレクタである保証はしない(エスケープ未対応)
         let label = cover.identifier.map { "#\($0)" } ?? cover.label.map { "\"\($0)\"" } ?? cover.type

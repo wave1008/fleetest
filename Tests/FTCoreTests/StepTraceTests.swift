@@ -13,7 +13,7 @@ final class StepTraceTests: XCTestCase {
     /// 段の rawValue は永続化される(一度出したものは変えない)
     func testStageRawValuesArePersistedIdentifiers() {
         XCTAssertEqual(StepTraceStage.allCases.map(\.rawValue).sorted(), [
-            "container-outside", "keyboard-cover-lift", "ocr-near-miss", "screen-state-publish", "scroll-search-end",
+            "container-outside", "keyboard-cover-lift", "ocr-near-miss", "screen-state-publish", "scroll-search-end", "semantics-order",
             "trace-truncated",
         ])
     }

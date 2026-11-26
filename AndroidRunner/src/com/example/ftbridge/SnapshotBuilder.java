@@ -60,9 +60,19 @@ final class SnapshotBuilder {
         /// ref → スナップショットが申告した型名(`mappedType`。**生の綴り**で、比較側が正規化する)。
         /// BridgeRouter.requireExpectedRef がホストの期待との照合に使う
         final Map<Integer, String> refTypes;
+        /// ref → Flutter 等の仮想ビュー id(renderer=="virtual" かつ 0〜65535 のものだけ。/semanticsorder 用)
+        final Map<Integer, Integer> refVirtualIds;
+        /// ref → 仮想ノードの土台(renderHost)の z(木の中で一意)。土台なしは -1。/semanticsorder が土台の数を数える
+        final Map<Integer, Integer> refHostKeys;
+        /// 木を撮ったウィンドウのパッケージ(無ければ null)
+        final String pkg;
         final Rect screen;
         Result(String json, Map<Integer, double[]> refCenters, Map<Integer, String> refIds,
-               Map<Integer, String> refTypes, Rect screen) {
+               Map<Integer, String> refTypes, Map<Integer, Integer> refVirtualIds,
+               Map<Integer, Integer> refHostKeys, String pkg, Rect screen) {
+            this.refVirtualIds = refVirtualIds;
+            this.refHostKeys = refHostKeys;
+            this.pkg = pkg;
             this.json = json;
             this.refCenters = refCenters;
             this.refIds = refIds;
@@ -102,6 +112,8 @@ final class SnapshotBuilder {
         int z;
         /** 出どころの申告 "view"/"compose"/"web"/"virtual"。null = 申告しない(BridgeDTO.ElementInfo.renderer 参照) */
         String renderer;
+        /** renderer=="virtual" のときの仮想ビュー id(sourceNodeId の上位 32bit)。それ以外は -1 */
+        int virtualId = -1;
         /** renderer=="virtual" のとき、最も近い renderer=="view" の祖先(assignPaintOrder の後に z を読む)。null = 無い */
         UINode renderHostNode;
         /** スライダー/プログレスの現在値と範囲(API21+ の RangeInfo)。**採っていないと
@@ -366,12 +378,18 @@ final class SnapshotBuilder {
         Map<Integer, double[]> centers = new HashMap<>();
         Map<Integer, String> ids = new HashMap<>();
         Map<Integer, String> types = new HashMap<>();
+        Map<Integer, Integer> virtualIds = new HashMap<>();
+        Map<Integer, Integer> hostKeys = new HashMap<>();
         for (UINode node : kept) {
             int ref = elements.length() + 1;
             centers.put(ref, new double[]{node.bounds.exactCenterX(), node.bounds.exactCenterY()});
             String shortId = shortResourceId(node.resourceID);
             if (shortId != null) ids.put(ref, shortId);
             types.put(ref, mappedType(node));
+            if (node.virtualId >= 0 && node.virtualId <= 65535) {
+                virtualIds.put(ref, node.virtualId);
+                hostKeys.put(ref, node.renderHostNode != null ? node.renderHostNode.z : -1);
+            }
             elements.put(makeInfo(node, ref));
         }
 
@@ -409,7 +427,7 @@ final class SnapshotBuilder {
             for (Rect overlay : hidden.overlays) overlayFrames.put(rectJSON(overlay));
             response.put("overlayWindowFrames", overlayFrames);
         }
-        return new Result(response.toString(), centers, ids, types, screen);
+        return new Result(response.toString(), centers, ids, types, virtualIds, hostKeys, pkg, screen);
     }
 
     /**
@@ -587,7 +605,10 @@ final class SnapshotBuilder {
         node.getBoundsInScreen(n.bounds);
         n.depth = depth;
         n.renderer = rendererOf(node);
-        if ("virtual".equals(n.renderer)) n.renderHostNode = realAncestor;
+        if ("virtual".equals(n.renderer)) {
+            n.renderHostNode = realAncestor;
+            n.virtualId = virtualIdOf(node);
+        }
         int[] zPath = new int[parentZPath.length + 1];
         System.arraycopy(parentZPath, 0, zPath, 0, parentZPath.length);
         zPath[parentZPath.length] = node.getDrawingOrder();
@@ -618,6 +639,16 @@ final class SnapshotBuilder {
             }
         }
         return sourceNodeIdMethod;
+    }
+
+    private static int virtualIdOf(AccessibilityNodeInfo node) {
+        java.lang.reflect.Method m = sourceNodeIdMethod();
+        if (m == null) return -1;
+        try {
+            return (int) (((Long) m.invoke(node)).longValue() >>> 32);
+        } catch (Throwable ignored) {
+            return -1;
+        }
     }
 
     /** 仮想 id(sourceNodeId の上位 32bit)が -1 = 実体の View。仮想は extras / availableExtraData で compose・web を見分ける */

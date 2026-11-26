@@ -1394,6 +1394,8 @@ public final class StepExecutor {
     /// このステップの対象を予備のドライバ(inapp-boost の XCUITest)の木で解決したか。主のドライバ(in-app)の ref 表に結びつく照会
     /// (`touchLands` の `axHit`)を、別の番号の木で引かないための印
     var actsOnFallbackTreeThisStep = false
+    /// 塗り順の答え(DR-235)の控え。木の内容の署名(`contentSignature`)ごとに1つ = 同じ木で2回聞かない(答えが nil でも控える)
+    var paintRanksCache: (signature: String, answer: PaintRankAnswer?)?
     /// 足跡用: 直近のスクロール探索で最後に撃った1本の種類(`swipe` = 払い・`*-drag` / `*-swipe` = 寄せなどの回復)と、
     /// 内容が動いた容器。`runScrollSearch` の入口で捨てる。判定には使わない
     var scrollTraceLastSend = "none"
@@ -1752,7 +1754,7 @@ public final class StepExecutor {
 
     /// 飲まれたタップの証跡を採る(LastInteraction 参照)。**追加のスナップショットは撮らない** ——
     /// 解決に使った木をそのまま基準にする。前面要素の判定も同じ木の上の計算だけ
-    func recordInteraction(step: FlowStep, element: ElementInfo, in snapshot: SnapshotResponse) {
+    func recordInteraction(step: FlowStep, element: ElementInfo, in snapshot: SnapshotResponse) async {
         // 前のタップの確定。**同じタップの中で基準を取り直す**(liftCoveredTarget)2 回目は
         // 持ち越しが既に空なので比べない
         if let earlier = tapAwaitingNextTree {
@@ -1769,9 +1771,14 @@ public final class StepExecutor {
             x: element.frame.centerX, y: element.frame.centerY,
             of: element, in: snapshot.elements)
         var takerSuppressed = false
-        if let front = taker, !occluderNaming.mayName(front, element) {
-            taker = nil
-            takerSuppressed = true
+        if let front = taker {
+            // 撃つ前の木 = ブリッジの直近の木なので聞いてよい(DR-235)。奥と答えたら奪う相手ではない
+            let naming = await resolvingPaintOrder(snapshot, fetch: true, { $0 },
+                                                   suppressed: { !$0.mayName(front, element) && !$0.answeredBehind(front, element) })
+            if !naming.mayName(front, element) {
+                taker = nil
+                takerSuppressed = !naming.answeredBehind(front, element)
+            }
         }
         lastInteraction = LastInteraction(
             description: "tap \(step.locatorSummary)",

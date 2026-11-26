@@ -69,20 +69,55 @@ extension StepExecutor {
     }
 
     /// 覆いの名指しを抑える組(`OccluderNaming`)に使う材料。**判定と撃ち方には使わない**(文言と案内だけ)
-    var occluderNaming: OccluderNamingContext { OccluderNamingContext(isAndroid: isAndroid, framework: uiFramework) }
+    /// 塗り順は、その木について控えた答えがあるときだけ載せる(`paintRanksCache`。取りに行くのは `resolvingPaintOrder`)
+    func occluderNaming(for elements: [ElementInfo]) -> OccluderNamingContext {
+        let ranks = paintRanksCache.flatMap { $0.signature == Self.contentSignature(elements) ? $0.answer : nil }
+        return OccluderNamingContext(isAndroid: isAndroid, framework: uiFramework, paintRanks: ranks)
+    }
+
+    /// 名指しの出口の計算を、塗り順の答え無しで1回 → 名指しを抑えた(`suppressed`)ときだけ答えを取りに行って計算し直す(DR-235)。
+    /// **普通のタップに往復を足さない** = 聞くのは今の規則で名指せない組がある回だけ(Android の Flutter・同じ仮想の土台の中の組)。
+    /// ブリッジの ref は直近の木の中でだけ有効なので、**木を撮った直後(撃つ前)の呼び手だけが聞く**(`fetch: false` は控えだけ使う)。
+    /// 答えの木が違えば `PaintRankAnswer.make` が捨てる
+    func resolvingPaintOrder<R>(_ snapshot: SnapshotResponse, fetch: Bool,
+                                _ compute: (OccluderNamingContext) -> R, suppressed: (R) -> Bool) async -> R {
+        let base = OccluderNamingContext(isAndroid: isAndroid, framework: uiFramework, paintRanks: nil)
+        let first = compute(base)
+        guard suppressed(first) else { return first }
+        let signature = Self.contentSignature(snapshot.elements)
+        if fetch, isAndroid, paintRanksCache?.signature != signature {
+            let response = await driver.semanticsOrder()
+            let answer = PaintRankAnswer.make(response: response, elements: snapshot.elements)
+            paintRanksCache = (signature, answer)
+            if answer == nil {
+                noteCodesThisStep.insert(.semanticsOrderUnavailable)
+                traceThisStep.append(.semanticsOrder, ["outcome": "unavailable",
+                                                       "reason": response?.reason ?? (response == nil ? "no-response" : "tree-mismatch")])
+            } else {
+                traceThisStep.append(.semanticsOrder, ["outcome": "answered"])
+            }
+        }
+        let naming = occluderNaming(for: snapshot.elements)
+        guard naming.paintRanks != nil else { return first }
+        let again = compute(naming)
+        if !suppressed(again) { noteCodesThisStep.insert(.occluderOrderFromSemantics) }
+        return again
+    }
 
     /// `TapTargetGeometry.occlusionAdvisory` の文言を返し、名指しを抑えたら事実として注記 `occluderNamingSuppressed` を残す
-    func occlusionAdvisoryNoted(for element: ElementInfo, in snapshot: SnapshotResponse) -> String? {
-        let result = TapTargetGeometry.occlusionAdvisoryResult(
-            for: element, in: snapshot.elements, screen: snapshot.screen, isAndroid: isAndroid, framework: uiFramework)
+    func occlusionAdvisoryNoted(for element: ElementInfo, in snapshot: SnapshotResponse) async -> String? {
+        let result = await resolvingPaintOrder(snapshot, fetch: true, {
+            TapTargetGeometry.occlusionAdvisoryResult(for: element, in: snapshot.elements, screen: snapshot.screen, naming: $0)
+        }, suppressed: \.namingSuppressed)
         if result.namingSuppressed { noteCodesThisStep.insert(.occluderNamingSuppressed) }
         return result.text
     }
 
-    /// `coveringHint` を実行機の OS・アプリの答えで呼び、名指しを抑えたら注記を残す
+    /// `coveringHint` を実行機の OS・アプリの答えで呼び、名指しを抑えたら注記を残す。失敗の木 = ブリッジの直近の木とは限らないので
+    /// 塗り順は控えだけを使う(聞かない)
     func coveringHintNoted(element: ElementInfo?, elements: [ElementInfo], screen: FTRect) -> String {
         let result = Self.coveringHintResult(element: element, elements: elements, screen: screen,
-                                             isAndroid: isAndroid, framework: uiFramework)
+                                             naming: occluderNaming(for: elements))
         if result.namingSuppressed { noteCodesThisStep.insert(.occluderNamingSuppressed) }
         return result.hint
     }

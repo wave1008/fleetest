@@ -354,13 +354,24 @@ public enum TapTargetGeometry {
                                       safeAreaTop: SafeAreaTop,
                                       isAndroid: Bool,
                                       framework: AppUIFramework?) -> OcclusionAdvisory {
+        advisoryResult(for: element, in: elements, screen: screen, keyboardOcclusion: keyboardOcclusion,
+                       overlayWindows: overlayWindows, safeAreaTop: safeAreaTop,
+                       naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework, paintRanks: nil))
+    }
+
+    /// `naming` に塗り順の答え(DR-235)を載せられる版。OS とアプリの答えは `naming` の欄を使う
+    public static func advisoryResult(for element: ElementInfo, in elements: [ElementInfo],
+                                      screen: FTRect,
+                                      keyboardOcclusion: KeyboardOcclusion,
+                                      overlayWindows: OverlayWindowOcclusion,
+                                      safeAreaTop: SafeAreaTop,
+                                      naming: OccluderNamingContext) -> OcclusionAdvisory {
         if let early = keyboardOcclusion.advisory(for: element)
             ?? overlayWindows.advisory(for: element)
             ?? disabledAdvisory(for: element) {
             return OcclusionAdvisory(text: early, namingSuppressed: false)
         }
-        let occ = occlusionAdvisoryResult(for: element, in: elements, screen: screen,
-                                          isAndroid: isAndroid, framework: framework)
+        let occ = occlusionAdvisoryResult(for: element, in: elements, screen: screen, naming: naming)
         return OcclusionAdvisory(
             text: occ.text ?? topSafeAreaAdvisory(for: element, safeAreaTop: safeAreaTop, screen: screen),
             namingSuppressed: occ.namingSuppressed)
@@ -429,7 +440,8 @@ public enum TapTargetGeometry {
         if let over = OcclusionGeometry.overlayCovering(element, in: elements, screen: screen,
                                                         paintOrderIsReal: paintOrderIsReal) {
             if naming.mayName(over, element) { return result(.overlayCovering(over)) }
-            suppressed = true
+            // 塗り順が「覆いは奥」と答えた組は疑いごと外す(注意も出さない = 範囲を狭める向き。DR-235)
+            if !naming.answeredBehind(over, element) { suppressed = true }
         }
         if let inner = missesItsOwnContent(element, in: elements, screen: screen) {
             return result(.missedContent(inner))
@@ -590,11 +602,18 @@ public enum TapTargetGeometry {
     public static func occlusionAdvisoryResult(for element: ElementInfo, in elements: [ElementInfo],
                                                screen: FTRect, isAndroid: Bool,
                                                framework: AppUIFramework?) -> OcclusionAdvisory {
-        let result = advisoryKindResult(for: element, in: elements, screen: screen,
-                                        naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework),
-                                        paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: isAndroid, framework: framework))
+        occlusionAdvisoryResult(for: element, in: elements, screen: screen,
+                                naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework, paintRanks: nil))
+    }
+
+    /// `naming` に塗り順の答え(DR-235)を載せられる版。OS とアプリの答えは `naming` の欄を使う
+    public static func occlusionAdvisoryResult(for element: ElementInfo, in elements: [ElementInfo],
+                                               screen: FTRect, naming: OccluderNamingContext) -> OcclusionAdvisory {
+        let result = advisoryKindResult(for: element, in: elements, screen: screen, naming: naming,
+                                        paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: naming.isAndroid,
+                                                                            framework: naming.framework))
         let named = result.kind.flatMap { occlusionAdvisoryText(kind: $0, for: element, in: elements, screen: screen,
-                                                                isAndroid: isAndroid) }
+                                                                isAndroid: naming.isAndroid) }
         return OcclusionAdvisory(
             text: named ?? (result.namingSuppressed ? unnamedCoverCaution : nil),
             namingSuppressed: result.namingSuppressed)

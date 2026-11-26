@@ -359,7 +359,7 @@ enum RefGuard {
                                isAndroid: Bool, framework: AppUIFramework?, operation: String) -> String {
         let result = TapTargetGeometry.advisoryKindResult(
             for: found, in: elements, screen: screen,
-            naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework),
+            naming: OccluderNamingContext(isAndroid: isAndroid, framework: framework, paintRanks: nil),
             paintOrderIsReal: PaintOrder.isReal(in: elements, isAndroid: isAndroid, framework: framework))
         guard let kind = result.kind else {
             // 名指しを抑えた組は相手の名前を言わずに注意だけ出す(DR-230。DSL の `TapTargetGeometry.unnamedCoverCaution` と対)

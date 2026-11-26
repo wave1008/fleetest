@@ -227,6 +227,15 @@
         "S0010": { "expect": "red", "command": "tap" },
         "S0020": { "expect": "green", "notesAbsent": ["heal-fingerprint-match"] }
       }
+    },
+    {
+      "project": "E2EY-Flutter", "file": "91_半分のシートの裏の行の名指し.swift", "profile": "android", "os": "android",
+      "class": "半分のシートの裏の行の名指し",
+      "guards": "Android の Flutter の debug ビルドで、木の z が奥と言うシートの行を、アプリの VM サービスの塗り順(POST /semanticsorder)で手前と決めて名指す(DR-235)。見えている背面の行・シートの行は押せる",
+      "watches": ["Sources/FTCore/SemanticsPaintOrder.swift", "Sources/FTCore/OccluderNaming.swift", "AndroidRunner/src/com/example/ftbridge/FlutterSemanticsOrder.java"],
+      "scenarios": {
+        "S0010": { "expect": "red", "command": "textIs", "detailContains": ["#queue_row_02 overlapped the target's centre"], "notesContains": ["covered-touch-before-failure"] }
+      }
     }
   ],
   "photosAlertCleanup": {

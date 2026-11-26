@@ -1,0 +1,620 @@
+SemanticsNode#0
+ │ Rect.fromLTRB(0.0, 0.0, 1280.0, 2856.0)
+ │
+ └─SemanticsNode#1
+   │ Rect.fromLTRB(0.0, 0.0, 426.7, 952.0) scaled by 3.0x
+   │ textDirection: ltr
+   │ sortKey: OrdinalSortKey#b653e(order: 0.0)
+   │
+   └─SemanticsNode#57
+     │ Rect.fromLTRB(0.0, 0.0, 426.7, 952.0)
+     │ flags: scopesRoute
+     │
+     ├─SemanticsNode#58
+     │ │ merge boundary ⛔️
+     │ │ Rect.fromLTRB(16.0, 116.0, 83.2, 136.0)
+     │ │
+     │ └─SemanticsNode#59
+     │     merged up ⬆️
+     │     Rect.fromLTRB(0.0, 0.0, 67.2, 20.0)
+     │     identifier: "txt_hide_result"
+     │     label: "hide=none"
+     │     textDirection: ltr
+     │
+     ├─SemanticsNode#60
+     │ │ merge boundary ⛔️
+     │ │ Rect.fromLTRB(16.0, 136.0, 94.8, 156.0)
+     │ │
+     │ └─SemanticsNode#61
+     │     merged up ⬆️
+     │     Rect.fromLTRB(0.0, 0.0, 78.8, 20.0)
+     │     identifier: "txt_bars_state"
+     │     label: "bars=shown"
+     │     textDirection: ltr
+     │
+     ├─SemanticsNode#62
+     │ │ Rect.fromLTRB(0.0, 164.0, 426.7, 952.0)
+     │ │
+     │ └─SemanticsNode#135
+     │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 788.0)
+     │   │ actions: scrollToOffset, scrollUp
+     │   │ flags: hasImplicitScrolling
+     │   │ scrollChildren: 60
+     │   │ scrollIndex: 0
+     │   │ scrollExtentMin: 0.0
+     │   │ scrollPosition: 0.0
+     │   │ scrollExtentMax: 2684.0
+     │   │
+     │   ├─SemanticsNode#63
+     │   │ │ Rect.fromLTRB(0.0, 56.0, 426.7, 112.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 0
+     │   │ │
+     │   │ └─SemanticsNode#64
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#65
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_00"
+     │   │     │
+     │   │     └─SemanticsNode#66
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H00"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#67
+     │   │ │ Rect.fromLTRB(0.0, 112.0, 426.7, 168.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 1
+     │   │ │
+     │   │ └─SemanticsNode#68
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#69
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_01"
+     │   │     │
+     │   │     └─SemanticsNode#70
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H01"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#71
+     │   │ │ Rect.fromLTRB(0.0, 168.0, 426.7, 224.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 2
+     │   │ │
+     │   │ └─SemanticsNode#72
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#73
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_02"
+     │   │     │
+     │   │     └─SemanticsNode#74
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H02"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#75
+     │   │ │ Rect.fromLTRB(0.0, 224.0, 426.7, 280.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 3
+     │   │ │
+     │   │ └─SemanticsNode#76
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#77
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_03"
+     │   │     │
+     │   │     └─SemanticsNode#78
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H03"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#79
+     │   │ │ Rect.fromLTRB(0.0, 280.0, 426.7, 336.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 4
+     │   │ │
+     │   │ └─SemanticsNode#80
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#81
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_04"
+     │   │     │
+     │   │     └─SemanticsNode#82
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H04"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#83
+     │   │ │ Rect.fromLTRB(0.0, 336.0, 426.7, 392.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 5
+     │   │ │
+     │   │ └─SemanticsNode#84
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#85
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_05"
+     │   │     │
+     │   │     └─SemanticsNode#86
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H05"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#87
+     │   │ │ Rect.fromLTRB(0.0, 392.0, 426.7, 448.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 6
+     │   │ │
+     │   │ └─SemanticsNode#88
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#89
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_06"
+     │   │     │
+     │   │     └─SemanticsNode#90
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H06"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#91
+     │   │ │ Rect.fromLTRB(0.0, 448.0, 426.7, 504.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 7
+     │   │ │
+     │   │ └─SemanticsNode#92
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#93
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_07"
+     │   │     │
+     │   │     └─SemanticsNode#94
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H07"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#95
+     │   │ │ Rect.fromLTRB(0.0, 504.0, 426.7, 560.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 8
+     │   │ │
+     │   │ └─SemanticsNode#96
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#97
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_08"
+     │   │     │
+     │   │     └─SemanticsNode#98
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H08"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#99
+     │   │ │ Rect.fromLTRB(0.0, 560.0, 426.7, 616.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 9
+     │   │ │
+     │   │ └─SemanticsNode#100
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#101
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_09"
+     │   │     │
+     │   │     └─SemanticsNode#102
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H09"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#103
+     │   │ │ Rect.fromLTRB(0.0, 616.0, 426.7, 672.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 10
+     │   │ │
+     │   │ └─SemanticsNode#104
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#105
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_10"
+     │   │     │
+     │   │     └─SemanticsNode#106
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H10"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#107
+     │   │ │ Rect.fromLTRB(0.0, 672.0, 426.7, 728.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 11
+     │   │ │
+     │   │ └─SemanticsNode#108
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#109
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_11"
+     │   │     │
+     │   │     └─SemanticsNode#110
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H11"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#111
+     │   │ │ Rect.fromLTRB(0.0, 728.0, 426.7, 784.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 12
+     │   │ │
+     │   │ └─SemanticsNode#112
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │
+     │   │   └─SemanticsNode#113
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_12"
+     │   │     │
+     │   │     └─SemanticsNode#114
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H12"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#115
+     │   │ │ Rect.fromLTRB(0.0, 784.0, 426.7, 788.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ indexInParent: 13
+     │   │ │
+     │   │ └─SemanticsNode#116
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 4.0)
+     │   │   │
+     │   │   └─SemanticsNode#117
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 4.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_13"
+     │   │     │
+     │   │     └─SemanticsNode#118
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 4.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H13"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#119
+     │   │ │ Rect.fromLTRB(0.0, 840.0, 426.7, 896.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ flags: isHidden
+     │   │ │ HIDDEN
+     │   │ │ indexInParent: 14
+     │   │ │
+     │   │ └─SemanticsNode#120
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │ flags: isHidden
+     │   │   │ HIDDEN
+     │   │   │
+     │   │   └─SemanticsNode#121
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_14"
+     │   │     │
+     │   │     └─SemanticsNode#122
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H14"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#123
+     │   │ │ Rect.fromLTRB(0.0, 896.0, 426.7, 952.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ flags: isHidden
+     │   │ │ HIDDEN
+     │   │ │ indexInParent: 15
+     │   │ │
+     │   │ └─SemanticsNode#124
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │ flags: isHidden
+     │   │   │ HIDDEN
+     │   │   │
+     │   │   └─SemanticsNode#125
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_15"
+     │   │     │
+     │   │     └─SemanticsNode#126
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H15"
+     │   │         textDirection: ltr
+     │   │
+     │   ├─SemanticsNode#127
+     │   │ │ Rect.fromLTRB(0.0, 952.0, 426.7, 1008.0)
+     │   │ │ tags: RenderViewport.twoPane
+     │   │ │ flags: isHidden
+     │   │ │ HIDDEN
+     │   │ │ indexInParent: 16
+     │   │ │
+     │   │ └─SemanticsNode#128
+     │   │   │ merge boundary ⛔️
+     │   │   │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │   │ flags: isHidden
+     │   │   │ HIDDEN
+     │   │   │
+     │   │   └─SemanticsNode#129
+     │   │     │ merged up ⬆️
+     │   │     │ Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │     │ flags: isButton
+     │   │     │ identifier: "row_h_16"
+     │   │     │
+     │   │     └─SemanticsNode#130
+     │   │         merged up ⬆️
+     │   │         Rect.fromLTRB(0.0, 0.0, 426.7, 56.0)
+     │   │         actions: focus, tap
+     │   │         flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │   │           hasSelectedState
+     │   │         label: "行 H16"
+     │   │         textDirection: ltr
+     │   │
+     │   └─SemanticsNode#131
+     │     │ Rect.fromLTRB(0.0, 1008.0, 426.7, 1038.0)
+     │     │ tags: RenderViewport.twoPane
+     │     │ flags: isHidden
+     │     │ HIDDEN
+     │     │ indexInParent: 17
+     │     │
+     │     └─SemanticsNode#132
+     │       │ merge boundary ⛔️
+     │       │ Rect.fromLTRB(0.0, 0.0, 426.7, 30.0)
+     │       │ flags: isHidden
+     │       │ HIDDEN
+     │       │
+     │       └─SemanticsNode#133
+     │         │ merged up ⬆️
+     │         │ Rect.fromLTRB(0.0, 0.0, 426.7, 30.0)
+     │         │ flags: isButton
+     │         │ identifier: "row_h_17"
+     │         │
+     │         └─SemanticsNode#134
+     │             merged up ⬆️
+     │             Rect.fromLTRB(0.0, 0.0, 426.7, 30.0)
+     │             actions: focus, tap
+     │             flags: isButton, hasEnabledState, isEnabled, isFocusable,
+     │               hasSelectedState
+     │             label: "行 H17"
+     │             textDirection: ltr
+     │
+     ├─SemanticsNode#136
+     │ │ Rect.fromLTRB(0.0, 164.0, 426.7, 220.0)
+     │ │ identifier: "bar_top_hiding"
+     │ │
+     │ ├─SemanticsNode#137
+     │ │   Rect.fromLTRB(16.0, 15.0, 346.3, 41.0)
+     │ │   label: "受信トレイ"
+     │ │   textDirection: ltr
+     │ │
+     │ └─SemanticsNode#138
+     │   │ Rect.fromLTRB(346.3, 4.0, 426.7, 52.0)
+     │   │ actions: focus, tap
+     │   │ flags: isButton, hasEnabledState, isEnabled, isFocusable
+     │   │
+     │   └─SemanticsNode#139
+     │     │ merge boundary ⛔️
+     │     │ Rect.fromLTRB(12.0, 14.0, 68.4, 34.0)
+     │     │
+     │     └─SemanticsNode#140
+     │         merged up ⬆️
+     │         Rect.fromLTRB(0.0, 0.0, 56.4, 20.0)
+     │         flags: isButton
+     │         identifier: "btn_top_action"
+     │         label: "並べ替え"
+     │         textDirection: ltr
+     │
+     ├─SemanticsNode#141
+     │ │ merge boundary ⛔️
+     │ │ Rect.fromLTRB(354.7, 824.0, 410.7, 880.0)
+     │ │
+     │ └─SemanticsNode#142
+     │   │ merged up ⬆️
+     │   │ Rect.fromLTRB(0.0, 0.0, 56.0, 56.0)
+     │   │ flags: isButton
+     │   │ identifier: "fab_hiding"
+     │   │
+     │   └─SemanticsNode#143
+     │     │ merged up ⬆️
+     │     │ merge boundary ⛔️
+     │     │ Rect.fromLTRB(0.0, 0.0, 56.0, 56.0)
+     │     │ traversalParentIdentifier: _OverlayPortalState#e4424
+     │     │ tooltip: "作成"
+     │     │ textDirection: ltr
+     │     │
+     │     └─SemanticsNode#144
+     │         merged up ⬆️
+     │         Rect.fromLTRB(0.0, 0.0, 56.0, 56.0)
+     │         actions: focus, tap
+     │         flags: isButton, hasEnabledState, isEnabled, isFocusable
+     │
+     ├─SemanticsNode#145
+     │ │ Rect.fromLTRB(0.0, 896.0, 426.7, 952.0)
+     │ │ identifier: "bar_bottom_hiding"
+     │ │
+     │ ├─SemanticsNode#146
+     │ │ │ Rect.fromLTRB(94.1, 4.0, 158.1, 52.0)
+     │ │ │ actions: focus, tap
+     │ │ │ flags: isButton, hasEnabledState, isEnabled, isFocusable
+     │ │ │
+     │ │ └─SemanticsNode#147
+     │ │   │ merge boundary ⛔️
+     │ │   │ Rect.fromLTRB(17.9, 14.0, 46.1, 34.0)
+     │ │   │
+     │ │   └─SemanticsNode#148
+     │ │       merged up ⬆️
+     │ │       Rect.fromLTRB(0.0, 0.0, 28.2, 20.0)
+     │ │       flags: isButton
+     │ │       identifier: "btn_bottom_a"
+     │ │       label: "受信"
+     │ │       textDirection: ltr
+     │ │
+     │ └─SemanticsNode#149
+     │   │ Rect.fromLTRB(252.2, 4.0, 332.6, 52.0)
+     │   │ actions: focus, tap
+     │   │ flags: isButton, hasEnabledState, isEnabled, isFocusable
+     │   │
+     │   └─SemanticsNode#150
+     │     │ merge boundary ⛔️
+     │     │ Rect.fromLTRB(12.0, 14.0, 68.4, 34.0)
+     │     │
+     │     └─SemanticsNode#151
+     │         merged up ⬆️
+     │         Rect.fromLTRB(0.0, 0.0, 56.4, 20.0)
+     │         flags: isButton
+     │         identifier: "btn_bottom_b"
+     │         label: "フォルダ"
+     │         textDirection: ltr
+     │
+     └─SemanticsNode#152
+       │ Rect.fromLTRB(0.0, 0.0, 426.7, 108.0)
+       │
+       ├─SemanticsNode#153
+       │ │ merge boundary ⛔️
+       │ │ Rect.fromLTRB(0.0, 52.0, 56.0, 108.0)
+       │ │
+       │ └─SemanticsNode#154
+       │   │ merged up ⬆️
+       │   │ Rect.fromLTRB(0.0, 0.0, 56.0, 56.0)
+       │   │ flags: isButton
+       │   │ identifier: "btn_back"
+       │   │
+       │   └─SemanticsNode#155
+       │       merged up ⬆️
+       │       Rect.fromLTRB(0.0, 0.0, 56.0, 56.0)
+       │       actions: focus, tap
+       │       flags: isButton, hasEnabledState, isEnabled, isFocusable
+       │       traversalParentIdentifier: _OverlayPortalState#997a7
+       │       tooltip: "戻る"
+       │       textDirection: ltr
+       │
+       └─SemanticsNode#156
+         │ Rect.fromLTRB(72.0, 66.0, 314.0, 94.0)
+         │ flags: isHeader, namesRoute
+         │
+         └─SemanticsNode#157
+           │ merge boundary ⛔️
+           │ Rect.fromLTRB(0.0, 0.0, 242.0, 28.0)
+           │
+           └─SemanticsNode#158
+               merged up ⬆️
+               Rect.fromLTRB(0.0, 0.0, 242.0, 28.0)
+               identifier: "txt_screen_title"
+               label: "スクロールで隠れるバー"
+               textDirection: ltr
+

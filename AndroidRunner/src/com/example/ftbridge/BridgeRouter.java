@@ -123,6 +123,10 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
     private Map<Integer, String> refIds = new HashMap<>();
     /** 直近スナップショットの ref → 型名(生の綴り。requireExpectedRef の照合先) */
     private Map<Integer, String> refTypes = new HashMap<>();
+    // 直近の /snapshot の仮想ノード(/semanticsorder 用。SnapshotBuilder.Result 参照)
+    private Map<Integer, Integer> refVirtualIds = new HashMap<>();
+    private Map<Integer, Integer> refHostKeys = new HashMap<>();
+    private String snapshotPackage;
     private Rect lastScreen = new Rect();
     private String sessionBundleID;
     /** 自 APK の versionCode(/status で申告)。取得失敗時は 0 = 申告しない */
@@ -185,6 +189,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
                 case "POST /terminate": return handleTerminate();
                 case "POST /locale": return handleLocale(body(request));
                 case "POST /settle": return handleSettle();
+                case "POST /semanticsorder": return handleSemanticsOrder();
                 case "POST /waitForSettle": return handleWaitForSettle(body(request));
                 case "POST /responsePrepare": return handleResponsePrepare(body(request));
                 case "POST /responseCollect": return handleResponseCollect();
@@ -320,6 +325,12 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         return ok();
     }
 
+    /** 直近の /snapshot の木について Flutter のセマンティクスのダンプを返す(読むだけ。契約は FlutterSemanticsOrder) */
+    private BridgeHttpServer.Response handleSemanticsOrder() throws JSONException {
+        return BridgeHttpServer.Response.json(200, FlutterSemanticsOrder.answer(
+                ua(), snapshotPackage, refVirtualIds, refHostKeys, refCenters).toString());
+    }
+
     private BridgeHttpServer.Response handleSnapshot(BridgeHttpServer.Request request) throws JSONException {
         // クエリ `refresh=1`(または `true`)は「タイムアウト直前の1回だけ全ノード refresh() する」
         // 契約(ホスト側と同期。SnapshotBuilder.collect のコメント参照)。無指定は従来どおり false
@@ -363,6 +374,9 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
         refCenters = result.refCenters;
         refIds = result.refIds;
         refTypes = result.refTypes;
+        refVirtualIds = result.refVirtualIds;
+        refHostKeys = result.refHostKeys;
+        snapshotPackage = result.pkg;
         lastScreen = result.screen;
         return BridgeHttpServer.Response.json(200, result.json);
     }

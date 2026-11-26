@@ -130,6 +130,7 @@
 - 材料の見直し(2026-11-26・コードと API の読み、デバイス未測定): 材料(画素の OCR)は入っている。残りは全体の回帰での誤検知の確かめだけ
 - 全体の回帰(2026-11-26 夕・489cb16・4 台・24 対象・1,189 本・全部緑。iOS は inapp-boost と Android): 注記 `covered-by-front-element-read-on-screen` は 0 件 = 塗り順の分からない全 SUT での誤検知の確かめが済んだ。警告を赤へ上げるかはユーザーの決定待ち
 - xcuitest モードの全体の回帰(2026-11-26 夕・652aa2c・594 本): 注記は 1 件だけ、緑のシナリオ(E2EX-RN のナビゲーション S0010)で、詳細画面の「次へ」の遷移の直後の `select "#txt_detail_id"` に付いた(次の `textIs` には `stale-frame-text-visible` = 切り替え途中の古い絵を読んだ一時の形)。**赤へ上げるなら、絵が古いかの判定(`StaleFrameDetector`)と組んで、古い絵では言わない形にしてから**(このまま上げるとこの緑が赤になる)
+- 処理(2026-11-26 夜・DR-235): Android の Flutter の debug / profile のビルドでは、アプリの VM サービスの塗り順(Android ブリッジ v154 の `POST /semanticsorder`)で手前を決めて、tap の注記と赤の案内が覆いを名指す。同じ手順の陽性対照(`E2EY-Flutter/scenarios/_disabled/91_半分のシートの裏の行の名指し.swift`)で、裏の `#row_main_10` への tap に「covered by #queue_row_02」、後続の赤に同じ名指しが出た(手元 Emu・1本)。release のビルドと検証(`exist` / `textIs`)の側は今のまま(検証の側へ材料を回すかは別に決める)
 - 2026-11-26(ユーザー決定「おすすめで」): 赤へは上げない。xcuitest の回帰の1件は、その回に古い絵の印(`stale-screenshot`)が立っていなかった = 既存の古い絵の判定では消せない形。上げるなら、遷移の途中の絵をその場で古いと言える材料を先に測る
 
 ### OI-327 XCUITest の木で容器が全画面に申告され、スクロール容器の下端で切られたボタンへの `tap(scroll: .down)` が払わずに押して飲まれる

@@ -91,6 +91,8 @@ final class BridgeContractTests: XCTestCase {
         "POST /pressEnter", "POST /scrollAction", "POST /session", "POST /settle", "POST /swipe",
         "POST /tap", "POST /terminate", "POST /type",
         "POST /waitForSettle",
+        // Flutter の VM サービスの塗り順(Android v154〜。DR-235)
+        "POST /semanticsorder",
         // 応答時間計測(Android v102〜)。in-app は持たない
         "POST /responsePrepare", "POST /responseCollect", "POST /responseObservation", "POST /responseObservationStop",
     ]
@@ -183,20 +185,21 @@ final class BridgeContractTests: XCTestCase {
             "Sources/FTCore/TypeReadback.swift": "42a09f40d3f6280bc31b44a0859103308a75255893011fa6e2afedaa95783af1",
         ],
         .android: [
-"AndroidRunner/AndroidManifest.xml": "cf43535a8f8e3361bafd6761b99cbf9e4347afd9ac76d42ed82da0e032908b17",
+            "AndroidRunner/AndroidManifest.xml": "cf43535a8f8e3361bafd6761b99cbf9e4347afd9ac76d42ed82da0e032908b17",
             "AndroidRunner/build.sh": "b136074f6bd0753af9c4186ec066407492125748aef24dd13e6556cfd3c3524a",
             "AndroidRunner/src/com/example/ftbridge/BridgeHttpServer.java": "042e90f918e2b15e03293e881bd082bce59077921731929631101b6ded1b0eb4",
             "AndroidRunner/src/com/example/ftbridge/BridgeInstrumentation.java": "78fe5cc272782a091bbbc512d1693bed0a192cf363548699a586cb0f3d614824",
-            "AndroidRunner/src/com/example/ftbridge/BridgeRouter.java": "7c4291bf614758ef202b86bfaff76b818f55016b24f8650662247c06bcc68a22",
+            "AndroidRunner/src/com/example/ftbridge/BridgeRouter.java": "6fa0497aef7343f232b02185da9842b8c47be772cf209919ad51b3977d5e17f2",
             "AndroidRunner/src/com/example/ftbridge/DisplayHeartbeat.java": "77528d6e36f12d477cc3dfe4d9920f5ce69ad7912bc2461b698ace89a0ba6808",
             "AndroidRunner/src/com/example/ftbridge/FirstFrameState.java": "378cd2f84f8fa12de57da78bc19354933bf10ef32691d0225c6950b52109770a",
+            "AndroidRunner/src/com/example/ftbridge/FlutterSemanticsOrder.java": "363b1a7da1e812e8a13592344b76249546c7f0924ee58ddee66503a18357621a",
             "AndroidRunner/src/com/example/ftbridge/ImeOnboarding.java": "fe2d90d892046f64e4893c008148d47886e36bceb244dd9e68e560b368f0193b",
             "AndroidRunner/src/com/example/ftbridge/InputInjector.java": "e6551ba915adff55978f064ab9de36683b1920c3a5e2cdaec736208682c83181",
             "AndroidRunner/src/com/example/ftbridge/KeyboardPrimerActivity.java": "f5a4751486cd8349a8f10b65332d6a3e1d77c3d82e0528e8518ec646aad152d9",
             "AndroidRunner/src/com/example/ftbridge/QuietWaiter.java": "b939eb89d48c6a3591a78b8457b31f851cd95c0f188fffdaa1668f557153347d",
             "AndroidRunner/src/com/example/ftbridge/ResponseObserver.java": "f2f52a49eb907786fc7a60b89a1c89b87d417fd0e07de0c9b01054a820574f09",
             "AndroidRunner/src/com/example/ftbridge/ResponseProbe.java": "1c49c669fdc21ca27da02833f82e2f65f56dfd209b3264a8dbb2ab9f756801c1",
-            "AndroidRunner/src/com/example/ftbridge/SnapshotBuilder.java": "a0515ebb15f71d077f1697e32fff71838b788f127636454454e5349006f0ae83",
+            "AndroidRunner/src/com/example/ftbridge/SnapshotBuilder.java": "e99834facb87b53a53f59f1b8bd9abb5cf0c0b4baf0a753b88818159e12308a4",
         ],
     ]
 

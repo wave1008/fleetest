@@ -205,6 +205,10 @@ public protocol AppDriver {
     /// ref は直近の木の番号。答えられない(in-app でない・旧ブリッジ・通信断)は nil。**プロトコル要件として宣言すること**
     /// (存在型越しの呼び出しが既定実装の nil に落ちる = AppDriverDefaultDispatchTests)
     func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse?
+    /// 直近の木について、Android の Flutter のアプリの VM サービスが答えた塗り順(Android ブリッジの POST /semanticsorder。DR-235)。
+    /// 答えられない(Android でない・旧ブリッジ・通信断)は nil(答えられない理由はブリッジが `reason` で返す)。**包むドライバは素通しすること**・
+    /// **プロトコル要件として宣言すること**(touchLands と同じ理由)。**名指しの出口だけが使う**(判定と撃ち方には使わない)
+    func semanticsOrder() async -> SemanticsOrderResponse?
     /// in-app ブリッジのアプリの `UIApplication.applicationState`("active" / "inactive" / "background")を短い上限で聞く。
     /// 答えられない(in-app でない・停止して答えない・通信断)は nil。**プロトコル要件として宣言すること**(touchLands と同じ理由)。
     /// 使うのは openURL の後に別のアプリが前へ出る途中を待つ門だけ(`StepExecutor.backgroundedAppRefusal`)。
@@ -734,6 +738,7 @@ public extension AppDriver {
     var lastTapDelivery: TapDelivery? { nil }
     func tapProbe(x: Double, y: Double) async -> TapProbeResponse? { nil }
     func touchLands(x: Double, y: Double, refs: [Int]) async -> TouchLandsResponse? { nil }
+    func semanticsOrder() async -> SemanticsOrderResponse? { nil }
     func inAppApplicationState() async -> String? { nil }
     func inAppDisplayReport() async -> InAppDisplayReport? { nil }
     /// 既定は「答えられない」。答えられるのは XCUITest ブリッジを話す BridgeClient だけ

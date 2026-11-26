@@ -660,7 +660,7 @@ final class SweepHarnessTests: XCTestCase {
             guard !tappable.isEmpty else { continue }
             // 利用者へ見える警告の密度: 名指しの出口と同じ材料(OS とアプリのフレームワーク)を渡す(DR-230)
             let naming = OccluderNamingContext(isAndroid: RealAppSnapshotFrameworks.isAndroid(name),
-                                               framework: RealAppSnapshotFrameworks.table[name] ?? nil)
+                                               framework: RealAppSnapshotFrameworks.table[name] ?? nil, paintRanks: nil)
             let warned = Self.counts(snap, naming: naming).warnedTappable
             let percent = warned * 100 / tappable.count
             if let exempt = Self.densityExemptions[file] {
@@ -694,7 +694,7 @@ final class SweepHarnessTests: XCTestCase {
         let flutter: Set<String> = ["and-flutter_fab", "and-flutter_hide_bars"]
         for (name, snap) in try RealAppSnapshotCorpus.all() {
             let withFramework = OccluderNamingContext(isAndroid: RealAppSnapshotFrameworks.isAndroid(name),
-                                                      framework: RealAppSnapshotFrameworks.table[name] ?? nil)
+                                                      framework: RealAppSnapshotFrameworks.table[name] ?? nil, paintRanks: nil)
             let before = Self.namedOverlayCount(snap, naming: .alwaysName)
             let after = Self.namedOverlayCount(snap, naming: withFramework)
             emit("NAMED \(name) before=\(before) after=\(after) geometryOverlay=\(Self.counts(snap).overlay)")

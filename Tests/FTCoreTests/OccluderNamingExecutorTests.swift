@@ -68,7 +68,7 @@ final class OccluderNamingExecutorTests: XCTestCase {
         let named = TapTargetGeometry.advisoryKindResult(for: target, in: elements, screen: screen, naming: .alwaysName)
         guard case .overlayCovering? = named.kind else { return XCTFail("前提: 名指せば覆いの段で止まる \(String(describing: named.kind))") }
         let flutter = TapTargetGeometry.advisoryKindResult(
-            for: target, in: elements, screen: screen, naming: OccluderNamingContext(isAndroid: true, framework: .flutter))
+            for: target, in: elements, screen: screen, naming: OccluderNamingContext(isAndroid: true, framework: .flutter, paintRanks: nil))
         XCTAssertTrue(flutter.namingSuppressed)
         guard case .stacked? = flutter.kind else { return XCTFail("後段へ進む: \(String(describing: flutter.kind))") }
     }

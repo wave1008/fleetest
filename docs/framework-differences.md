@@ -49,6 +49,12 @@ Flutter・React Native)によって、**木の見え方と操作の効き方が�
   - 仮想 + extras も availableExtraData も無い → Flutter が多いが、無いことからの判定なので申告しない
   - **実体の View で resource-id に `pkg:id/` が無い → RN の testID**(片方向。testID の無い RN は手がかりが出ない)。`pkg:id/` の無い ID は仮想の要素にも出る(Compose の testTag・Flutter の識別子・HTML の id)ので、実体の View と組でしか使えない
   - 確かめ: Pixel 4a・Pixel 3a・Emulator(Android 12・13・17)。起動画面 98 本・3,223 要素(答えは端末から取り出した APK)/ SUT 4 本の全画面とキーボード・ダイアログの状態 約 2,000 要素 / ID 付き約 10,000 要素(実体 + `pkg:id/` なしは RN の SUT 3 本だけ、RN 以外の実体 4,156 はすべて `pkg:id/`)
+- **Android の Flutter の塗り順**(DR-235。debug / profile のビルドだけ): アプリが logcat(タグ `flutter`)に出す VM サービスの URI へ、端末の中から素の HTTP GET で
+  `ext.flutter.debugDumpSemanticsTreeInInverseHitTestOrder` を問う。ダンプはノードを前順(親 → 子・兄弟は奥 → 手前)で並べるので、後に現れるほど手前。
+  仮想 id = `SemanticsNode.id`(flutter.jar の AccessibilityBridge が同じ番号で `setSource` する。65536 以上は埋め込みのプラットフォームビュー)。
+  木の z が描画と逆になるのは、埋め込み層が子を読み上げの順(`childrenInTraversalOrder`)で足すため。費用は1回 約10ms(静止時の中央値 8ms・スクロールの最中の最大 50ms)。
+  確かめ: Emulator(Android 17)の E2EY-Flutter の半分のシート・隠れるバー、E2EX-Flutter の FAB で全組が絵と一致(Tests/FTCoreTests/SemanticsPaintOrderTests.swift)。
+  hover の当たり判定(release でも効く候補)は端末のタッチ探索が有効でないと答えないので使えない
 - **iOS**(XCUITest。注入不要)
   - 非公開の属性を名前で問う(`XCUIDevice.sharedDevice.accessibilityInterface` の `attributesForElement:attributes:error:`。番号では受け付けない)。`XC_kAXXCAttributeElementType` = **本当のクラス名**、`XC_kAXXCAttributeElementBaseType`(番号 5004)= 公開クラスの名前(今の `axClass`)、`XC_kAXXCAttributeViewControllerClassName`(番号 5042)= その View を持つ管理役のクラス名
   - XCUITest の木には土台の View(`FlutterView`・`RCTSurfaceView`・`ComposeContainer`・`_UIHostingView`)も節として入るので、要素から祖先へたどって**最初に当たった目印**で決められる(CMP の SUT は SwiftUI の中、WebView は各フレームワークの中、キーボードはアプリの上)
@@ -521,6 +527,7 @@ SwiftUI の pinch(SUT が枠で切り取っていなかった)・inputs S0030/40
 
 | 版・コミット | 内容 |
 |---|---|
+| Android v154 | `POST /semanticsorder`: Android の Flutter のアプリ(debug / profile のビルド)の VM サービスからセマンティクスのダンプを読み、直近の木の仮想の要素の id と中心を添えて返す。DR-230 で名指しを止めた組だけ、ホストがダンプの前順で前後を決める(覆いが手前なら名指し・奥なら名指さない注意も出さない。DR-235)。E2EX-Flutter の FAB の tap に出ていた外れた注意が消えた。release のビルド・答えの無い回は DR-230 のまま(注記 `semantics-order-unavailable`) |
 | — | 塗り順の z が本物の木(Android の View/Compose/RN・iOS の z のある木)では、対象より z が大きい要素を祖先と数えない(RN の Android のボトムシートの全画面の幕が depth だけで背面の要素の祖先に化け、背面への tap が注記なしで幕に当たっていた)。DSL と MCP の覆いの判定が共有 |
 | — | CMP の iOS(inapp-boost)で、`>>` のスコープの容器が in-app の木で見つかって下が空のとき、`notExist` / `waitForClose` は「無い」と結論する前に、`countIs` / `select` / 肯定の検証(`exist`・`textIs` 等・`enabled`・`checked`)/ 送りの探索は解決のために XCUITest の木に照会する(DR-199。ScrollableTabRow・PullToRefreshBox の中が in-app の木で空になる) |
 | — | 名指しを止めた出口(Android の Flutter の同じ土台・同じウィンドウの組)でも、覆いの疑いそのものは相手を名指さない注意で言う(DR-230。常駐シートの裏の行への tap が警告なしの ✅ でシートの行に当たった = OI-387) |

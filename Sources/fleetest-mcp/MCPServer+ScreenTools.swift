@@ -174,7 +174,8 @@ extension MCPServer {
     func refOccluderNaming(_ tree: SnapshotResponse?, driver: AppDriver, args: [String: Any]) -> OccluderNamingContext {
         guard let tree else { return .alwaysName }
         let material = refTreeFrameworkMaterial(tree, driver: driver, args: args)
-        return OccluderNamingContext(isAndroid: material.isAndroid, framework: material.framework)
+        // 塗り順の答え(DR-235)は MCP ではまだ取らない(段1b)= DR-230 の名指さない注意のまま
+        return OccluderNamingContext(isAndroid: material.isAndroid, framework: material.framework, paintRanks: nil)
     }
 
     static func coveredRefTouch(_ element: ElementInfo, in snapshot: SnapshotResponse?, scale: Double,
