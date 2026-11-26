@@ -42,10 +42,13 @@ extension StepExecutor {
                             locate: (SnapshotResponse) -> ElementInfo?) async -> ClearResidualAnswer {
         // OCR を切った実行機(プロファイルの ocrTextVisibilityCheck: false・MCP の ft_batch は fmAndVision が無ければ切る)では画面を読まない
         // (オフでも OCR を使うのは惜しい転写の読み直しだけのユーザー決定 = 別の確かめへ広げない。48周目 duo F4: ft_batch で OCR が走った)
+        // macOS 26 でも mode は off になる(`RegionText.mode`)。理由を取り違えない(「この run で切った」と言うと設定を探させる)
         guard occlusionOCRMode != .off else {
+            let why = OCRSupport.isSupported
+                ? "OCR is off for this run (ocrTextVisibilityCheck is false, or MCP without fmAndVision)"
+                : "\(OCRSupport.requirement) and this Mac runs an older macOS"
             return ClearResidualAnswer(residual: residual, notDrawn: false,
-                                       why: "OCR is off for this run (ocrTextVisibilityCheck is false, or MCP without fmAndVision),"
-                                           + " so the field's area on the screen was not read", snapshot: nil)
+                                       why: why + ", so the field's area on the screen was not read", snapshot: nil)
         }
         return await Self.readClearResidual(treeDriver, residual: residual, locate: locate)
     }

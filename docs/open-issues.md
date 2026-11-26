@@ -30,9 +30,9 @@
 | 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-347・OI-366・OI-378 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 14 | OI-156・OI-161・OI-163・OI-170・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-279・OI-327・OI-386・OI-387 |
-| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 36 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-220・OI-221・OI-226・OI-228・OI-229・OI-231・OI-233・OI-234・OI-236・OI-250・OI-269・OI-289・OI-292・OI-297・OI-314・OI-315・OI-320・OI-321・OI-325・OI-346・OI-359・OI-366・OI-378・OI-385 |
-| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 11 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-347・OI-385 |
-| 据え置き | 直さないと決めたもの。症状が出たら見直す | 46 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-370・OI-379・OI-385 |
+| 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 35 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-220・OI-221・OI-226・OI-228・OI-229・OI-231・OI-233・OI-234・OI-236・OI-250・OI-269・OI-289・OI-292・OI-297・OI-314・OI-320・OI-321・OI-325・OI-346・OI-359・OI-366・OI-378・OI-385 |
+| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 12 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-315・OI-347・OI-385 |
+| 据え置き | 直さないと決めたもの。症状が出たら見直す | 47 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-315・OI-370・OI-379・OI-385 |
 
 低頻度の項目は、手順のシナリオが分かるものを `Scripts/soak.py` で空いた機械に回し続けて出た回を貯める(対象の表は `Scripts/soak-targets.json`・使い方は docs/verification/operations.md)。各ステップの判定の分かれ目は結果 JSON の `trace`(docs/results-json.md)に残る。
 
@@ -370,21 +370,6 @@
 - 関係: OI-221(XCUITest へ回した長押しからのドラッグが ✅ なのに効かない・負荷の下)と同じ系統の可能性(推測)
 - 次の一手: 回帰と同じ負荷の下(`--broadcast` で手元の全台)で反復し、出たときの XCUITest の press の所要と、アプリが受けた長押しの長さを採る
 
-### OI-315 E2EX-CMP の iOS(M4Max)で、検索バーの入力欄を空にできず赤(clearInput が「空にできない」/「成功と言ったが値が残る」)
-- 状態: 再現済み
-- 確認: d2ee69064(2026-11-20)
-- 属性: 低頻度
-- 運用: 再実行で吸収 — 同じ回帰の他のマシンの iOS では出ていない
-- 優先度: 低 — 特定の機械だけ・赤になる側(誤った緑ではない)
-
-出典: 回帰(`Scripts/regress.py`)の 2026-11-18(`_work/regress-20261118/`)と 2026-11-20(`_work/regress-20261120/`)。どちらも M4Max の E2EX-CMP / ios-inapp-boost の2本(2026-11-19 の回帰では出ていない)
-- 観測: ①`検索バーで検索できること.S0040` が「The driver returned an error (422): could not empty the field (12 character(s) still there after 4 round(s))」②`検索バーで検索できること.S0030` が「clearInput reported success but the value remained: "検索候補は次のとおりです"」。②の残った値は入力した文字ではなく、検索候補の読み上げの文に見える
-- 次の一手: 失敗時の木(欄の value に何が入っているか・候補の窓が前面か)を M4Max で採る。他の機械で出ない理由(OS の版・負荷)を確かめる。原因を観測するまで直さない(MN-108)
-- 回帰 11/21 08:01(`_work/regress-20261121/regress.log`・24 対象・全マシン): M4Max で再出(3回目)。`検索バーで検索できること.S0040` の `clearInput "#field_search"` と S0030 の `type "ap" (replace)` の 2 本
-- 11/23 の全マシンの回帰: M4Max の E2EX-CMP(iOS・inapp-boost)「検索バーで検索できること」S0030・S0040 で同じ形(`could not empty the field (12 character(s) still there after 4 round(s))`・`clearInput reported success but the value remained`)
-- xcuitest モードの全体の回帰(2026-11-26 夕・652aa2c): M4Max の E2EX-CMP で `clearInput "#field_search"` と `type "ap" (replace)` の赤(2本)= 同じ形が M4Max でだけ続いている
-- 範囲を絞った回帰(2026-11-27 未明・b1707fd1c・iOS の inapp-boost 12 対象 + Android 4 対象): M4Max の E2EX-CMP で同じ2本が同じ形の赤(他の 15 対象は緑)
-
 ### OI-314 行き過ぎて引き返した探索が、行を貼り付く見出しの下で止め、タップが見出しに吸われた(Flutter・xcuitest モード・回帰の負荷の下で1回)
 - 状態: 再現済み
 - 確認: 作業ツリー(RR-8.3 の実装 + 11/19 夜の直し。2026-11-19)
@@ -605,6 +590,26 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 次の一手: 全体テストで再び出たら、FMServeAlignmentTests は退役の照会の間隔とテストが待つ上限(`retirementWaitSeconds` の差し替え値)を並べて負荷の下で1周が上限を越えたかを、webviewRunBoard は 300ms の待ちの間に描き直しが何回走ったかを測る
 
 ## 環境側
+
+### OI-315 E2EX-CMP の iOS(M4Max)で、検索バーの入力欄を空にできず赤(clearInput が「空にできない」/「成功と言ったが値が残る」)
+- 状態: 再現済み
+- 確認: b1707fd1c(2026-11-27。原因は観測済み = M4Max の macOS 26 で OCR が使えない)
+- 属性: 環境側・据え置き
+- 運用: 回避不可 — macOS 26 の機械(M4Max)では毎回赤。macOS 27 の機械では緑(DR-236)
+- 優先度: 低 — 特定の機械だけ・赤になる側(誤った緑ではない)
+- 原因(2026-11-27): M4Max の macOS は 26.7.3。この欄(Material 3 の SearchBar の iOS)の value は入力でなく説明文「検索候補は次のとおりです」(12 文字)なので、
+  消去の確かめは欄の絵を OCR で読んで「何も描かれていない」ときだけ通す(`clear-residual-not-drawn`・利用者向けの注意点に記載)。OCR は macOS 27+
+  でしか動かない(`OCRSupport`)ので、M4Max では毎回「判断できない = 赤」になる。失敗時の絵では欄は空(プレースホルダとカーソルだけ)。
+  失敗文は「OCR is off for this run(設定で切った)」と言い違えていた → 「requires macOS 27+ and this Mac runs an older macOS」へ直した
+- 決定(2026-11-27・DR-236): 今のまま(除外表に足さない)。M4Max が macOS 27 になれば赤が消えるので、そのとき閉じる
+
+出典: 回帰(`Scripts/regress.py`)の 2026-11-18(`_work/regress-20261118/`)と 2026-11-20(`_work/regress-20261120/`)。どちらも M4Max の E2EX-CMP / ios-inapp-boost の2本(2026-11-19 の回帰では出ていない)
+- 観測: ①`検索バーで検索できること.S0040` が「The driver returned an error (422): could not empty the field (12 character(s) still there after 4 round(s))」②`検索バーで検索できること.S0030` が「clearInput reported success but the value remained: "検索候補は次のとおりです"」。②の残った値は入力した文字ではなく、検索候補の読み上げの文に見える
+- 次の一手: 失敗時の木(欄の value に何が入っているか・候補の窓が前面か)を M4Max で採る。他の機械で出ない理由(OS の版・負荷)を確かめる。原因を観測するまで直さない(MN-108)
+- 回帰 11/21 08:01(`_work/regress-20261121/regress.log`・24 対象・全マシン): M4Max で再出(3回目)。`検索バーで検索できること.S0040` の `clearInput "#field_search"` と S0030 の `type "ap" (replace)` の 2 本
+- 11/23 の全マシンの回帰: M4Max の E2EX-CMP(iOS・inapp-boost)「検索バーで検索できること」S0030・S0040 で同じ形(`could not empty the field (12 character(s) still there after 4 round(s))`・`clearInput reported success but the value remained`)
+- xcuitest モードの全体の回帰(2026-11-26 夕・652aa2c): M4Max の E2EX-CMP で `clearInput "#field_search"` と `type "ap" (replace)` の赤(2本)= 同じ形が M4Max でだけ続いている
+- 範囲を絞った回帰(2026-11-27 未明・b1707fd1c・iOS の inapp-boost 12 対象 + Android 4 対象): M4Max の E2EX-CMP で同じ2本が同じ形の赤(他の 15 対象は緑)
 
 ### OI-385 この Mac で E2EY の文中リンクのシナリオが 120 秒のハング×3 を1回だけ出した(マシンの再起動で消えた)
 - 状態: 据え置き

@@ -101,6 +101,25 @@ final class ClearResidualDrawnTests: XCTestCase {
         XCTAssertFalse(outcome.notes.contains(.clearResidualNotDrawn))
     }
 
+    /// OCR が切られた run と、OCR の無い macOS(26)を言い分ける(後者で「設定で切った」と言うと設定を探させる。M4Max の赤がそうだった)
+    func testOCROffReasonTellsTheUnsupportedMacApart() async {
+        func message(unsupported: Bool) async -> String {
+            if unsupported { setenv(OCRSupport.fakeUnsupportedKey, "1", 1) }
+            defer { unsetenv(OCRSupport.fakeUnsupportedKey) }
+            let primary = FakeAppDriver(name: "primary", log: CallLog(),
+                                        snapshotElements: [[searchField(value: residual, focused: true)]])
+            let executor = StepExecutor(driver: primary, occlusionOCRMode: .off, isAndroid: false, tunables: RunTunables())
+            let outcome = await executor.execute(FlowStep(action: "clearInput", locator: FlowLocator(id: "field_search")))
+            guard case .failed(let message) = outcome.status else { XCTFail("\(outcome.status)"); return "" }
+            return message
+        }
+        let unsupported = await message(unsupported: true)
+        XCTAssertTrue(unsupported.contains("requires macOS 27+ and this Mac runs an older macOS"), unsupported)
+        XCTAssertFalse(unsupported.contains("OCR is off for this run"), unsupported)
+        let off = await message(unsupported: false)
+        XCTAssertTrue(off.contains("OCR is off for this run"), off)
+    }
+
     func testSelectorClearStaysRedWithReasonWhenUndetermined() async {
         let outcome = await run(FlowStep(action: "clearInput", locator: FlowLocator(id: "field_search")), drawn: nil)
         guard case .failed(let message) = outcome.status else { XCTFail("\(outcome.status)"); return }

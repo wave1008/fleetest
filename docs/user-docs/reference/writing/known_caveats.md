@@ -23,7 +23,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 ### clearInput
 - [Android: field under a popup window](../commands/clear_input.md#notes) — the focusing tap would pick a suggestion and change another field, so the step fails first; close the popup beforehand.
 - [Non-input target fails before clearing](../commands/clear_input.md#notes) — `clearInput` taps first, so a button, switch or link would be pressed; it refuses them, but an element wrapping exactly one input is accepted.
-- [Fields whose value does not mirror input](../commands/clear_input.md#notes) — a value that seems to remain may pass via OCR with note `clear-residual-not-drawn`; otherwise it fails.
+- [Fields whose value does not mirror input](../commands/clear_input.md#notes) — a value that seems to remain may pass via OCR with note `clear-residual-not-drawn`; otherwise (including macOS 26, which has no OCR) it fails.
 - [Whitespace cannot be verified](../commands/clear_input.md#notes) — whitespace-only content is invisible to accessibility, so lost spaces go undetected; assert values with `valueIs` where whitespace matters.
 - [`type` appends](../commands/clear_input.md#notes) — clear first when replacing, or use `type(sel, "text", replace: true)` to do both in one command.
 - [Flutter iOS falls back to XCUITest for this command](../commands/clear_input.md#notes) — the in-app bridge cannot clear it, adding roughly one to two seconds; no change in how you write it.

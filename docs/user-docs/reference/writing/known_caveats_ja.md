@@ -23,7 +23,7 @@
 ### clearInput
 - [Android で欄が候補一覧などの下にあると触らず失敗する](../commands/clear_input_ja.md#注意点) — 焦点を当てるタップが候補を選んで別の欄を書き換えるので、先に一覧を閉じます。
 - [入力欄でない要素(ボタン等)を指すと消す前に失敗する](../commands/clear_input_ja.md#注意点) — 事前タップで送信・購入ボタンを押す事故を防ぐための断りです。入力欄を指して書きます。
-- [値が入力を映さない欄は消した後も値が残って見える](../commands/clear_input_ja.md#注意点) — iOS の Material 3 の SearchBar 等では、OCR で欄に何も描かれていなければ注記付きで通り、ほかの文字が描かれている・伏せ字・キーボードが重なる・OCR 不可のときは失敗します。
+- [値が入力を映さない欄は消した後も値が残って見える](../commands/clear_input_ja.md#注意点) — iOS の Material 3 の SearchBar 等では、OCR で欄に何も描かれていなければ注記付きで通り、ほかの文字が描かれている・伏せ字・キーボードが重なる・OCR 不可(macOS 26)のときは失敗します。
 - [空白は検証できない](../commands/clear_input_ja.md#注意点) — 空白が欠けても検出されないので、空白が意味を持つ値は `valueIs` で確かめます。
 - [type は追記なので書き換えはクリアが先](../commands/clear_input_ja.md#注意点) — `type(sel, "文字列", replace: true)` でクリアと入力を1コマンドにできます。
 - [Flutter の iOS ビルドは XCUITest ブリッジへ自動で切り替わる](../commands/clear_input_ja.md#注意点) — in-app ブリッジでは欄を消せないため、この1コマンドだけ1〜2秒余分にかかります。
