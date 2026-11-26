@@ -108,6 +108,8 @@
 - 次の一手: 木の外の材料(撃つ点の描画 = スクリーンショットの画素と、木の枠の中に描かれた文字の突き合わせ)で見分けられるかを、反例(キーボードの無い同じ画面・背の高い画面)と合わせて測る。見分けられなければ据え置く(赤で止まる = 誤った緑にはならない)
 - 棚卸し(2026-11-25 夜): 新しい材料なし(木の枠どうしは重ならないので、重なりの画素の読み = OI-387 の検知は当たらない。撃つ点の描画と木の枠の文字の突き合わせは未測定)
 - 材料の見直し(2026-11-26・コードと API の読み、デバイス未測定): SE3 で、キーボードで縮んだ後の in-app の生の枠(`accessibilityFrame`)と CMP の根の view の大きさを記録すれば、古い窓の枠から来ているかを分けられる(実機が要る)
+- 測定(2026-11-26・SE3・inapp-boost・in-app に一時的な診断の口): 同じ形で再現。失敗した状態で CMP の view(ComposeContainerView・SurfaceMetalView・OverlayInputView)は全部 375x667 = **窓・view は縮んでいない**(「古い窓の枠」ではない)。アクセシビリティの枠は、見えている範囲(タブの上端 343 まで)に押し込まれている: `#field_single` (16,276 343x27)(描画は高さ約50)・`#field_multiline` (16,303 343x40)(描画はタブの下)・その下の `#field_password`・`#btn_input_submit`・`#btn_input_clear`・`#txt_echo_multiline` は y 327 に高さ 0 で積み重なる = Compose(iOS)の画面外の枠のクランプ(FD の表の既知の性質)がキーボード表示中に起きた形。言えるのは「この画面の枠は押し込まれている」までで、対象の欄の枠が本物かは木から言えない = 判定に使うなら反例の画面で見分けられるかを先に確かめる(MN-108)。赤で止まる(安全側)ので据え置き
+- 検証の所要(11/26): 実機用 dylib の作り直しと1本の run・枠の読み 約15分
 
 ### OI-387 Android の Flutter で、木に残る覆い(非モーダルの常駐シート)の裏の行への検証が注記なしの ✅
 - 状態: 再現済み
@@ -599,6 +601,8 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 測定(11/19 06:1x〜06:3x・同じ 4a): 作成時の赤(05:10〜05:15 に 5 回とも 500)は、縦で 7/7・横向き(user_rotation=1・ft_rotate)にして 4/4 とも緑。`dumpsys input_method` は横向きでも `mInFullscreenMode=false`(キーボードは窓を縮めるだけ)= 作成時に出ていた全画面入力(extract view)の状態を作り直せなかった。4a の向きは評価の途中(05:15〜06:12 の間)に横から縦へ変わっていた(誰が変えたかは未観測)
 - 次の一手: 全画面入力が出る状態(Gboard の横向きの全画面入力)になったら、①の SET_TEXT の後に欄を見つけ直せない理由と②の Enter の宛先を測る
 - 4回目の評価(11/19・`_work/scen-eval-20261119b/`): 縦向きでも出た(r6_e2ex_flutter_4a の `ft_batch` の type が `cannot type into the field that was tapped (the field could not be found again after ACTION_SET_TEXT was accepted …)` で FAILED、同じ応答の木では `textField value="山田"`・欄はキーボードで y 1312 → 1125 → 938 と上へ動いていた)。欄が動いたことは観測・見つけ直せなかった理由は未観測
+- 2026-11-26(再試行・Pixel 4a・E2EX-Flutter の入力の種類・横向き): パスワード欄に焦点を当ててもキーボードは全画面入力にならない(`mInFullscreenMode=false`・`mExtractViewHidden=false`)= 11/19 と同じく状態を作れない。出る状態になったら測る
+- 検証の所要(11/26): 約5分
 
 ### OI-292 RN の iOS(XCUITest)の type が、短い文字列でも毎回「retyped the whole text 1 time(s) after a keystroke was dropped mid-string」
 - 状態: 再現済み
@@ -931,6 +935,8 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 - 材料の見直し(2026-11-26・コードと API の読み、デバイス未測定): RN は見出しの枠が行の中心に重なるので DR-233 の撃つ前の OCR が働きうる(xcuitest で注記が付くかは未測定)。Flutter は見出しの枠が文字の箱だけで中心に重ならない = 候補が無い
 - 材料の測定(2026-11-26・手元 Sim 8台へ `--broadcast`・E2EX-RN・xcuitest): 赤 6 台は全部、`tap("#row_s_B1")` に押す前の OCR の注記 `tap-target-drawn-over`(行の枠に見出しの文字が描かれている = DR-233)が付き、緑 2 台には付かなかった(6/6・反例 2/2)。失敗文は `#hdr_B` を名指して送り方を言う。RN の材料は撃つ前に取れている = 送り出す・断るへ上げるのは DR-233 の見直しの条件(全体の回帰で誤検知 0)を満たしてから。Flutter は見出しの枠が文字の箱だけで中心に重ならず候補が出ない(未測定)
 - 検証の所要(11/26): 約6分(配って回す 約3分)
+- Flutter の測定(2026-11-26・同じく8台へ `--broadcast`): 8/8 緑で行の中心が見出しの下に入る回が出ず、材料は未確認。緑の回の行のタップ 16 回に `tap-target-drawn-over` は付かなかった(誤検知 0/16)
+- 検証の所要(11/26): Flutter 約5分
 
 ### OI-205 Android の Flutter のオートコンプリートの候補への tap が選ばずに緑(a11y の枠が描画とずれる)・セレクタの末尾の空白ほか
 - 状態: 再現済み
