@@ -27,7 +27,8 @@ final class RenderCollapseCorpusSweep: XCTestCase {
                 let inkless = inks.filter { $0 < 12 }.count
                 let uniform = RenderCollapse.isUniform(pngData: data, region: area, screen: screen).map { $0 ? "1" : "0" } ?? "-"
                 let finding = RenderCollapse.judge(pngData: data, elements: elements, screen: screen, keyboard: nil,
-                                                   inkThreshold: 12, minimumTextElements: RenderCollapse.minimumTextElements)
+                                                   inkThreshold: 12, minimumTextElements: RenderCollapse.minimumTextElements,
+                                                   systemBarsDrawn: nil)
                 let minInk: String = inks.min().map { String(format: "%.1f", $0) } ?? "-"
                 let fields: [String] = [md, String(scene), "\(Int(screen.width))x\(Int(screen.height))", String(inks.count),
                                         String(inkless), uniform, minInk, finding.map { "\($0)" } ?? "-"]

@@ -51,14 +51,17 @@ public enum RenderCollapse {
 
     /// 判定する。`keyboard` は申告されたキーボードの枠(画面の外なら無いものとして扱う)。
     /// `inkThreshold` はテキストの可視性検証の `occlusionInkThreshold` を渡す(同じ「描かれている」の定義を共有する)
+    /// `systemBarsDrawn` = その絵にステータスバー(OS が描く帯)が写る撮り方か。**false = アプリの窓だけを描いた絵**
+    /// (iOS の in-app ブリッジ。ステータスバーは SpringBoard が描くので写らない)で、全体が一色でも「画面ごと止まった」とは言えず、
+    /// アプリの面が一色(`blankAppArea`)と読む。nil = 分からない(今の読み = 全体の一色は `wholeScreenBlank`)。既定値を置かない
     public static func judge(pngData: Data, elements: [ElementInfo], screen: FTRect, keyboard: FTRect?,
-                             inkThreshold: Double, minimumTextElements: Int) -> Finding? {
+                             inkThreshold: Double, minimumTextElements: Int, systemBarsDrawn: Bool?) -> Finding? {
         guard matchesOrientation(pngData: pngData, screen: screen),
               let area = appArea(elements: elements, screen: screen, keyboard: keyboard) else { return nil }
         let texts = textElements(in: elements, screen: screen, appArea: area)
         guard !texts.isEmpty else { return nil }
         if isUniform(pngData: pngData, region: area, screen: screen) == true {
-            return BlankFrameDetector.isUniformBlank(pngData: pngData)
+            return BlankFrameDetector.isUniformBlank(pngData: pngData) && systemBarsDrawn != false
                 ? .wholeScreenBlank(textElements: texts.count) : .blankAppArea(textElements: texts.count)
         }
         guard texts.count >= minimumTextElements, inkThreshold > 0 else { return nil }

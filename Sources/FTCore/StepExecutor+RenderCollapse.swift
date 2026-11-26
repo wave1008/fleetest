@@ -53,13 +53,22 @@ extension StepExecutor {
         guard let frame = lastNotRenderedFrame else {
             return trace(.screenStatePublish, ["publisher": "wired", "frame": "none"])
         }
+        let systemBars = systemBarsDrawn(in: frame.screenshot)
         let finding = RenderCollapse.judge(pngData: frame.screenshot, elements: frame.elements, screen: frame.screen,
                                            keyboard: guardKeyboardFrame, inkThreshold: occlusionInkThreshold,
-                                           minimumTextElements: RenderCollapse.minimumTextElements)
+                                           minimumTextElements: RenderCollapse.minimumTextElements,
+                                           systemBarsDrawn: systemBars)
         trace(.screenStatePublish, ["publisher": "wired", "frame": "kept",
+                                    "systemBars": systemBars.map { $0 ? "drawn" : "not-drawn" } ?? "unknown",
                                     "finding": finding.map(Self.traceValue) ?? "none",
                                     "keyboard": guardKeyboardFrame.map(Self.traceFrame) ?? "none"])
         reflectScreenState(finding, clearsWhenHealthy: false)
+    }
+
+    /// 判定用の絵にステータスバーが写る撮り方だったか。直近の `judgmentCapture` の絵と同じ絵のときだけ答える(違えば nil = 分からない)
+    func systemBarsDrawn(in png: Data) -> Bool? {
+        guard let last = lastJudgmentCapture, last.data == png else { return nil }
+        return last.systemBarsDrawn
     }
 
     static func traceValue(_ finding: RenderCollapse.Finding) -> String {
@@ -138,7 +147,8 @@ extension StepExecutor {
               let shot = try? await driver.screenshot() else { return nil }
         return RenderCollapse.judge(pngData: shot, elements: tree.elements, screen: tree.screen,
                                     keyboard: tree.keyboardFrame, inkThreshold: occlusionInkThreshold,
-                                    minimumTextElements: RenderCollapse.minimumTextElements)
+                                    minimumTextElements: RenderCollapse.minimumTextElements,
+                                    systemBarsDrawn: !primaryCaptureOmitsSystemUI)
     }
 
     /// 失敗文(事実だけ。原因は書かない = ツールには測れない)

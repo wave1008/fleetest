@@ -162,6 +162,29 @@ final class ScreenStatePublicationTests: XCTestCase {
         XCTAssertEqual(sink.all, [])
     }
 
+    /// iOS の in-app ブリッジの絵(アプリの窓だけ = ステータスバーが写らない)の全体の一色は、アプリの面が一色として公表する。
+    /// 「全画面の一色 = 凍結の担当」と読むと、inapp-boost モードでは白紙が1度も公表されず、レーンが切り離されなかった
+    func testInAppFrameWithoutStatusBarIsPublishedAsBlank() async {
+        let png = RenderCollapseTests.png(statusBar: false)
+        let driver = FakeAppDriver(name: "inapp", log: CallLog(), snapshotElements: [elements()])
+        driver.screenshots = [png, png, png]
+        let executor = StepExecutor(driver: driver, primaryCaptureOmitsSystemUI: true, occlusionGuardEnabled: false,
+                                    isAndroid: false, tunables: RunTunables())
+        let sink = Sink()
+        executor.screenStatePublisher = { sink.record($0) }
+        _ = await verdict(executor)
+        XCTAssertEqual(sink.all, [.blank], "区切りの検査(主ドライバ = in-app の絵)")
+        // 白紙の赤の後の公表: 判定用の絵が in-app で撮ったものと照合できたときだけ読み分ける
+        let shot = try? await executor.judgmentCapture(wholeScreen: false).data
+        executor.lastNotRenderedFrame = (try! XCTUnwrap(shot), elements(), screen)
+        executor.publishScreenStateAfterNotRendered()
+        XCTAssertEqual(sink.all, [.blank, .blank])
+        executor.lastJudgmentCapture = nil
+        executor.lastNotRenderedFrame = (png, elements(), screen)
+        executor.publishScreenStateAfterNotRendered()
+        XCTAssertEqual(sink.all.count, 2, "どの撮り方の絵か照合できなければ今の読み(全体の一色は公表しない)")
+    }
+
     private func code(_ path: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)

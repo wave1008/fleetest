@@ -47,8 +47,11 @@ extension StepExecutor {
     /// 戻り値の wholeScreen は実際に撮れた側
     func judgmentCapture(wholeScreen: Bool) async throws -> (data: Data, wholeScreen: Bool) {
         if wholeScreen, let fb = fallbackDriver, let shot = try? await fb.screenshot() {
+            lastJudgmentCapture = (shot, true)
             return (shot, true)
         }
-        return (try await driver.screenshot(), false)
+        let shot = try await driver.screenshot()
+        lastJudgmentCapture = (shot, !primaryCaptureOmitsSystemUI)
+        return (shot, false)
     }
 }

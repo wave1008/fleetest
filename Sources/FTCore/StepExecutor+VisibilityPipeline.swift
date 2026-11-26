@@ -971,7 +971,9 @@ extension StepExecutor {
         guard blank.isEmpty else { return blank }
         guard case .noTextDrawn(let count) = RenderCollapse.judge(
             pngData: screenshot, elements: elements, screen: screen, keyboard: keyboard,
-            inkThreshold: inkThreshold, minimumTextElements: RenderCollapse.minimumTextElements) else { return "" }
+            inkThreshold: inkThreshold, minimumTextElements: RenderCollapse.minimumTextElements,
+            // 見るのは文字が描かれていない形だけ(全体の一色の読み分けは使わない)
+            systemBarsDrawn: nil) else { return "" }
         return " — none of the \(count) text element(s) the tree reports on screen is drawn in the screenshot"
             + " (not just this element; shapes may be drawn, text is not)"
     }

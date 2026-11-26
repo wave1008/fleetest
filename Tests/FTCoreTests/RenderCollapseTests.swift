@@ -51,9 +51,11 @@ final class RenderCollapseTests: XCTestCase {
         return out as Data
     }
 
-    private func judge(_ png: Data, elements: [ElementInfo]? = nil, keyboard: FTRect? = nil) -> RenderCollapse.Finding? {
+    private func judge(_ png: Data, elements: [ElementInfo]? = nil, keyboard: FTRect? = nil,
+                       systemBarsDrawn: Bool? = nil) -> RenderCollapse.Finding? {
         RenderCollapse.judge(pngData: png, elements: elements ?? self.elements(), screen: screen, keyboard: keyboard,
-                             inkThreshold: 12, minimumTextElements: RenderCollapse.minimumTextElements)
+                             inkThreshold: 12, minimumTextElements: RenderCollapse.minimumTextElements,
+                             systemBarsDrawn: systemBarsDrawn)
     }
 
     // MARK: - 判定
@@ -65,6 +67,9 @@ final class RenderCollapseTests: XCTestCase {
     /// ステータスバーまで一色 = 画面そのものが写っていない(アプリの描画の崩れとは書き分ける)
     func testWholeScreenInOneColourIncludingTheStatusBarIsNotCaptured() {
         XCTAssertEqual(judge(Self.png(statusBar: false)), .wholeScreenBlank(textElements: 3))
+        // アプリの窓だけを描いた絵(iOS の in-app。ステータスバーは写らない)の全体の一色は、画面ごとではなくアプリの面が一色
+        XCTAssertEqual(judge(Self.png(statusBar: false), systemBarsDrawn: false), .blankAppArea(textElements: 3))
+        XCTAssertEqual(judge(Self.png(statusBar: false), systemBarsDrawn: true), .wholeScreenBlank(textElements: 3))
     }
 
     /// キーボード以外が真っ白(キーボードの範囲は除いて見る)

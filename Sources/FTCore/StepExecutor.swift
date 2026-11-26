@@ -1348,6 +1348,8 @@ public final class StepExecutor {
     var drawingConfirmedThisScenario = false
     /// 直近の可視性検証の `notRendered` の絵(赤が確定した時点で判定する = `publishScreenStateAfterNotRendered`)
     var lastNotRenderedFrame: (screenshot: Data, elements: [ElementInfo], screen: FTRect)?
+    /// 直近の判定用の絵と、それにステータスバーが写る撮り方だったか(`judgmentCapture` だけが書く。`systemBarsDrawn(in:)` が照合する)
+    var lastJudgmentCapture: (data: Data, systemBarsDrawn: Bool)?
     /// 直近の `renderCollapseVerdict` が公表した状態の注記(区切りの失敗ステップへ FTRuntime が載せる)
     public internal(set) var renderCollapseNotes: [StepNote] = []
     /// 赤にしない構成で見つけた崩壊の文(`renderCollapseVerdict` が nil を返す回のステップの説明に出す)
