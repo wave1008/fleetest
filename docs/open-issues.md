@@ -383,6 +383,7 @@
 - 回帰 11/21 08:01(`_work/regress-20261121/regress.log`・24 対象・全マシン): M4Max で再出(3回目)。`検索バーで検索できること.S0040` の `clearInput "#field_search"` と S0030 の `type "ap" (replace)` の 2 本
 - 11/23 の全マシンの回帰: M4Max の E2EX-CMP(iOS・inapp-boost)「検索バーで検索できること」S0030・S0040 で同じ形(`could not empty the field (12 character(s) still there after 4 round(s))`・`clearInput reported success but the value remained`)
 - xcuitest モードの全体の回帰(2026-11-26 夕・652aa2c): M4Max の E2EX-CMP で `clearInput "#field_search"` と `type "ap" (replace)` の赤(2本)= 同じ形が M4Max でだけ続いている
+- 範囲を絞った回帰(2026-11-27 未明・b1707fd1c・iOS の inapp-boost 12 対象 + Android 4 対象): M4Max の E2EX-CMP で同じ2本が同じ形の赤(他の 15 対象は緑)
 
 ### OI-314 行き過ぎて引き返した探索が、行を貼り付く見出しの下で止め、タップが見出しに吸われた(Flutter・xcuitest モード・回帰の負荷の下で1回)
 - 状態: 再現済み
