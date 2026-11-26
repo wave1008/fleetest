@@ -24,7 +24,7 @@ final class DynamicSplitTests: XCTestCase {
         let decision = DynamicSplit.decide(
             for: fast, now: 0, pending: [scenario("short"), scenario("long")],
             lanes: [State(lane: fast, busy: nil), State(lane: other, busy: nil)],
-            estimateMs: table(["short": [10_000, 10_000], "long": [60_000, 60_000]]))
+            estimateMs: table(["short": [10_000, 10_000], "long": [60_000, 60_000]]), triedBy: [:])
         XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "long", variant: nil)))
     }
 
@@ -33,8 +33,22 @@ final class DynamicSplitTests: XCTestCase {
         let decision = DynamicSplit.decide(
             for: slow, now: 0, pending: [scenario("s")],
             lanes: [State(lane: fast, busy: nil), State(lane: slow, busy: nil)],
-            estimateMs: table(["s": [30_000, 60_000]]))
+            estimateMs: table(["s": [30_000, 60_000]]), triedBy: [:])
         XCTAssertEqual(decision, .hold(reconsiderAt: nil))
+    }
+
+    /// 試したエントリ(`triedBy`)のレーンは、そのシナリオの置き場に数えない。数えると空いた速いレーンを待って保留し、
+    /// そのレーンは取れないので誰も取らない(空いたレーンは見直しの時刻も作らない)
+    func testSlowMachineTakesScenarioWhenTheIdleFastLaneTriedIt() {
+        let fast = lane(0, "a"), slow = lane(1, "b")
+        let lanes = [State(lane: fast, busy: nil), State(lane: slow, busy: nil)]
+        let estimate = table(["s": [30_000, 60_000]])
+        XCTAssertEqual(DynamicSplit.decide(for: slow, now: 0, pending: [scenario("s")], lanes: lanes, estimateMs: estimate,
+                                           triedBy: [:]),
+                       .hold(reconsiderAt: nil), "対照: 試していなければ速いレーンを待つ")
+        XCTAssertEqual(DynamicSplit.decide(for: slow, now: 0, pending: [scenario("s")], lanes: lanes, estimateMs: estimate,
+                                           triedBy: [ScenarioUnitKey(id: "s", variant: nil): [0]]),
+                       .assign(ScenarioUnitKey(id: "s", variant: nil)))
     }
 
     func testSlowMachineHoldsUntilBusyFastLaneFrees() {
@@ -45,7 +59,7 @@ final class DynamicSplitTests: XCTestCase {
         let decision = DynamicSplit.decide(
             for: slow, now: 50_000, pending: [scenario("s")],
             lanes: [State(lane: fast, busy: (running, 0)), State(lane: slow, busy: nil)],
-            estimateMs: table(["s": [60_000, 120_000], "run": [60_000, 120_000]]))
+            estimateMs: table(["s": [60_000, 120_000], "run": [60_000, 120_000]]), triedBy: [:])
         XCTAssertEqual(decision, .hold(reconsiderAt: 60_000))
     }
 
@@ -56,7 +70,7 @@ final class DynamicSplitTests: XCTestCase {
         let estimate = table(["s1": [60_000, 120_000], "s2": [60_000, 120_000], "run": [60_000, 120_000]])
         XCTAssertEqual(
             DynamicSplit.decide(for: slow, now: 50_000, pending: [scenario("s1"), scenario("s2")],
-                                lanes: lanes, estimateMs: estimate),
+                                lanes: lanes, estimateMs: estimate, triedBy: [:]),
             .assign(ScenarioUnitKey(id: "s2", variant: nil)))
     }
 
@@ -65,7 +79,7 @@ final class DynamicSplitTests: XCTestCase {
         let decision = DynamicSplit.decide(
             for: slow, now: 0, pending: [scenario("s")],
             lanes: [State(lane: fast, busy: (scenario("run"), 0)), State(lane: slow, busy: nil)],
-            estimateMs: table(["s": [5_000, 10_000], "run": [30_000, 60_000]]))
+            estimateMs: table(["s": [5_000, 10_000], "run": [30_000, 60_000]]), triedBy: [:])
         // slow なら 10s・fast を待つと 30s + 5s = 35s
         XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "s", variant: nil)))
     }
@@ -78,7 +92,7 @@ final class DynamicSplitTests: XCTestCase {
         let decision = DynamicSplit.decide(
             for: slow, now: 60_000, pending: [scenario("s")],
             lanes: [State(lane: fast, busy: (scenario("run"), 0)), State(lane: slow, busy: nil)],
-            estimateMs: table(["s": [60_000, 120_000], "run": [60_000, 120_000]]))
+            estimateMs: table(["s": [60_000, 120_000], "run": [60_000, 120_000]]), triedBy: [:])
         XCTAssertEqual(decision, .hold(reconsiderAt: 120_000))
     }
 
@@ -88,7 +102,7 @@ final class DynamicSplitTests: XCTestCase {
         let decision = DynamicSplit.decide(
             for: fast, now: 0, pending: [scenario("Z.long"), scenario("A.short")],
             lanes: [State(lane: fast, busy: nil), State(lane: other, busy: nil)],
-            estimateMs: table(["A.short": [10_000, 10_000], "Z.long": [60_000, 60_000]]), lpt: false)
+            estimateMs: table(["A.short": [10_000, 10_000], "Z.long": [60_000, 60_000]]), lpt: false, triedBy: [:])
         XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "A.short", variant: nil)))
     }
 
@@ -99,11 +113,11 @@ final class DynamicSplitTests: XCTestCase {
         // 見込み 60s を 40s 超過 → 空く時刻を 140s と倒す。alt = 200s < here = 220s → 待つ。
         // 反転は t >= 60_000 + 120_000 - 60_000 = 120_000
         let first = DynamicSplit.decide(for: slow, now: 100_000, pending: [scenario("s")],
-                                        lanes: lanes, estimateMs: estimate)
+                                        lanes: lanes, estimateMs: estimate, triedBy: [:])
         XCTAssertEqual(first, .hold(reconsiderAt: 120_000))
         // その時刻: alt = (120s + 60s) + 60s = 240s = here → 渡す
         let second = DynamicSplit.decide(for: slow, now: 120_000, pending: [scenario("s")],
-                                         lanes: lanes, estimateMs: estimate)
+                                         lanes: lanes, estimateMs: estimate, triedBy: [:])
         XCTAssertEqual(second, .assign(ScenarioUnitKey(id: "s", variant: nil)))
     }
 
@@ -112,9 +126,9 @@ final class DynamicSplitTests: XCTestCase {
         let lanes = [State(lane: requester, busy: nil)]
         let estimate = table(["x": [1_000]])
         XCTAssertEqual(DynamicSplit.decide(for: requester, now: 0, pending: [scenario("x", "android")],
-                                           lanes: lanes, estimateMs: estimate), .none)
+                                           lanes: lanes, estimateMs: estimate, triedBy: [:]), .none)
         XCTAssertEqual(DynamicSplit.decide(for: requester, now: 0, pending: [],
-                                           lanes: lanes, estimateMs: estimate), .none)
+                                           lanes: lanes, estimateMs: estimate, triedBy: [:]), .none)
     }
 
     func testTieBrokenByIDAscending() {
@@ -122,7 +136,7 @@ final class DynamicSplitTests: XCTestCase {
         let decision = DynamicSplit.decide(
             for: a, now: 0, pending: [scenario("z"), scenario("m")],
             lanes: [State(lane: a, busy: nil), State(lane: b, busy: nil)],
-            estimateMs: table(["z": [5_000, 5_000], "m": [5_000, 5_000]]))
+            estimateMs: table(["z": [5_000, 5_000], "m": [5_000, 5_000]]), triedBy: [:])
         XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "m", variant: nil)))
     }
 
@@ -131,7 +145,7 @@ final class DynamicSplitTests: XCTestCase {
         let decision = DynamicSplit.decide(
             for: requester, now: 0, pending: [scenario("s")],
             lanes: [State(lane: requester, busy: nil), State(lane: android, busy: nil)],
-            estimateMs: table(["s": [1_000, 999_000]]))
+            estimateMs: table(["s": [1_000, 999_000]]), triedBy: [:])
         XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "s", variant: nil)))
     }
 }

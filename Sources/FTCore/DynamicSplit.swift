@@ -124,7 +124,8 @@ public enum DynamicSplit {
     public static func decide(
         for requester: Lane, now: Double, pending: [Scenario], lanes: [LaneState],
         estimateMs: (Scenario, Int) -> Double, lpt: Bool = true,
-        bindings: Bindings = Bindings(), entryPlatforms: [Int: Set<String>] = [:]
+        bindings: Bindings = Bindings(), entryPlatforms: [Int: Set<String>] = [:],
+        triedBy: [ScenarioUnitKey: Set<Int>]
     ) -> Decision {
         let sameOS = pending.filter { $0.platform == requester.platform }
 
@@ -171,6 +172,9 @@ public enum DynamicSplit {
         /// 塊は重さ: singleMachine = 見込みの和 ÷ そのエントリの同じ OS のレーン数 / デバイスに寄せる = 和(1台なので割らない)
         func costOn(_ job: Job, _ lane: Lane) -> Double? {
             if let bound = job.boundEntry, bound != lane.entry { return nil }
+            // 対象外で戻されたシナリオ(DR-214)は、試したエントリのレーンを置き場に数えない。数えると空いた速いレーンへ仮置きして
+            // 保留し、そのレーンは取れず、空いたレーンは見直しの時刻も作らないので run が止まる(11/26 のフル E2E の E2E-Android で約 25 分止まった)
+            if triedBy[job.head.unitKey]?.contains(lane.entry) == true { return nil }
             guard let chunk = job.chunk else { return estimateMs(job.head, lane.entry) }
             let sum = job.members.reduce(0) { $0 + estimateMs($1, lane.entry) }
             guard chunk == .singleMachine else { return sum }

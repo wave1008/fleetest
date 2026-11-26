@@ -34,7 +34,7 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
             for: a, now: 0,
             pending: [plain("Long"), member("O.t3", .inOrder, order: 3), member("O.t2", .inOrder, order: 2)],
             lanes: [State(lane: a, busy: nil), State(lane: b, busy: nil)],
-            estimateMs: table(["Long": [90_000, 90_000]]), bindings: bindings)
+            estimateMs: table(["Long": [90_000, 90_000]]), bindings: bindings, triedBy: [:])
         XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "O.t2", variant: nil)))
     }
 
@@ -51,7 +51,7 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
                        unit("O.t2", "v1", rank: 0, order: 2)]
         let decision = DynamicSplit.decide(
             for: a, now: 0, pending: pending, lanes: [State(lane: a, busy: nil)],
-            estimateMs: table([:]), bindings: bindings)
+            estimateMs: table([:]), bindings: bindings, triedBy: [:])
         XCTAssertEqual(decision, .assign(ScenarioUnitKey(id: "O.t2", variant: "v1")))
     }
 
@@ -61,7 +61,7 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
         bindings.record(member("D.x", .singleDevice), to: a)
         XCTAssertEqual(
             DynamicSplit.decide(for: a, now: 0, pending: [member("D.z", .singleDevice), member("D.y", .singleDevice)],
-                                lanes: [State(lane: a, busy: nil)], estimateMs: table([:]), bindings: bindings),
+                                lanes: [State(lane: a, busy: nil)], estimateMs: table([:]), bindings: bindings, triedBy: [:]),
             .assign(ScenarioUnitKey(id: "D.y", variant: nil)))
     }
 
@@ -71,7 +71,7 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
         bindings.record(member("O.t1", .inOrder, order: 1), to: a)
         XCTAssertEqual(
             DynamicSplit.decide(for: a, now: 0, pending: [plain("X")], lanes: [State(lane: a, busy: nil)],
-                                estimateMs: table([:]), bindings: bindings),
+                                estimateMs: table([:]), bindings: bindings, triedBy: [:]),
             .assign(ScenarioUnitKey(id: "X", variant: nil)))
     }
 
@@ -84,11 +84,11 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
         let lanes = [State(lane: a, busy: (plain("run"), 0)), State(lane: b, busy: nil)]
         XCTAssertEqual(
             DynamicSplit.decide(for: b, now: 0, pending: [member("O.t2", .inOrder, order: 2)], lanes: lanes,
-                                estimateMs: table([:]), bindings: bindings),
+                                estimateMs: table([:]), bindings: bindings, triedBy: [:]),
             .none)
         XCTAssertEqual(
             DynamicSplit.decide(for: b, now: 0, pending: [member("O.t2", .inOrder, order: 2), plain("X")],
-                                lanes: lanes, estimateMs: table([:]), bindings: bindings),
+                                lanes: lanes, estimateMs: table([:]), bindings: bindings, triedBy: [:]),
             .assign(ScenarioUnitKey(id: "X", variant: nil)))
     }
 
@@ -99,10 +99,10 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
         let lanes = [State(lane: a0, busy: (plain("run"), 0)), State(lane: a1, busy: nil), State(lane: b, busy: nil)]
         let pending = [member("M.s2", .singleMachine)]
         XCTAssertEqual(DynamicSplit.decide(for: b, now: 0, pending: pending, lanes: lanes,
-                                           estimateMs: table([:]), bindings: bindings), .none)
+                                           estimateMs: table([:]), bindings: bindings, triedBy: [:]), .none)
         // 同じエントリのレーンは個別のジョブとして取れる(クラスの中は並列)
         XCTAssertEqual(DynamicSplit.decide(for: a1, now: 0, pending: pending, lanes: lanes,
-                                           estimateMs: table([:]), bindings: bindings), .assign(ScenarioUnitKey(id: "M.s2", variant: nil)))
+                                           estimateMs: table([:]), bindings: bindings, triedBy: [:]), .assign(ScenarioUnitKey(id: "M.s2", variant: nil)))
     }
 
     func testUnboundSingleMachineClassNotGivenToEntryMissingItsOS() {
@@ -111,15 +111,15 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
         let lanes = [State(lane: ios, busy: nil), State(lane: android, busy: nil)]
         let platforms: [Int: Set<String>] = [0: ["ios"], 1: ["android"]]
         XCTAssertEqual(DynamicSplit.decide(for: ios, now: 0, pending: pending, lanes: lanes,
-                                           estimateMs: table([:]), entryPlatforms: platforms), .none)
+                                           estimateMs: table([:]), entryPlatforms: platforms, triedBy: [:]), .none)
         XCTAssertEqual(DynamicSplit.decide(for: android, now: 0, pending: pending, lanes: lanes,
-                                           estimateMs: table([:]), entryPlatforms: platforms), .none)
+                                           estimateMs: table([:]), entryPlatforms: platforms, triedBy: [:]), .none)
         // 両 OS を持つエントリなら渡す。entryPlatforms に無いエントリは検査しない
         XCTAssertEqual(DynamicSplit.decide(for: ios, now: 0, pending: pending, lanes: lanes,
-                                           estimateMs: table([:]), entryPlatforms: [0: ["ios", "android"]]),
+                                           estimateMs: table([:]), entryPlatforms: [0: ["ios", "android"]], triedBy: [:]),
                        .assign(ScenarioUnitKey(id: "M.s1", variant: nil)))
         XCTAssertEqual(DynamicSplit.decide(for: ios, now: 0, pending: pending, lanes: lanes,
-                                           estimateMs: table([:])), .assign(ScenarioUnitKey(id: "M.s1", variant: nil)))
+                                           estimateMs: table([:]), triedBy: [:]), .assign(ScenarioUnitKey(id: "M.s1", variant: nil)))
     }
 
     // MARK: - 規則3: 塊の重さ
@@ -129,7 +129,7 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
         XCTAssertEqual(
             DynamicSplit.decide(for: a, now: 0,
                                 pending: [member("O.b", .inOrder, order: 2), member("O.a", .inOrder, order: 1)],
-                                lanes: [State(lane: a, busy: nil)], estimateMs: table([:])),
+                                lanes: [State(lane: a, busy: nil)], estimateMs: table([:]), triedBy: [:]),
             .assign(ScenarioUnitKey(id: "O.a", variant: nil)))
     }
 
@@ -141,9 +141,9 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
                        member("O.c", .inOrder, order: 3)]
         let lanes = [State(lane: fast, busy: (plain("run"), 0)), State(lane: slow, busy: nil)]
         // 塊 = 遅いレーンで 120s、速いレーンは 60s + 30s = 90s で終わる → 待つ(先頭1本だけ 40s なら取っていた)
-        XCTAssertEqual(DynamicSplit.decide(for: slow, now: 0, pending: pending, lanes: lanes, estimateMs: estimate),
+        XCTAssertEqual(DynamicSplit.decide(for: slow, now: 0, pending: pending, lanes: lanes, estimateMs: estimate, triedBy: [:]),
                        .hold(reconsiderAt: 60_000))
-        XCTAssertEqual(DynamicSplit.decide(for: slow, now: 0, pending: [pending[0]], lanes: lanes, estimateMs: estimate),
+        XCTAssertEqual(DynamicSplit.decide(for: slow, now: 0, pending: [pending[0]], lanes: lanes, estimateMs: estimate, triedBy: [:]),
                        .assign(ScenarioUnitKey(id: "O.a", variant: nil)))
     }
 
@@ -154,11 +154,11 @@ final class DynamicSplitClassPlacementTests: XCTestCase {
         let pending = [member("M.a", .singleMachine), member("M.b", .singleMachine), member("M.c", .singleMachine)]
         let lanes = [State(lane: fast, busy: (plain("run"), 0)), State(lane: s1, busy: nil), State(lane: s2, busy: nil)]
         // 遅いエントリは 2 レーン: 120s ÷ 2 = 60s < 速いほうの 60s + 30s = 90s → 取る
-        XCTAssertEqual(DynamicSplit.decide(for: s1, now: 0, pending: pending, lanes: lanes, estimateMs: estimate),
+        XCTAssertEqual(DynamicSplit.decide(for: s1, now: 0, pending: pending, lanes: lanes, estimateMs: estimate, triedBy: [:]),
                        .assign(ScenarioUnitKey(id: "M.a", variant: nil)))
         // 同じ見込みでも1台だけのエントリなら 120s で待つ
         XCTAssertEqual(DynamicSplit.decide(for: s1, now: 0, pending: pending,
-                                           lanes: [lanes[0], lanes[1]], estimateMs: estimate),
+                                           lanes: [lanes[0], lanes[1]], estimateMs: estimate, triedBy: [:]),
                        .hold(reconsiderAt: 60_000))
     }
 

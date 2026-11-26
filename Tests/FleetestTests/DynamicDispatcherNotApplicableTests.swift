@@ -165,4 +165,40 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         // a が普通に終わって次を求めたら待つ理由は無い
         XCTAssertEqual(d.handle(want(3, lane: "a"), fromEntry: 1), .init(req: 3, none: true))
     }
+
+    /// 仮置き(BacklogPlacement)は、そのシナリオを試したエントリのレーンを置き場に数えない(11/26 のフル E2E で run が止まった)。
+    /// 数えると、試したエントリの空いたレーンが「一番早く終わる置き場」に選ばれ、取れるレーンが全部それを待って保留し、
+    /// 空いたレーンしか無いので見直しの時刻も作られず run が止まる(フル E2E の E2E-Android: 手元と M4Max が互いに相手の
+    /// 試したシナリオを待ち、未試行の M1Max も待った。M4Max を止めた瞬間に手元が S0020 を取った)
+    func testPlacementDoesNotParkAHandedBackScenarioOnALaneOfAnEntryThatTriedIt() {
+        let a = Scenario(id: "Fold.S1", variant: nil, platform: "ios")
+        let b = Scenario(id: "Fold.S2", variant: nil, platform: "ios")
+        let keyA = ScenarioUnitKey(id: "Fold.S1", variant: nil)
+        let keyB = ScenarioUnitKey(id: "Fold.S2", variant: nil)
+        // A はエントリ 0 で速く、B はエントリ 1 で速い。エントリ 2 はどちらも遅い(未試行の遅いマシン = M1Max の役)
+        let costs: [String: [Int: Double]] = ["Fold.S1": [0: 1000, 1: 2000, 2: 5000],
+                                              "Fold.S2": [0: 2000, 1: 1000, 2: 5000]]
+        let sent = LockedValue<[String]>([])
+        let d = DynamicDispatcher(
+            scenarios: [a, b],
+            estimateMs: { scenario, entry in costs[scenario.id]![entry]! },
+            nowMs: { 0 },
+            timer: { _, _ in {} },
+            lpt: false,
+            entryPlatforms: [0: ["ios"], 1: ["ios"], 2: ["ios"]],
+            send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
+        XCTAssertEqual(d.handle(want(1, lane: "x"), fromEntry: 0), .init(req: 1, unit: keyA))
+        XCTAssertEqual(d.handle(want(1, lane: "y"), fromEntry: 1), .init(req: 1, unit: keyB))
+        XCTAssertNil(d.handle(want(1, lane: "m"), fromEntry: 2), "A・B が対象外で戻ってくるかもしれないので保留")
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "x"), fromEntry: 0), .init(req: 2, verdict: .handOn))
+        XCTAssertNil(d.handle(want(3, lane: "x"), fromEntry: 0), "B はエントリ 0 が未試行で、まだエントリ 1 で走っている")
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S2", lane: "y"), fromEntry: 1), .init(req: 2, verdict: .handOn))
+        let yReply = d.handle(want(3, lane: "y"), fromEntry: 1)
+        let handed = sent.value + (yReply.map { ["1:" + WorkQueueProtocol.encode($0)] } ?? [])
+        XCTAssertTrue(handed.contains("0:" + WorkQueueProtocol.encode(.init(req: 3, unit: keyB))),
+                      "B を試していないエントリ 0 が B を取る(試したエントリ 1 のレーンを置き場に数えない): \(handed)")
+        XCTAssertTrue(handed.contains("1:" + WorkQueueProtocol.encode(.init(req: 3, unit: keyA))),
+                      "A を試していないエントリ 1 が A を取る: \(handed)")
+        XCTAssertEqual(d.unhandedUnits, [])
+    }
 }

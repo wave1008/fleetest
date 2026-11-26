@@ -272,6 +272,8 @@ final class DynamicDispatcher: Sendable {
             s.lanes.removeAll()
         }
 
+        // 対象外の記帳は見直しの中で変わらない(1回の drain で1回だけ作る)
+        let triedBy = s.notApplicable.mapValues(\.tried)
         var progressed = true
         while progressed {
             progressed = false
@@ -287,7 +289,8 @@ final class DynamicDispatcher: Sendable {
                 let reachable = s.pending.filter { !(s.notApplicable[$0.unitKey]?.tried.contains(held.lane.entry) ?? false) }
                 var decision = DynamicSplit.decide(
                     for: held.lane, now: now, pending: reachable, lanes: laneStates, estimateMs: estimateMs, lpt: lpt,
-                    bindings: s.bindings, entryPlatforms: entryPlatforms)
+                    bindings: s.bindings, entryPlatforms: entryPlatforms,
+                    triedBy: triedBy)
                 // 尽きたレーンは、他のエントリが走らせているシナリオが対象外で自分(未試行)へ戻ってくるかもしれない間は終わらせない
                 if case .none = decision, Self.mayReceiveHandBack(held.lane, s, scenariosByUnit: scenariosByUnit) {
                     decision = .hold(reconsiderAt: nil)
