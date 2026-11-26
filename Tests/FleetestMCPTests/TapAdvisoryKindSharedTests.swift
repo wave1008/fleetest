@@ -228,4 +228,27 @@ final class TapAdvisoryKindSharedTests: XCTestCase {
         XCTAssertTrue(mcpAndroid.contains("#btn_logout"), "MCP 側は要素を名指しすること: \(mcpAndroid)")
         XCTAssertNotEqual(mcpIOS, mcpAndroid, "MCP も OS で文言が同じでは意味がない")
     }
+
+    /// collapsedLabel: 容器の縁が木に無く、中の文字の子だけが床より薄く潰れている(XCUITest の木の住所フォーム。
+    /// 実測は TapTargetGeometry.collapsedLabelInside の doc)。文言は OS で違う(Android は「たぶん押せている」)
+    func testCollapsedLabelKindDrivesBothWordings() {
+        let phone = FTRect(x: 0, y: 0, width: 402, height: 874)
+        let container = element(1, nil, "scrollView", 0, 0, 402, 874, depth: 0)
+        let save = element(2, "btn_save", "button", 16, 789, 370, 48, depth: 1, label: "保存")
+        let label = element(3, nil, "staticText", 187, 801, 28, 4, depth: 2, label: "保存")
+        let elements = [container, save, label]
+        guard case .collapsedLabel(let hit) = TapTargetGeometry.advisoryKind(
+            for: save, in: elements, screen: phone, naming: .alwaysName) else {
+            return XCTFail("collapsedLabel が発火していない")
+        }
+        XCTAssertEqual(hit.ref, label.ref)
+        let dslIOS = TapTargetGeometry.occlusionAdvisory(for: save, in: elements, screen: phone, isAndroid: false, framework: nil)
+        XCTAssertTrue(dslIOS?.contains("only 4 tall") == true, dslIOS ?? "-")
+        let mcpIOS = RefGuard.overlapWarning(found: save, in: elements, screen: phone, isAndroid: false, framework: nil, operation: "tap")
+        XCTAssertTrue(mcpIOS.contains("only 4 tall"), mcpIOS)
+        XCTAssertTrue(mcpIOS.contains("#btn_save"), "MCP 側は要素を名指しすること: \(mcpIOS)")
+        XCTAssertTrue(mcpIOS.contains("ft_scroll_to"), "MCP 側は逃げ道を書くこと: \(mcpIOS)")
+        let mcpAndroid = RefGuard.overlapWarning(found: save, in: elements, screen: phone, isAndroid: true, framework: nil, operation: "tap")
+        XCTAssertTrue(mcpAndroid.contains("most likely hit"), "Android は見えている部分を撃てると言うこと: \(mcpAndroid)")
+    }
 }

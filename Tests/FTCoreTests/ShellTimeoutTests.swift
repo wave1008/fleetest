@@ -4,6 +4,13 @@ import XCTest
 
 final class ShellTimeoutTests: XCTestCase {
 
+    /// 孫の pid をファイルへ書かせてから打ち切るテストの締切[秒]。打ち切りより先に書き終えている必要がある
+    /// (0.5 秒だと全体テストの並列の負荷で書く前に打ち切られ、pid ファイルが無いまま赤になった。
+    /// 48 本の CPU 負荷の下の実測: 起動から書き込みまで中央値 0.06 秒・最大 0.39 秒)
+    private static let grandchildTimeout: TimeInterval = 3
+    /// 締切から返るまでの許容[秒](SIGTERM の猶予 2 秒 + 回収。30 秒待ちに戻る回帰を落とせる小ささ)
+    private static let returnSlack: TimeInterval = 4.5
+
     /// wedge した子(`sleep 30`)を timeout で kill し、締切近辺で ShellError.timedOut を投げる。
     /// これが機能しないと 30s 丸ごとブロックする(= adb/simctl の wedge で start-device が永久ハングする回帰)。
     func testTimeoutKillsWedgedChild() {
@@ -41,8 +48,8 @@ final class ShellTimeoutTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: pidFile) }
         let start = Date()
         XCTAssertThrowsError(try Shell.run(
-            ["sh", "-c", "trap '' TERM; sleep 30 & echo $! > '\(pidFile.path)'; sleep 30"], timeout: 0.5))
-        XCTAssertLessThan(Date().timeIntervalSince(start), 5.0,
+            ["sh", "-c", "trap '' TERM; sleep 30 & echo $! > '\(pidFile.path)'; sleep 30"], timeout: Self.grandchildTimeout))
+        XCTAssertLessThan(Date().timeIntervalSince(start), Self.grandchildTimeout + Self.returnSlack,
                           "孫が stdout を握ったまま timeout 後も返らない")
         // **孫も死んでいる**(グループごと SIGKILL)。直接の子だけ殺す実装だと孫の sleep が残る
         let grandchild = Int32((try String(contentsOf: pidFile, encoding: .utf8))
@@ -63,8 +70,8 @@ final class ShellTimeoutTests: XCTestCase {
         let script = "trap 'exit 0' TERM; "
             + "sh -c 'trap \"\" TERM; echo $$ > \"\(pidFile.path)\"; exec sleep 30' & wait"
         let start = Date()
-        XCTAssertThrowsError(try Shell.run(["sh", "-c", script], timeout: 0.5))
-        XCTAssertLessThan(Date().timeIntervalSince(start), 5.0, "timeout 後も返らない")
+        XCTAssertThrowsError(try Shell.run(["sh", "-c", script], timeout: Self.grandchildTimeout))
+        XCTAssertLessThan(Date().timeIntervalSince(start), Self.grandchildTimeout + Self.returnSlack, "timeout 後も返らない")
         let grandchild = Int32((try String(contentsOf: pidFile, encoding: .utf8))
             .trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
         XCTAssertGreaterThan(grandchild, 0, "孫の pid が取れない")

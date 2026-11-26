@@ -423,6 +423,19 @@ enum RefGuard {
                 + " \(describe(container)), only \(h) of its height is drawn, so this may have hit"
                 + " whatever is drawn there instead — scroll it fully into view with"
                 + " ft_scroll_to, and verify with ft_screenshot)"
+        case .collapsedLabel(let label):
+            // **判定は TapTargetGeometry.collapsedLabelInside の1箇所**(XCUITest の木で容器の縁が全画面に申告される形)
+            let lh = Int(saturating: label.frame.height.rounded())
+            let h = Int(saturating: found.frame.height.rounded())
+            if isAndroid {
+                return " (note: the label of \(describe(found)) is only \(lh) tall inside its \(h)-tall frame — it is probably"
+                    + " cut off at an edge, but on Android the visible part is normally still tappable at its visible centre,"
+                    + " so this most likely hit \(describe(found)) — scroll it fully into view with ft_scroll_to if the result"
+                    + " looks wrong)"
+            }
+            return " (warning: the label of \(describe(found)) is only \(lh) tall inside its \(h)-tall frame — it is probably cut off by"
+                + " the edge of a container this tree does not report, so this may have hit whatever is drawn there"
+                + " instead — scroll it fully into view with ft_scroll_to, and verify with ft_screenshot)"
         case .sliver:
             // **DSL にだけあり MCP のタップ時には出ていなかった形**(合流済み)
             return " (warning: \(describe(found)) is clipped to a thin sliver at the edge of its"

@@ -955,6 +955,61 @@ final class TapTargetAdvisoryTests: XCTestCase {
         let elements = [card, badge, day1, day2, image]
         XCTAssertNil(TapTargetGeometry.clippedAtContainerEdge(badge, in: elements))
     }
+
+    // MARK: - collapsedLabel(容器の縁が木に無いまま切られたタップ対象)
+
+    /// XCUITest の木の住所フォーム(実測 2026-11-26・xcuitest モード): 容器は全画面と申告され、ボタンの下端 837 は容器の下端 874 に
+    /// 届かない = 縁の一致の段は拾えない。中の文字の枠だけが 4pt に潰れている
+    private func xcuitestAddressForm(labelHeight: Double, saveHeight: Double = 48,
+                                     labelX: Double = 187) -> (ElementInfo, [ElementInfo]) {
+        let container = element(1, "", "scrollView", 0, 0, 402, 874, depth: 0)
+        let field = element(2, "field_phone", "textView", 16, 700, 370, 64, depth: 1)
+        var save = element(3, "btn_save", "button", 16, 789, 370, saveHeight, depth: 1)
+        save.label = "保存"
+        var label = element(4, "", "staticText", labelX, 801, 28, labelHeight, depth: 2)
+        label.label = "保存"
+        return (save, [container, field, save, label])
+    }
+
+    private let phoneScreen = FTRect(x: 0, y: 0, width: 402, height: 874)
+
+    func testCollapsedLabelWithoutAContainerEdgeIsFlagged() {
+        let (save, elements) = xcuitestAddressForm(labelHeight: 4)
+        XCTAssertNil(TapTargetGeometry.clippedAtContainerEdge(save, in: elements), "前提: 縁の一致の段では拾えない形")
+        guard case .collapsedLabel(let label)? = TapTargetGeometry.advisoryKind(
+            for: save, in: elements, screen: phoneScreen, naming: .alwaysName) else {
+            return XCTFail("中の文字だけが潰れたボタンに警告が出なかった")
+        }
+        XCTAssertEqual(label.ref, 4)
+        let text = TapTargetGeometry.occlusionAdvisory(for: save, in: elements, screen: phoneScreen,
+                                                      isAndroid: false, framework: nil)
+        XCTAssertTrue(text?.contains("label is only 4 tall inside the 48-tall target") == true, text ?? "nil")
+        let android = TapTargetGeometry.occlusionAdvisory(for: save, in: elements, screen: phoneScreen,
+                                                         isAndroid: true, framework: nil)
+        XCTAssertTrue(android?.contains("most likely hit the target") == true, "Android は見えている部分の中心で届く: \(android ?? "nil")")
+    }
+
+    /// 陰性対照: 普通の高さの文字・高さ 0 の文字(描かれていない子)・要素ごと小さい・文字が要素の幅の外
+    func testCollapsedLabelNeedsAThinLabelInsideATallEnoughTarget() {
+        for (name, form) in [("普通の高さ", xcuitestAddressForm(labelHeight: 17)),
+                             ("高さ 0", xcuitestAddressForm(labelHeight: 0)),
+                             ("要素ごと小さい", xcuitestAddressForm(labelHeight: 4, saveHeight: 14)),
+                             ("幅の外", xcuitestAddressForm(labelHeight: 4, labelX: 390))] {
+            XCTAssertNil(TapTargetGeometry.collapsedLabelInside(form.0, in: form.1), name)
+        }
+    }
+
+    /// in-app の木(縁が容器の下端に張り付く)では、今までどおり容器を名指す段が先に答える
+    func testContainerEdgeStageStillWinsWhenTheEdgeIsInTheTree() {
+        let container = element(1, "form_address", "other", 0, 47, 390, 712, depth: 0)
+        var save = element(3, "btn_save", "button", 16, 711, 358, 48, depth: 1)
+        save.label = "保存"
+        var label = element(4, "", "staticText", 181, 756, 28, 3, depth: 2)
+        label.label = "保存"
+        let kind = TapTargetGeometry.advisoryKind(for: save, in: [container, save, label],
+                                                  screen: phoneScreen, naming: .alwaysName)
+        guard case .clippedByContainer? = kind else { return XCTFail("\(String(describing: kind))") }
+    }
 }
 
 /// **配線のテスト**: 判定関数を単体で確かめるだけでは「DSL の tap がそれを通っているか」を

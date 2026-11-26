@@ -30,7 +30,7 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
         elif [ "$3" = shell ] && [ "$4" = stat ]; then
           remote="${!#}"; n="${remote##*-}"; n="${n%.mp4}"
           case "$mode" in
-            hang) exec sleep 30 ;;
+            hang) exec sleep 60 ;;
             shellhang|pullstall|pullslow) echo 100 ;;
             rollover) if [ "$n" = 1 ]; then echo 100; else echo 0; fi ;;
             generation)
@@ -54,7 +54,9 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
           n="${4##*-}"; n="${n%.mp4}"
           if [ "$mode" = pullstall ] && [ "$n" = 1 ]; then printf x > "$5"; exec sleep 30; fi
           if [ "$mode" = pullslow ] && [ "$n" = 1 ]; then
-            : > "$5"; for i in $(seq 1 16); do printf x >> "$5"; sleep 0.1; done; exit 0
+            # 40 回の書き込みと間隔の待ちを1つの perl で行う(外部の sleep を 40 回起こすと、負荷の下で起動の遅れが積もって
+            # 15 秒を超えた。/bin/bash 3.2 の read -t は小数の秒を受けず待たない)
+            exec /usr/bin/perl -e 'open(my $f, ">", $ARGV[0]) or die; $f->autoflush(1); for (1..40) { print $f "x"; select(undef, undef, undef, 0.1) }' "$5"
           fi
           touch "$5"
         fi
@@ -83,7 +85,8 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
     }
 
     /// adb の stat が応答しなくても、撮り始めの確かめは上限で終わるはず(stat に残り時間の期限を渡す)。
-    /// 打ち切れれば約 1 秒・打ち切れなければ 30 秒以上なので、上限 10 秒は全体テストの負荷(4.2 秒の観測)に負けずに両者を分ける
+    /// 打ち切れれば約 1 秒・打ち切れなければ 60 秒以上なので、上限 30 秒で両者を分ける(負荷の下の観測: 全体テストで 4.2 秒・
+    /// 48 本の CPU 負荷で 12.3 秒 = 上限 10 秒を超えた)
     func testStartConfirmationIsBoundedEvenIfADBHangs() async throws {
         let (dir, adb) = try fakeADB(mode: "hang")
         let recorder = AndroidScreenVideoRecorder(serial: "fake", adbPath: adb, workDir: dir, fileStem: "src",
@@ -92,7 +95,7 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
         let ok = await recorder.start()
         let elapsed = Date().timeIntervalSince(started)
         XCTAssertFalse(ok, "撮り始めを確かめられなければ false のはず")
-        XCTAssertLessThan(elapsed, 10, "stat が 30 秒応答しなくても上限 1 秒 + 後始末で戻るはず(\(elapsed)s)")
+        XCTAssertLessThan(elapsed, 30, "stat が 60 秒応答しなくても上限 1 秒 + 後始末で戻るはず(\(elapsed)s)")
     }
 
     /// 3 分ごとの切り替えで撮り直したセグメントの確かめの途中に、ensureRecording は「撮れている」と言わないはず
@@ -102,10 +105,9 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
                                                   startConfirmLimit: 1.5)
         let started = await recorder.start()
         XCTAssertTrue(started, "1 本目は撮り始めを確かめられるはず")
-        // 1 本目は 1 秒で終わり、撮り直した 2 本目は stat が 0 のまま(撮り始めない)。
-        // 待ちは切り替えを確実に越える 2 秒(1.3 秒は 22 並列の負荷で切り替えの前に確かめて落ちた。確かめの上限 1.5 秒を
-        // 過ぎていても「撮れていない」は変わらない)
-        try await Task.sleep(nanoseconds: 2_000_000_000)
+        // 1 本目は 1 秒で終わり、撮り直した 2 本目は stat が 0 のまま(撮り始めない)。2 本目が起動したのを待ってから訊く
+        // (固定の秒数で待つと、負荷の下では切り替えの前に訊いて 1 本目の「撮れている」を読む = 2 秒でも落ちた)
+        try await waitForFile(dir.appendingPathComponent("pid-2"))
         let recording = await recorder.ensureRecording()
         XCTAssertFalse(recording, "撮り始めを確かめられない録画を「撮れている」と言わないはず")
         _ = await recorder.stop()
@@ -162,36 +164,45 @@ final class AndroidScreenVideoRecorderConfirmTests: XCTestCase {
     /// 遅くても大きさが伸び続ける pull は、期限の秒数を超えても止めないはず(大きいセグメント・遅い USB)
     func testSlowButProgressingPullIsKept() async throws {
         let (dir, adb) = try fakeADB(mode: "pullslow")
-        // 止まりの判定は 1 秒(偽の pull は 0.1 秒ごとに書く = 10 倍の余裕・全体 1.6 秒は判定を超える)。0.5 秒では全体テストの負荷で
-        // 書き込みの間(外部の sleep の起動)が判定を超え、伸びている pull を止めた(大きさ 8)
+        // 止まりの判定は 3 秒(偽の pull は 0.1 秒ごとに書く = 30 倍の余裕・全体 4 秒は判定を超える)。負荷の下では書き込みの間
+        // (外部の sleep の起動)が伸び、伸びている pull を止めた(0.5 秒は全体テストで大きさ 8・1 秒は 48 本の CPU 負荷で途中で捨てた)
         let recorder = AndroidScreenVideoRecorder(serial: "fake", adbPath: adb, workDir: dir, fileStem: "src",
-                                                  fullResolution: true, adbAnswerLimit: 1)
+                                                  fullResolution: true, adbAnswerLimit: 3)
         addTeardownBlock { _ = await recorder.stop() }
         let started = await recorder.start()
         XCTAssertTrue(started)
         try await waitForFile(dir.appendingPathComponent("pid-2"))
         let part = dir.appendingPathComponent("src-part1.mp4")
         let size = (try? FileManager.default.attributesOfItem(atPath: part.path))?[.size] as? Int
-        XCTAssertEqual(size, 16, "1.6 秒かけて書き切った pull を途中で止めないはず")
+        XCTAssertEqual(size, 40, "4 秒かけて書き切った pull を途中で止めないはず")
     }
 
     func testConfirmationWaitEndsWhenItsSegmentDies() async throws {
         let (dir, adb) = try fakeADB(mode: "generation")
         let recorder = AndroidScreenVideoRecorder(serial: "fake", adbPath: adb, workDir: dir, fileStem: "src",
-                                                  fullResolution: true, startConfirmLimit: 10)
+                                                  fullResolution: true, startConfirmLimit: 30)
         addTeardownBlock { _ = await recorder.stop() }
         let started = await recorder.start()
         XCTAssertTrue(started)
         try Data().write(to: dir.appendingPathComponent("exit1"))
         try await waitForFile(dir.appendingPathComponent("stat3"))
         try await Task.sleep(nanoseconds: 400_000_000)
-        let checking = Task { await recorder.ensureRecording() }
-        try await Task.sleep(nanoseconds: 100_000_000)
         let raw = try String(contentsOf: dir.appendingPathComponent("pid-3"), encoding: .utf8)
         let pid = try XCTUnwrap(Int32(raw.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let checking = Task { await recorder.ensureRecording() }
+        // 確認が第3世代を見始めてから殺す(固定の待ちで殺すと、負荷の下では確認が動き出す前に死に、確認は後始末 =
+        // 第4世代の確認の上限まで待つ別の経路へ入った。48 本の CPU 負荷で 30 回中 9 回)
+        let adoptDeadline = Date().addingTimeInterval(15)
+        while await recorder.confirmingPID != pid, Date() < adoptDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let adopted = await recorder.confirmingPID
+        XCTAssertEqual(adopted, pid, "確認が第3世代を見始めなかった")
         XCTAssertEqual(kill(pid, SIGTERM), 0)
-        // 第4世代の確認は撮り始めない(stat 0)ので上限(10 秒)まで待つ。4 秒で戻れば「待たずに失敗した」と言える(2 秒では負荷で届かない回があった)
-        let result: Bool? = await DeadlineRace.first(seconds: 4, onTimeout: nil) { await checking.value }
+        // 第4世代の確認は撮り始めない(stat 0)ので上限(30 秒)まで待つ。15 秒で戻れば「待たずに失敗した」と言える。
+        // 死んでから戻るまでに actor は同期の pull・rm・次の世代の起動・stat を済ませる(その間 ensureRecording は動けない)ので、
+        // 負荷の下では秒単位かかる(48 本の CPU 負荷で 0.2〜1.5 秒・4 秒では届かない回があった)
+        let result: Bool? = await DeadlineRace.first(seconds: 15, onTimeout: nil) { await checking.value }
         _ = await recorder.stop()
         _ = await checking.value
         XCTAssertEqual(result, false, "確認中の第3世代が死んだら、第4世代の確認を待たずに失敗する")

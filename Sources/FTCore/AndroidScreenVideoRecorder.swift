@@ -54,6 +54,9 @@ actor AndroidScreenVideoRecorder: DeviceVideoRecorderSession {
     /// pull 済みローカルセグメント(連結順)と各々の spawn 時刻(index.json の startedAt に使う)
     private var pulledSegments: [(url: URL, startedAt: Date, closedAt: Date)] = []
     private var currentProcess: Process?
+    /// `ensureRecording` が撮り始めの確認を待っている世代の pid(nil = 待っていない)。テストが「確認の最中に死んだ」を
+    /// 作るために読む(確認が見始める前に殺すと、確認は後始末 = 次の世代の確認の上限まで待つ別の経路へ入る)
+    private(set) var confirmingPID: Int32?
     /// 進行中セグメントの exit 監視タスク。stop 側はこれの完了(=最終 pull まで終わったこと)を待つ
     private var watchTask: Task<Void, Never>?
     /// start() が false を返した理由(DeviceVideoRecorderSession.startFailure)
@@ -93,6 +96,7 @@ actor AndroidScreenVideoRecorder: DeviceVideoRecorderSession {
     func ensureRecording() async -> Bool {
         var awaited: Task<Void, Never>?
         var confirming: Process?
+        defer { confirmingPID = nil }
         while !stopRequested, !gaveUp {
             // 確認中の死亡はその確認の失敗。次の世代を待ち続けるループにしない。
             if let confirming, currentProcess !== confirming || !confirming.isRunning {
@@ -102,6 +106,7 @@ actor AndroidScreenVideoRecorder: DeviceVideoRecorderSession {
                 if startConfirmed { return true }
                 if unconfirmedPath != nil { return false }
                 confirming = process
+                confirmingPID = process.processIdentifier
                 // 生きた録画の終了監視は待たない。確認の完了・世代交代を読み直す。
                 do {
                     try await Task.sleep(nanoseconds: UInt64(Self.startConfirmPollSeconds * 1_000_000_000))

@@ -36,11 +36,15 @@ final class SweepHarnessTests: XCTestCase {
         /// clippedByContainer は容器の縁で切り詰められたタップ対象
         /// (TapTargetGeometry.clippedAtContainerEdge。2026-08-31 追加。実測は同関数の doc)
         var clippedByContainer = 0
+        /// collapsedLabel は中の文字の子だけが床より薄く潰れたタップ対象(容器の縁が木に無い形。
+        /// TapTargetGeometry.collapsedLabelInside。2026-11-26 追加 = 全画面 0 で入れた)
+        var collapsedLabel = 0
         var description: String {
             "ghost=\(ghost) overlay=\(overlay) stacked=\(stacked) misses=\(misses)"
                 + " disabled=\(disabled) offscreen=\(offscreen) warnedTappable=\(warnedTappable)"
                 + " keyboard=\(keyboard) sliver=\(sliver) nested=\(nested)"
                 + " scrolledOut=\(scrolledOut) clippedByContainer=\(clippedByContainer)"
+                + " collapsedLabel=\(collapsedLabel)"
         }
     }
 
@@ -448,10 +452,12 @@ final class SweepHarnessTests: XCTestCase {
         // **40 要素すべてが identifier を持たず、scrollable の申告も無い**平坦なリスト。
         // 幾何の検知はほぼ全部0 = **密なリストの陰性対照**として効く。
         // sliver=1 は `staticText "74.78 MB"` (y 2421・高さ3 / 画面高 2424)= 画面下端で
-        // 切られた行の実測値で、**全数検分済みの真陽性**
+        // 切られた行の実測値で、**全数検分済みの真陽性**。collapsedLabel=1 は同じ行(`Clickable "Android System WebView"`
+        // (0,2307 1080x117))の中の同じ副題が 3px に潰れた形 = 行が画面の下端で切れている真陽性(2026-11-26 検分。
+        // Android は「たぶん押せている」の弱い文言)
         "and-apps_list": Counts(ghost: 0, overlay: 0, stacked: 0, misses: 0, disabled: 0,
                                 offscreen: 0, warnedTappable: 0, keyboard: 0, sliver: 1,
-                                nested: 0, scrolledOut: 0),
+                                nested: 0, scrolledOut: 0, collapsedLabel: 1),
         // 2026-08-13 の監査(フォーム / ログイン)。Android 設定「ネットワークを追加」で
         // WPA を選び**キーボードが立ったまま**採った木。**保存/キャンセルがツリーに居ない**
         // (`#buttonPanel` が 1080x12 に潰れて中身を公開しなくなる)= フォーム特有の行き止まり。
@@ -563,10 +569,9 @@ final class SweepHarnessTests: XCTestCase {
             // **production の関数(TapTargetGeometry.advisoryKind)を通す**: 自前で
             // clippedAtContainerEdge を呼び直すと、その手前で勝つはずの強い判定
             // (zeroFrame〜stacked)を無視して二重計上する変異を見逃す
-            if case .clippedByContainer = TapTargetGeometry.advisoryKind(
-                for: e, in: els, screen: snap.screen, naming: .alwaysName) {
-                c.clippedByContainer += 1
-            }
+            let kind = TapTargetGeometry.advisoryKind(for: e, in: els, screen: snap.screen, naming: .alwaysName)
+            if case .clippedByContainer = kind { c.clippedByContainer += 1 }
+            if case .collapsedLabel = kind { c.collapsedLabel += 1 }
             if RefGuard.interactiveTypes.contains(e.type),
                ghost || overlayShown || misses || stacked.contains(e.ref) || disabled || offscreen
                 || nested || scrolledOut {
@@ -714,7 +719,8 @@ final class SweepHarnessTests: XCTestCase {
                 + " stacked: \(c.stacked), misses: \(c.misses), disabled: \(c.disabled),"
                 + " offscreen: \(c.offscreen), warnedTappable: \(c.warnedTappable),"
                 + " keyboard: \(c.keyboard), sliver: \(c.sliver), nested: \(c.nested),"
-                + " scrolledOut: \(c.scrolledOut), clippedByContainer: \(c.clippedByContainer)),")
+                + " scrolledOut: \(c.scrolledOut), clippedByContainer: \(c.clippedByContainer),"
+                + " collapsedLabel: \(c.collapsedLabel)),")
             let els = snap.elements
             let keyboardOcclusion = KeyboardOcclusion.resolve(
                 reported: snap.keyboardFrame, in: els, screen: snap.screen)

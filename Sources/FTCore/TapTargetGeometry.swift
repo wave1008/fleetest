@@ -387,6 +387,8 @@ public enum TapTargetGeometry {
         case nestedAction(ElementInfo)
         case stacked
         case clippedByContainer(ElementInfo)
+        /// 中の文字の子だけが床より薄く潰れている(容器の縁が木に無い形。`collapsedLabelInside`)
+        case collapsedLabel(ElementInfo)
         case sliver
     }
 
@@ -399,7 +401,7 @@ public enum TapTargetGeometry {
 
     /// **座標に依る警告の優先順チェーン**(強い事実から先に、最初の1件だけ)。
     /// 順序: zeroFrame → originPinned → offscreen → scrolledOut → overlayCovering → missedContent →
-    /// nested → stacked → clippedByContainer → sliver。**frame の中心を撃つ経路でしか言えない**
+    /// nested → stacked → clippedByContainer → collapsedLabel → sliver。**frame の中心を撃つ経路でしか言えない**
     /// (`StepExecutor.visibleTapRect` で寄せた場合は呼ばない —— 撃つ点が変わるので嘘になる)。
     /// **`naming` に既定値を置かない**: 偽の組は overlayCovering の段だけ飛ばす(後段は今どおり)。
     /// 撃ち方に使う呼び手は `.alwaysName` を渡す
@@ -438,6 +440,9 @@ public enum TapTargetGeometry {
         if OcclusionGeometry.stackedRefs(elements).contains(element.ref) { return result(.stacked) }
         if let container = clippedAtContainerEdge(element, in: elements) {
             return result(.clippedByContainer(container))
+        }
+        if let label = collapsedLabelInside(element, in: elements) {
+            return result(.collapsedLabel(label))
         }
         if isClippedSliver(element, screen: screen) { return result(.sliver) }
         return result(nil)
@@ -536,6 +541,32 @@ public enum TapTargetGeometry {
         }
     }
 
+    /// **容器の縁が木に無いまま切られた押せる要素**: 中の文字の子(ラベルあり・要素の幅の内側)の高さだけが
+    /// `minimumVisibleTapExtent` 未満に潰れている。XCUITest の木は CMP の容器を全画面 `scrollView (0,0 402x874)` と申告するので
+    /// `clippedAtContainerEdge` の「縁の一致」が成り立たない(実測 2026-11-26・SUT Store の住所フォーム・xcuitest モード:
+    /// `button "保存" id=btn_save (16,789 370x48)` の中の `staticText "保存" (187,801 28x4)`。中心を押しても保存されない =
+    /// 中心は見えている帯の外)。in-app の木では同じボタンの下端が容器の下端に張り付き、こちらより前の段で拾う。
+    /// 高さ 0 の子は数えない(描かれていない子を「潰れた」と言わない)。要素が床の2倍に満たなければ言わない(要素ごと小さい)。
+    /// 固定の実アプリのコーパスで発火は1件(Android の画面の最下端で切れた行 = 真陽性。`SweepHarnessTests` が件数で固定)。
+    /// Android は文言を弱める(枠が見えている所に切られて届く)。**警告専用**
+    static func collapsedLabelInside(_ element: ElementInfo, in elements: [ElementInfo]) -> ElementInfo? {
+        guard platformShouldResolve(element),
+              element.frame.height >= 2 * minimumVisibleTapExtent else { return nil }
+        let tol = 1.0
+        return LocatorResolver.descendants(of: element, in: elements).first { child in
+            guard let label = child.label,
+                  !FlowMatchMode.normalizeInvisibleCharacters(label).isEmpty,
+                  child.frame.height > 0,
+                  child.frame.height < minimumVisibleTapExtent,
+                  child.frame.x >= element.frame.x - tol,
+                  child.frame.x + child.frame.width <= element.frame.x + element.frame.width + tol,
+                  child.frame.y >= element.frame.y - tol,
+                  child.frame.y + child.frame.height <= element.frame.y + element.frame.height + tol
+            else { return false }
+            return true
+        }
+    }
+
     static func sameRowWidth(_ a: Double, _ b: Double) -> Bool {
         guard a > 0, b > 0 else { return false }
         return min(a, b) / max(a, b) >= sameRowWidthRatio
@@ -617,6 +648,18 @@ public enum TapTargetGeometry {
                 + " \(h) of its height is drawn (pt on iOS / px on Android), so the tap may land on"
                 + " whatever is drawn there instead"
                 + " of the target. Scroll it fully into view first"
+        case .collapsedLabel(let label):
+            let lh = Int(saturating: label.frame.height.rounded())
+            let h = Int(saturating: element.frame.height.rounded())
+            if isAndroid {
+                // Android の木は枠を見えている所に切って返す = 中心は見えている部分に落ちる(`clippedByContainer` の Android と同じ立場)
+                return "the target's label is only \(lh) tall inside the \(h)-tall target (px) — the target is probably cut off"
+                    + " at an edge, but on Android the visible part is normally still tappable at its visible centre, so the"
+                    + " tap most likely hit the target. Scroll it fully into view first if the result looks wrong"
+            }
+            return "the target's label is only \(lh) tall inside the \(h)-tall target (pt) — the target is probably cut off by"
+                + " the edge of a container this tree does not report, so the tap may land on whatever is drawn there"
+                + " instead of the target. Scroll it fully into view first"
         case .sliver:
             return "the target is clipped to a thin sliver at the edge of its container —"
                 + " it is narrower than it looks and the tap may miss"
