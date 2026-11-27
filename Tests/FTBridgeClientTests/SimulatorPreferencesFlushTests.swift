@@ -3,6 +3,7 @@
 // 置き場の無い容器で無いドメインを撃って 1(not found)で失敗する / 値の無い plist で clearAppData が止まる
 import XCTest
 @testable import FTBridgeClient
+import FTCore
 
 final class SimulatorPreferencesFlushTests: XCTestCase {
     private var container: URL!
@@ -22,40 +23,42 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
     func testListsPlistDomainsIncludingByHost() {
         let dir = prefs.path + "/"
         XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: []),
-                       .domains([dir + "ByHost/com.example.app.ABCD", dir + "com.example.app", dir + "com.vendor.sdk"]))
+                       .init(domains: [dir + "ByHost/com.example.app.ABCD", dir + "com.example.app", dir + "com.vendor.sdk"], refusals: []))
     }
 
     /// 設定の置き場が無い容器(group の容器・作られたばかりのアプリ)は空 = 何も撃たない(無いドメインの delete は 1 で終わる)
     func testMissingPreferencesDirectoryYieldsNothing() throws {
         try FileManager.default.removeItem(at: container.appendingPathComponent("Library"))
-        XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: []), .domains([]))
+        XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: []), .init(domains: [], refusals: []))
     }
 
-    /// 置き場か plist が symlink なら断る(黙って外すと、そのドメインのキャッシュを残したまま「消えた」と言う)
-    func testSymlinksAreRefusedNotSkipped() throws {
+    /// symlink の plist はそれだけ外して断った項目に残し、ほかの安全なドメインは消させる(全部を断って空にすると、安全なドメインの
+    /// キャッシュが残ったまま次回は名指せない)。置き場そのものが外を指すなら何も消させない
+    func testSymlinksAreRefusedOneByOneAndAPointingOutDirectoryRefusesAll() throws {
         let outside = container.deletingLastPathComponent().appendingPathComponent("outside-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: outside) }
         try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(at: prefs.appendingPathComponent("com.linked.plist"),
                                                    withDestinationURL: outside.appendingPathComponent("x.plist"))
-        guard case .refused = SimulatorPreferencesFlush.domainPaths(container: container.path, always: []) else {
-            return XCTFail("symlink の plist を断っていない")
-        }
+        let dir = prefs.path + "/"
+        let partial = SimulatorPreferencesFlush.domainPaths(container: container.path, always: [])
+        XCTAssertEqual(partial.domains, [dir + "ByHost/com.example.app.ABCD", dir + "com.example.app", dir + "com.vendor.sdk"])
+        XCTAssertEqual(partial.refusals.count, 1)
+        XCTAssertTrue(partial.refusals[0].contains("com.linked.plist"), partial.refusals[0])
         try FileManager.default.removeItem(at: prefs)
         try FileManager.default.createSymbolicLink(at: prefs, withDestinationURL: outside)
-        guard case .refused = SimulatorPreferencesFlush.domainPaths(container: container.path, always: []) else {
-            return XCTFail("symlink の置き場を断っていない")
-        }
+        let all = SimulatorPreferencesFlush.domainPaths(container: container.path, always: ["com.example.app"])
+        XCTAssertEqual(all.domains, [])
+        XCTAssertEqual(all.refusals.count, 1)
     }
 
     /// 置き場が普通のファイル(読めない)なら、symlink ではなく「読めない」と言って断る
     func testUnreadablePreferencesLocationIsRefusedWithItsOwnReason() throws {
         try FileManager.default.removeItem(at: prefs)
         FileManager.default.createFile(atPath: prefs.path, contents: Data())
-        guard case .refused(let why) = SimulatorPreferencesFlush.domainPaths(container: container.path, always: []) else {
-            return XCTFail("読めない置き場を断っていない")
-        }
-        XCTAssertTrue(why.contains("not a readable directory"), why)
+        let listing = SimulatorPreferencesFlush.domainPaths(container: container.path, always: [])
+        XCTAssertEqual(listing.domains, [])
+        XCTAssertTrue(listing.refusals.first?.contains("not a readable directory") ?? false, "\(listing.refusals)")
     }
 
     /// 値が無い plist(空の dict・0 バイト・無い・読めない形)は、cfprefsd が not found で 1 を返しても失敗にしない
@@ -79,7 +82,8 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
     func testAlwaysDomainsAreIncludedEvenWithoutAFile() {
         let dir = prefs.path + "/"
         XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: ["com.example.app", "com.example.cached"]),
-                       .domains([dir + "ByHost/com.example.app.ABCD", dir + "com.example.app", dir + "com.example.cached", dir + "com.vendor.sdk"]))
+                       .init(domains: [dir + "ByHost/com.example.app.ABCD", dir + "com.example.app", dir + "com.example.cached", dir + "com.vendor.sdk"],
+                             refusals: []))
     }
 
     /// ドメインの名前として通らない plist は飛ばす(容器ごと断らない)。拡張子が二重の名前はその手前までがドメイン
@@ -88,7 +92,8 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
         FileManager.default.createFile(atPath: prefs.appendingPathComponent("cache.plist.plist").path, contents: Data())
         let dir = prefs.path + "/"
         XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: []),
-                       .domains([dir + "ByHost/com.example.app.ABCD", dir + "cache.plist", dir + "com.example.app", dir + "com.vendor.sdk"]))
+                       .init(domains: [dir + "ByHost/com.example.app.ABCD", dir + "cache.plist", dir + "com.example.app", dir + "com.vendor.sdk"],
+                             refusals: []))
     }
 
     /// 既定の上限(秒)。他のテストは差し替えないので、既定を戻す変更はここでしか落ちない
@@ -112,9 +117,25 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
     /// 拡張子は区別して照合する(`Foo.PLIST` を拾うと、delete も値の確かめも小文字の名前を見て黙って通る)
     func testUppercaseExtensionIsNotListed() {
         FileManager.default.createFile(atPath: prefs.appendingPathComponent("Foo.PLIST").path, contents: Data())
-        guard case .domains(let domains) = SimulatorPreferencesFlush.domainPaths(container: container.path, always: []) else {
-            return XCTFail("断らない")
+        XCTAssertFalse(SimulatorPreferencesFlush.domainPaths(container: container.path, always: []).domains.contains { $0.hasSuffix("/Foo") })
+    }
+
+    /// 時間切れ(外 = ShellError.timedOut・サンドボックスの中 = 127)が1回出たら残りは撃たず、消させられなかった扱いにする
+    func testStopsAfterTheFirstTimeout() throws {
+        let paths = ["/c/Library/Preferences/a", "/c/Library/Preferences/b", "/c/Library/Preferences/c"]
+        for firstFailure in [Int32(127), -1] {
+            var called: [String] = []
+            let failures = SimulatorPreferencesFlush.flush(udid: "U", domainPaths: paths) { args, timeout in
+                called.append(args.last ?? "")
+                if args.last == paths[1] {
+                    if firstFailure == -1 { throw ShellError.timedOut(args: args, seconds: timeout) }
+                    return Shell.Result(status: firstFailure, output: "")
+                }
+                return Shell.Result(status: 0, output: "")
+            }
+            XCTAssertEqual(called, Array(paths.prefix(2)), "時間切れの後も撃っている(\(firstFailure))")
+            XCTAssertEqual(failures.map(\.path), Array(paths.suffix(2)))
+            XCTAssertTrue(failures[1].detail.contains("not attempted"), failures[1].detail)
         }
-        XCTAssertFalse(domains.contains { $0.hasSuffix("/Foo") })
     }
 }

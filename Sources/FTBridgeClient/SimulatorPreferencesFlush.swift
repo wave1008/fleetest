@@ -17,72 +17,91 @@ public enum SimulatorPreferencesFlush {
     /// (`BridgeClient` の terminate の上限と同じ桁)。尽きたらそのドメインは失敗として呼び手が言う
     public static let deleteTimeoutSeconds: Double = 30
 
-    public enum Listing: Equatable {
-        /// ディスクにある設定のドメイン(`Library/Preferences/<ドメイン>` と `ByHost/<ドメイン>`。拡張子なし)
-        case domains([String])
-        /// 消させない(理由)。呼び手が断る(clearAppData は投げる・AppleSimulatorWipe は problems に残す)
-        case refused(String)
+    /// 消させてよいドメインと、断った項目。**危ない項目だけを外し、ほかの安全なドメインは消させる**(全部を断って容器を空にすると、
+    /// 安全なドメインのキャッシュが残ったまま次回は plist が無く名指せない = 黙った緑になる)
+    public struct Listing: Equatable {
+        /// ディスクにある設定のドメインと `always`(`Library/Preferences/<ドメイン>` と `ByHost/<ドメイン>`。拡張子なし)
+        public var domains: [String]
+        /// 断った項目(理由)。置き場そのものが外を指す・読めないときは domains が空でここに1つ
+        public var refusals: [String]
     }
 
-    /// **空にする前に**呼ぶ。`always` = ファイルが無くても含めるドメイン(アプリ自身)。置き場か plist が symlink・置き場が読めないなら
-    /// `.refused`(symlink の先の設定を消させない。黙って外すと、そのドメインのキャッシュが残ったまま「消えた」と言う)。
-    /// ドメインの名前として通らない名前(制御文字等)の plist は飛ばす(空にする段がファイルを消す。容器ごと断ると clearAppData が毎回止まる)
+    /// **空にする前に**呼ぶ。`always` = ファイルが無くても含めるドメイン(アプリ自身)。置き場が外を指す(symlink)・読めないなら
+    /// そこは何も消させない。symlink の plist はそれだけ外して断った項目に残す(symlink の先の設定を消させない)。
+    /// ドメインの名前として通らない名前(制御文字等)の plist は飛ばす(空にする段がファイルを消す)
     public static func domainPaths(container: String, always: [String]) -> Listing {
         let preferences = container + "/Library/Preferences"
         var paths: [String] = []
+        var refusals: [String] = []
         for dir in [preferences, preferences + "/ByHost"] {
             var isDirectory: ObjCBool = false
             let exists = FileManager.default.fileExists(atPath: dir, isDirectory: &isDirectory)
             if !exists && !SimulatorPreferencesPath.isSymlink(dir) { continue }
             guard SimulatorPreferencesPath.preferencesDirectoryIsInside(dir, container: container) else {
-                return .refused("\(relative(dir, container)) is a symbolic link out of the container")
+                return Listing(domains: [], refusals: ["\(relative(dir, container)) is a symbolic link out of the container"])
             }
             guard isDirectory.boolValue, let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else {
-                return .refused("\(relative(dir, container)) is not a readable directory")
+                return Listing(domains: [], refusals: ["\(relative(dir, container)) is not a readable directory"])
             }
             // 拡張子は区別して照合する(`defaults delete` と `hasValues` は小文字の `.plist` を見る。`Foo.PLIST` を拾うと黙って通る)
             for name in names where name.hasSuffix(".plist") {
                 let domain = dir + "/" + String(name.dropLast(".plist".count))
                 if SimulatorPreferencesPath.isSymlink(domain) || SimulatorPreferencesPath.isSymlink(domain + ".plist") {
-                    return .refused("\(relative(dir + "/" + name, container)) is a symbolic link")
+                    refusals.append("\(relative(dir + "/" + name, container)) is a symbolic link")
+                } else if SimulatorPreferencesPath.isDomain(domain, inContainer: container) {
+                    paths.append(domain)
                 }
-                if SimulatorPreferencesPath.isDomain(domain, inContainer: container) { paths.append(domain) }
             }
         }
         for name in always where SimulatorPreferencesPath.isDomainName(name) {
             let domain = preferences + "/" + name
             if !paths.contains(domain), SimulatorPreferencesPath.isDomain(domain, inContainer: container) { paths.append(domain) }
         }
-        return .domains(paths.sorted())
+        return Listing(domains: paths.sorted(), refusals: refusals)
     }
 
     private static func relative(_ path: String, _ container: String) -> String {
         path.hasPrefix(container + "/") ? String(path.dropFirst(container.count + 1)) : path
     }
 
-    /// 各ドメインを cfprefsd に消させる(ファイルとキャッシュの両方)。戻り値 = 失敗したドメイン(パス・理由)。
+    /// 各ドメインを cfprefsd に消させる(ファイルとキャッシュの両方)。戻り値 = 消させられなかったドメイン(パス・理由)。
     /// 0 以外で終わっても、plist に値が無ければ失敗にしない(空の dict・0 バイト・読めない形は cfprefsd が not found と答える =
-    /// cfprefsd も読み込めていない = 消すべき値が無い。判定はファイルの中身で行い、文言を読まない)
-    public static func flush(udid: String, domainPaths: [String]) -> [(path: String, detail: String)] {
-        domainPaths.compactMap { path in
+    /// cfprefsd も読み込めていない = 消すべき値が無い。判定はファイルの中身で行い、文言を読まない)。
+    /// **時間切れが1回出たら残りは撃たない**(詰まった Simulator でドメインの数 × 上限だけ止まらない)。残りも消させられなかった扱い
+    /// - run: simctl を撃つ口(テストの差し替え口)
+    public static func flush(udid: String, domainPaths: [String],
+                             run: ([String], Double) throws -> Shell.Result = { try Shell.run($0, timeout: $1) })
+        -> [(path: String, detail: String)] {
+        var failures: [(path: String, detail: String)] = []
+        for (index, path) in domainPaths.enumerated() {
             let result: Shell.Result
             do {
-                result = try Shell.run(["xcrun", "simctl", "spawn", udid, "defaults", "delete", path], timeout: deleteTimeoutSeconds)
+                result = try run(["xcrun", "simctl", "spawn", udid, "defaults", "delete", path], deleteTimeoutSeconds)
             } catch ShellError.timedOut {
-                return (path, "simctl spawn defaults delete did not finish within \(Int(deleteTimeoutSeconds))s")
+                failures.append((path, "simctl spawn defaults delete did not finish within \(Int(deleteTimeoutSeconds))s"))
+                failures += domainPaths.dropFirst(index + 1).map { ($0, "not attempted after an earlier timeout") }
+                return failures
             } catch {
-                return (path, "could not run simctl spawn defaults delete: \(error.localizedDescription)")
+                failures.append((path, "could not run simctl spawn defaults delete: \(error.localizedDescription)"))
+                continue
             }
-            return failureDetail(status: result.status, tail: result.tail, plist: path + ".plist").map { (path, $0) }
+            if result.status == SandboxBroker.didNotCompleteStatus {
+                failures.append((path, failureDetail(status: result.status, tail: result.tail, plist: path + ".plist") ?? ""))
+                failures += domainPaths.dropFirst(index + 1).map { ($0, "not attempted after an earlier timeout") }
+                return failures
+            }
+            if let detail = failureDetail(status: result.status, tail: result.tail, plist: path + ".plist") {
+                failures.append((path, detail))
+            }
         }
+        return failures
     }
 
-    /// 1回の `defaults delete` の結果の判定(nil = 消せた / 消すべき値が無かった)。サンドボックスの中では仲介の拒否(126)と
-    /// 時間切れ(127)が終了コードで来る = 撃てていないので、値の有無で流さない
+    /// 1回の `defaults delete` の結果の判定(nil = 消せた / 消すべき値が無かった)。126 / 127 は値の有無で流さない
+    /// (サンドボックスの中では仲介の拒否と時間切れ、外ではシェルの「実行できない / 見つからない」= どちらも撃てていない)
     static func failureDetail(status: Int32, tail: String, plist: String) -> String? {
         if status == SandboxGateway.refusedStatus || status == SandboxBroker.didNotCompleteStatus {
-            return "the sandbox broker \(status == SandboxGateway.refusedStatus ? "refused it" : "did not complete it")"
-                + " (exit \(status)): \(tail)"
+            return "exit \(status) (refused or not completed by the sandbox broker, or not executable): \(tail)"
         }
         if status == 0 || !hasValues(plist: plist) { return nil }
         return "exit \(status): \(tail)"

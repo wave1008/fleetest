@@ -506,8 +506,11 @@ final class ScenarioSandboxTests: XCTestCase {
         XCTAssertEqual(try runSandboxed(["/usr/bin/touch", path(app + "Library/ok.plist")], scope: lane), 0)
         // フォルダも作れない・外で作ったフォルダ(symlink を中に持ちうる)を移し入れられない。中身ごとの削除はできる
         XCTAssertNotEqual(try runSandboxed(["/bin/mkdir", path(app + "Library/Preferences2")], scope: lane), 0)
-        try FileManager.default.createDirectory(atPath: path("writable/L"), withIntermediateDirectories: true)
-        XCTAssertNotEqual(try runSandboxed(["/bin/mv", path("writable/L"), path(app + "Library/L")], scope: lane), 0)
+        // 移し入れの元は子が書ける場所に置く(書けない場所だと、元を消せないことで失敗し、行き先の拒否を確かめられない)
+        try FileManager.default.createDirectory(atPath: path("stills/L/Preferences"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: path("stills/L/Preferences/x.plist"), withDestinationPath: path("outside/host.plist"))
+        XCTAssertNotEqual(try runSandboxed(["/bin/mv", path("stills/L"), path(app + "Library/L")], scope: lane), 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path("stills/L/Preferences")), "元が動いていない")
         XCTAssertEqual(try runSandboxed(["/bin/rm", "-rf", path(app + "Library")], scope: lane), 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: path(app + "Library/x.plist")))
     }

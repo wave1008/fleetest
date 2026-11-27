@@ -47,7 +47,13 @@ final class ClearAppDataContractTests: XCTestCase {
         } else {
             XCTFail("設定を消させる手順か容器を空にする手順が見つからない")
         }
-        // 設定の問題で投げるのは容器を空にした後(先に投げると symlink の plist 等が残り、以後の clearAppData が毎回断る)
+        // 撃って消させられなかったら、容器を空にする前に投げる(空にすると消すべきドメインの手がかりが消え、次回は黙った緑になる)
+        if let leave = body.range(of: "was left as it was"), let remove = body.range(of: "removeItem") {
+            XCTAssertLessThan(leave.lowerBound, remove.lowerBound, "消させられなかったのに、容器を空にしてから投げている")
+        } else {
+            XCTFail("消させられなかったときに容器を残して投げる手順が見つからない")
+        }
+        // 断っただけ(危ない項目)で投げるのは容器を空にした後(先に投げると危ない項目が残り、以後の clearAppData が毎回断る)
         if let remove = body.range(of: "removeItem"), let raise = body.range(of: "body: preferencesProblem") {
             XCTAssertLessThan(remove.lowerBound, raise.lowerBound, "設定の問題で、容器を空にする前に投げている")
         } else {

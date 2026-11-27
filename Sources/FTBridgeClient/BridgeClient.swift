@@ -480,20 +480,23 @@ public final class BridgeClient: AppDriver, Sendable {
         // **ファイルを消しただけでは NSUserDefaults が戻ってくる**: cfprefsd がドメインをメモリに抱えており、次の起動で
         // 消したはずの値を配って plist を書き直す(消して起動を3回で launch_count が 2→3→4)。空にする前に、ドメインを
         // パスで名指しして cfprefsd に消させる。**cfprefsd を起こし直さない**(SpringBoard の外観の部品が壊れる = SimulatorPreferencesFlush 冒頭)
-        // 消させる段の問題は控えて、容器は空にしてから投げる(先に投げると symlink の plist 等が残り、以後の clearAppData が毎回断る)
-        var preferencesProblem: String?
-        switch SimulatorPreferencesFlush.domainPaths(container: path, always: [bundleID]) {
-        case .domains(let domains):
-            let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: domains)
-            if !unflushed.isEmpty {
-                preferencesProblem = "could not clear the cached preferences of \(bundleID) — UserDefaults values may survive"
-                    + " the clear: " + unflushed.prefix(3).map { "\(($0.path as NSString).lastPathComponent) (\($0.detail))" }
-                    .joined(separator: ", ")
-            }
-        case .refused(let why):
-            preferencesProblem = "did not clear the cached preferences of \(bundleID) (\(why)) — the data container was"
-                + " emptied, but UserDefaults values may survive the clear"
+        // 2つの失敗で扱いを分ける(どちらも赤):
+        // ①撃って消させられなかった(失敗・時間切れ)= 容器を空にせずに投げる。空にすると、どのドメインを消すべきかの手がかり
+        //   (ディスクの plist)ごと消え、次回は名指せずに黙った緑になる。残しておけば次回に撃ち直せる
+        // ②危ない項目を断っただけ(symlink の plist・外を指す置き場)= 安全なドメインは消させ、容器を空にしてから投げる
+        //   (先に投げると危ない項目が残り、以後の clearAppData が毎回断る)
+        let listing = SimulatorPreferencesFlush.domainPaths(container: path, always: [bundleID])
+        let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: listing.domains)
+        guard unflushed.isEmpty else {
+            throw DriverError.badResponse(status: 500,
+                body: "could not clear the cached preferences of \(bundleID), so its data container was left as it was"
+                    + " (the next clearAppData retries): "
+                    + unflushed.prefix(3).map { "\(($0.path as NSString).lastPathComponent) (\($0.detail))" }.joined(separator: ", "))
         }
+        let preferencesProblem = listing.refusals.isEmpty ? nil
+            : "did not clear the cached preferences of \(bundleID) behind "
+                + listing.refusals.prefix(3).joined(separator: ", ")
+                + " — the data container was emptied, but those UserDefaults values may survive the clear"
         let entries = (try? fm.contentsOfDirectory(atPath: path)) ?? []
         var failed: [String] = []
         for entry in entries {
@@ -505,8 +508,13 @@ public final class BridgeClient: AppDriver, Sendable {
                 body: "could not delete \(failed.count) item(s) in the data container of"
                     + " \(bundleID): \(failed.prefix(5).joined(separator: ", "))")
         }
-        // 権限はコンテナの外にあるので別途戻す(resetPrivacyOnSimulator 参照)
-        try resetPrivacyOnSimulator(bundleID: bundleID, target: target)
+        // 権限はコンテナの外にあるので別途戻す(resetPrivacyOnSimulator 参照)。失敗しても設定の問題を落とさない
+        do {
+            try resetPrivacyOnSimulator(bundleID: bundleID, target: target)
+        } catch {
+            guard let preferencesProblem else { throw error }
+            throw DriverError.badResponse(status: 500, body: preferencesProblem + "; and \(error.localizedDescription)")
+        }
         // **黙って緑にしない**: 設定のキャッシュを落とせなかったら「消えた」と言えない
         if let preferencesProblem { throw DriverError.badResponse(status: 500, body: preferencesProblem) }
     }

@@ -18,10 +18,12 @@ public enum AppleSimulatorWipe {
         public var groups: [(id: String, path: String, itemsRemoved: Int)] = []
         /// 事実だけ(撃てなかった・消せなかったもの)。空でなければ「全部消えた」と言わない
         public var problems: [String] = []
+        /// 設定を消させた(空にできたかに関わらず手を付けた)group の容器の数。同じ group の他のプロセスの書き戻しの注意を出す条件
+        public var groupsTouched = 0
 
         public static func == (lhs: Report, rhs: Report) -> Bool {
             lhs.dataContainerPath == rhs.dataContainerPath && lhs.dataItemsRemoved == rhs.dataItemsRemoved
-                && lhs.problems == rhs.problems && lhs.groups.count == rhs.groups.count
+                && lhs.problems == rhs.problems && lhs.groupsTouched == rhs.groupsTouched && lhs.groups.count == rhs.groups.count
                 && zip(lhs.groups, rhs.groups).allSatisfy { $0.id == $1.id && $0.path == $1.path && $0.itemsRemoved == $1.itemsRemoved }
         }
     }
@@ -70,7 +72,7 @@ public enum AppleSimulatorWipe {
         }
         for problem in report.problems { lines.append("NOT done: \(problem)") }
         // group の容器は同じ group の他のプロセス(ウィジェット・拡張)が動いていれば書き戻しうる(止めたのは対象のアプリだけ)
-        if !report.groups.isEmpty {
+        if report.groupsTouched > 0 {
             lines.append("NOT stopped: other members of the app groups (widgets, extensions) — if one is running, it can write"
                 + " the group preferences back")
         }
@@ -101,14 +103,13 @@ public enum AppleSimulatorWipe {
         var preferenceProblems: [String] = []
         func flushUnlessLinked(_ container: String, label: String, always: [String]) {
             if (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil { return }
-            switch SimulatorPreferencesFlush.domainPaths(container: container, always: always) {
-            case .domains(let domains):
-                for failure in SimulatorPreferencesFlush.flush(udid: udid, domainPaths: domains) {
-                    preferenceProblems.append("could not clear the cached preferences \((failure.path as NSString).lastPathComponent)"
-                        + " in \(label) (\(failure.detail)) — preference values cached by the daemon may come back")
-                }
-            case .refused(let why):
-                preferenceProblems.append("did not clear the preferences of \(label): \(why)")
+            let listing = SimulatorPreferencesFlush.domainPaths(container: container, always: always)
+            for failure in SimulatorPreferencesFlush.flush(udid: udid, domainPaths: listing.domains) {
+                preferenceProblems.append("could not clear the cached preferences \((failure.path as NSString).lastPathComponent)"
+                    + " in \(label) (\(failure.detail)) — preference values cached by the daemon may come back")
+            }
+            for why in listing.refusals {
+                preferenceProblems.append("did not clear the preferences of \(label) behind \(why)")
             }
         }
         flushUnlessLinked(dataPath, label: "the data container", always: [bundleID])
@@ -132,6 +133,7 @@ public enum AppleSimulatorWipe {
             }
             for group in parsed.groups {
                 flushUnlessLinked(group.path, label: "group container \(group.id)", always: [group.id])
+                report.groupsTouched += 1
                 guard let result = emptyContents(of: group.path, skipping: [containerMetadataName]) else {
                     report.problems.append("group container \(group.id) (\(group.path)) is a symbolic link — not wiped")
                     continue
