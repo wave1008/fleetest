@@ -83,7 +83,7 @@ final class ResolvedProfileDeviceLimitTests: XCTestCase {
         let mixed = profile([device("i1", "ios"), device("i2", "ios"), device("a1", "android"), device("a2", "android")])
         let counts = mixed.scenarioCounts(platforms: [nil])
         let limited = mixed.limitingDevices(iosScenarios: counts.ios, androidScenarios: counts.android,
-                                            avoiding: { _ in false })
+                                            requirements: [], traits: [:], avoiding: { _ in false })
         XCTAssertEqual(limited.devices.map(\.name), ["i1"])
     }
 
@@ -102,7 +102,7 @@ final class ResolvedProfileDeviceLimitTests: XCTestCase {
         XCTAssertEqual(ios.scenarioCounts(scenarios).ios, 4)
         XCTAssertEqual(ios.scenarioCounts(Array(scenarios.prefix(3))).ios, 1)
         let limited = ios.limitingDevices(iosScenarios: ios.scenarioCounts(Array(scenarios.prefix(3))).ios,
-                                          androidScenarios: 0, avoiding: { _ in false })
+                                          androidScenarios: 0, requirements: [], traits: [:], avoiding: { _ in false })
         XCTAssertEqual(limited.devices.map(\.name), ["i1"])
     }
 
@@ -122,7 +122,7 @@ final class ResolvedProfileDeviceLimitTests: XCTestCase {
     /// 本数が分からない(nil)の OS は今までどおり全台を残す(一覧の前に台数を決める経路)
     func testUnknownCountKeepsEveryDeviceOfThatPlatform() {
         let mixed = profile([device("i1", "ios"), device("i2", "ios"), device("a1", "android")])
-        let limited = mixed.limitingDevices(iosScenarios: nil, androidScenarios: 0, avoiding: { _ in false })
+        let limited = mixed.limitingDevices(iosScenarios: nil, androidScenarios: 0, requirements: [], traits: [:], avoiding: { _ in false })
         XCTAssertEqual(limited.devices.map(\.name), ["i1", "i2"])
     }
 }

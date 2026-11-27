@@ -252,6 +252,8 @@ struct RunScenarios: AsyncParsableCommand {
     static let interruptedCountNote = " — the run was interrupted; scenarios that never started count as failed"
 
     @OptionGroup var common: RunCommonOptions
+    /// 親が観測した台の性質を運ぶ内部フラグ(`ApiRunCommand` と同じ OptionGroup。`RunCommonOptions` には置かない = ヘルプに出ない)
+    @OptionGroup var childTraits: ChildDeviceTraitsOption
 
     @Option(name: .customLong("scenario"), parsing: .upToNextOption,
             help: "Scenario IDs to run (Class.method; a class name alone runs all of its scenarios). Repeatable; defaults to all. @Deleted / @Draft scenarios run only on an exact match")
@@ -700,6 +702,7 @@ struct RunScenarios: AsyncParsableCommand {
         // ProfileRunner+Supply.swift)。台数はいま分かっている本数(`--scenario` の `Class.method` の明示だけ)で絞る。
         // 要らない回は一覧の後に ProfileRunner.run が正確な本数で絞る(並行にしても得が無く、絞り込みだけ緩む)。
         // `--failed` は対象が無ければ何もせず終わるので、開始スクリプトとサービスを空撃ちしないよう外す
+        let injectedDeviceTraits = try childTraits.decoded()
         var earlySupply: ProfileRunner.PreparedSupply?
         if let profile = common.profile, !dryRun, !common.skipBuild, !failed, ScenarioHost.buildNeeded(project: testProject) {
             do {
@@ -710,16 +713,30 @@ struct RunScenarios: AsyncParsableCommand {
                 // 一覧の前なので OS が分からない = 明示 ID の本数を両 OS に数える(0 = 本数も分からない → 絞らない)
                 let exactCount = ApiRun.exactScenarioCount(scenarios, variantCount: max(1, variantPlan.variants.count))
                 let estimate: Int? = exactCount > 0 ? exactCount : nil
-                ConsoleOut.out("→ Preparing the devices while the scenarios build")
-                let supply = try await ProfileRunner.prepareSupply(
-                    full: full, profileName: profile, iosScenarios: estimate, androidScenarios: estimate,
-                    scenarioCount: estimate, broadcast: broadcast,
-                    reportDirOverride: reportDir, failureLogDir: nil,
-                    supplyProgress: supplyProgress, interruptState: interruptState,
-                    supplyAbandon: runExit.supplyAbandon)
-                earlySupply = supply
-                runExit.settle = { await supply.settle() }
-                runExit.close = { supply.close() }
+                // 台の条件(DR-237): ソースに宣言があり、一覧の前に台を外すなら、一覧が出るまで供給を待つ(`api run` と同じ入口の関数)。
+                // 待つときは先行の準備をせず、一覧の後に ProfileRunner.run が条件つきで絞って供給する
+                let start = ProfileRunner.preListingSupplyStart(
+                    project: testProject, full: full, iosScenarios: estimate, androidScenarios: estimate,
+                    broadcast: broadcast, leaseStateDir: (try? RepoRoot.find())?.appendingPathComponent(".fleetest"))
+                if start == .waitForListing {
+                    ConsoleOut.out("→ Waiting for the scenario list before preparing the devices (device conditions are declared)")
+                } else {
+                    ConsoleOut.out("→ Preparing the devices while the scenarios build")
+                    // 一覧の前は宣言が分からないので、ソースに宣言の文字列があるときだけ観測する(無ければ [:] = 観測しない)
+                    let traits = DeviceRequirementEntry.traitsForRun(
+                        injected: injectedDeviceTraits, resolved: full,
+                        declared: DeviceRequirementEntry.sourcesDeclare(project: testProject))
+                    let supply = try await ProfileRunner.prepareSupply(
+                        full: full, profileName: profile, iosScenarios: estimate, androidScenarios: estimate,
+                        requirements: [], deviceTraits: traits,
+                        scenarioCount: estimate, broadcast: broadcast,
+                        reportDirOverride: reportDir, failureLogDir: nil,
+                        supplyProgress: supplyProgress, interruptState: interruptState,
+                        supplyAbandon: runExit.supplyAbandon)
+                    earlySupply = supply
+                    runExit.settle = { await supply.settle() }
+                    runExit.close = { supply.close() }
+                }
             } catch {
                 if !(error is RunInterruptedBeforeStartError) {
                     writeJUnitForEarlyFailure(project: testProject, phase: "device supply", error: error)
@@ -949,7 +966,7 @@ struct RunScenarios: AsyncParsableCommand {
                     workQueue: common.workQueue,
                     supplyProgress: supplyProgress,
                     interruptState: interruptState,
-                    early: earlySupply, runExit: runExit)
+                    early: earlySupply, injectedDeviceTraits: injectedDeviceTraits, runExit: runExit)
             } catch {
                 // 供給段(ワーカー構築等)の例外は run.json を完了させずに投げていた
                 // (finishedAt 無し = results insights が「クラッシュ/強制終了」に誤分類する)。
@@ -1451,7 +1468,7 @@ struct RunScenarios: AsyncParsableCommand {
         }
         for outcome in await ScenarioHost.runAfterAlls(
             project: project, shared: deviceSession.shared,
-            target: { platforms in ScenarioHost.LifecycleTarget(
+            target: { _, platforms in ScenarioHost.LifecycleTarget(
                 connection: DriverConnection(platform: platforms.sorted().first ?? defaultPlatform),
                 appPath: nil, appName: nil, appBundleID: common.appID) },
             settings: ScenarioExecutionSettings(fm: FMConfig(enabled: false)),
@@ -1583,7 +1600,7 @@ struct RunScenarios: AsyncParsableCommand {
             }
             for outcome in await ScenarioHost.runAfterAlls(
                 project: project, shared: sharedSession,
-                target: { platforms in
+                target: { _, platforms in
                     guard let platform = sessionConnections.keys.sorted().first(where: { platforms.isEmpty || platforms.contains($0) }),
                           let connection = sessionConnections[platform] else { return nil }
                     return ScenarioHost.LifecycleTarget(connection: connection, appPath: nil, appName: nil, appBundleID: common.appID)
@@ -1616,10 +1633,17 @@ struct RunScenarios: AsyncParsableCommand {
               + (androidItems.isEmpty ? "" : " + 1 Android worker") + "\n")
 
         var workers: [RunWorker] = []
+        // 台の条件(DR-237): 宣言のあるシナリオがあるときだけ、ポートの先の台をブリッジの udid で観測する(udid が無ければ読めなかった扱い)
+        let declaresDevices = items.contains { !($0.info.deviceRequirements?.isEmpty ?? true) }
         for port in iosPorts {
             let udid = await Self.resolveUdid(port: port)
-            workers.append(PortDirectIOSTarget(port: port).makeWorker(label: "ios:\(port)",
-                                                                      simulatorUDID: udid))
+            let target = PortDirectIOSTarget(port: port)
+            var worker = target.makeWorker(label: "ios:\(port)", simulatorUDID: udid)
+            if declaresDevices {
+                worker = worker.with(deviceTraits: DeviceRequirementEntry.observePort(
+                    udid: target.physicalUDID ?? udid, physical: target.physical))
+            }
+            workers.append(worker)
         }
         if !androidItems.isEmpty {
             if let driver = try? AndroidDriver(serial: serial) {

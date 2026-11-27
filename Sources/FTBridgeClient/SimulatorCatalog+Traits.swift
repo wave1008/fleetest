@@ -22,17 +22,25 @@ extension SimulatorCatalog {
     public static func resolveSimulators(specs: [DeviceSpec], devices: [SimDeviceInfo],
                                          simctlJSON json: [String: Any]) -> [ResolvedSimulator?] {
         let blueprints = blueprints(simctlJSON: json)
-        let types = (json["devicetypes"] as? [[String: Any]]) ?? []
         return specs.map { spec in
-            guard !spec.isPhysical,
-                  let info = try? resolve(spec: spec, in: devices),
-                  let blueprint = blueprints[info.udid] else { return nil }
-            let type = types.first { ($0["identifier"] as? String) == blueprint.deviceTypeIdentifier }
-            return ResolvedSimulator(udid: info.udid, blueprint: blueprint,
-                                     typeName: type?["name"] as? String,
-                                     productFamily: type?["productFamily"] as? String,
-                                     bundlePath: type?["bundlePath"] as? String)
+            guard !spec.isPhysical, let info = try? resolve(spec: spec, in: devices) else { return nil }
+            return resolved(udid: info.udid, blueprints: blueprints, simctlJSON: json)
         }
+    }
+
+    /// udid から直に解決する(`--port` の run: ブリッジが申告した udid の台。プロファイルの spec が無い)。nil = simctl の一覧に無い
+    public static func resolveSimulator(udid: String, simctlJSON json: [String: Any]) -> ResolvedSimulator? {
+        resolved(udid: udid, blueprints: blueprints(simctlJSON: json), simctlJSON: json)
+    }
+
+    private static func resolved(udid: String, blueprints: [String: Blueprint], simctlJSON json: [String: Any]) -> ResolvedSimulator? {
+        guard let blueprint = blueprints[udid] else { return nil }
+        let types = (json["devicetypes"] as? [[String: Any]]) ?? []
+        let type = types.first { ($0["identifier"] as? String) == blueprint.deviceTypeIdentifier }
+        return ResolvedSimulator(udid: udid, blueprint: blueprint,
+                                 typeName: type?["name"] as? String,
+                                 productFamily: type?["productFamily"] as? String,
+                                 bundlePath: type?["bundlePath"] as? String)
     }
 
     public static func capabilitiesPlistData(bundlePath: String?) -> Data? {

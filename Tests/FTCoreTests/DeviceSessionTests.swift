@@ -468,7 +468,7 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         var asked: [Set<String>] = []
         let outcomes = await ScenarioHost.runAfterAlls(
             project: project, shared: book.shared,
-            target: { platforms in
+            target: { _, platforms in
                 asked.append(platforms)
                 // Android のデバイスは残っていない形
                 guard platforms.contains("ios") else { return nil }
@@ -488,7 +488,7 @@ final class ScenarioHostDeviceSessionTests: XCTestCase {
         XCTAssertFalse(args.contains("--device-teardown-only"), args)
         // 2回目は走らせない(run × クラスで1回)
         let again = await ScenarioHost.runAfterAlls(
-            project: project, shared: book.shared, target: { _ in nil },
+            project: project, shared: book.shared, target: { _, _ in nil },
             settings: settings, reportDir: reportDir, dryRun: false, registerChildProcess: nil)
         XCTAssertTrue(again.isEmpty)
     }

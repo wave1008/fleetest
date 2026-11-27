@@ -13,10 +13,11 @@ public enum ProfileWorkerFactory {
         public init(message: String) { self.message = message }
     }
 
-    public static func buildWorkers(resolved: ResolvedProfile, repoRoot: URL,
+    public static func buildWorkers(resolved: ResolvedProfile, repoRoot: URL, deviceTraits: [String: DeviceTraits],
                                     log: @escaping (String) -> Void) async throws -> [RunWorker] {
-        let workers = try await buildIOSWorkers(resolved: resolved, repoRoot: repoRoot, supplyStage: nil, log: log)
-            + (try buildAndroidWorkers(resolved: resolved, log: log))
+        let workers = try await buildIOSWorkers(resolved: resolved, repoRoot: repoRoot, deviceTraits: deviceTraits,
+                                                supplyStage: nil, log: log)
+            + (try buildAndroidWorkers(resolved: resolved, deviceTraits: deviceTraits, log: log))
         guard !workers.isEmpty else {
             throw InstallError(message: "no usable workers (every device dropped out)")
         }
@@ -29,7 +30,9 @@ public enum ProfileWorkerFactory {
     /// `mayEraseSimulatorForRecovery`: 呼び手が**この後で `installIfNeeded` を通す**ときだけ true
     /// (回復の最後の手としてシミュレータを初期化してよい。消えたアプリはそこで入れ直される)
     /// `isStopped`: run の供給のレーンが渡す止まれの印(`BridgeProvisioner.isStopped`)
+    /// `deviceTraits`: 親が観測した台の性質(キー = プロファイルのデバイス名。DR-237)。無い台は性質を読めなかった扱い
     public static func buildIOSWorkers(resolved: ResolvedProfile, repoRoot: URL,
+                                       deviceTraits: [String: DeviceTraits],
                                        supplyStage: SupplyStageReporter?,
                                        mayEraseSimulatorForRecovery: Bool = false,
                                        isStopped: @escaping @Sendable () -> Bool = { false },
@@ -70,7 +73,8 @@ public enum ProfileWorkerFactory {
         }
         return provisioned.map {
             makeIOSWorker(device: $0, iosApp: iosApp,
-                          deviceKind: $0.physical ? nil : blueprints[$0.udid].map(SimulatorCatalog.kind(of:)))
+                          deviceKind: $0.physical ? nil : blueprints[$0.udid].map(SimulatorCatalog.kind(of:)),
+                          deviceTraits: deviceTraits[$0.name])
         }
     }
 
@@ -1113,7 +1117,7 @@ public enum ProfileWorkerFactory {
     /// `makeWorker` は1台分の解決(serial 照合+ドライバ生成)の差し込み口。既定は本番経路
     /// (`makeAndroidWorker`)そのもので、テストはここへ失敗するスタブを渡して規則だけを検証する。
     public static func buildAndroidWorkers(
-        resolved: ResolvedProfile, log: (String) -> Void = { _ in },
+        resolved: ResolvedProfile, deviceTraits: [String: DeviceTraits], log: (String) -> Void = { _ in },
         makeWorker: (ResolvedDevice) throws -> RunWorker = ProfileWorkerFactory.makeAndroidWorker
     ) throws -> [RunWorker] {
         for device in resolved.androidDevices {
@@ -1121,7 +1125,8 @@ public enum ProfileWorkerFactory {
         }
         syncAnimationSettings(resolved: resolved, log: log)
         let outcomes: [(name: String, result: Result<RunWorker, Error>)] = resolved.androidDevices.map {
-            device in (name: device.name, result: Result { try makeWorker(device) })
+            device in (name: device.name,
+                       result: Result { try makeWorker(device).with(deviceTraits: deviceTraits[device.name]) })
         }
         let aggregated = try FleetOutcome.resolve(outcomes)
         for failure in aggregated.failures {
@@ -1168,7 +1173,7 @@ public enum ProfileWorkerFactory {
     /// ホスト warmup 用 driver は in-app ブリッジへの BridgeClient でよい(in-app も HTTP 応答する)。
     /// 実機は宛先ホスト(LAN or iproxy)と UDID を持たせる(install が devicectl 経路に入る)
     private static func makeIOSWorker(device: ProvisionedIOSDevice, iosApp: ResolvedAppTarget?,
-                                      deviceKind: String?) -> RunWorker {
+                                      deviceKind: String?, deviceTraits: DeviceTraits?) -> RunWorker {
         RunWorker(
             label: RunWorker.makeLabel(deviceName: device.name, platform: "ios", id: "\(device.port)"),
             platform: "ios",
@@ -1181,7 +1186,7 @@ public enum ProfileWorkerFactory {
             connection: iosConnection(device: device, iosApp: iosApp),
             logicalName: device.name,
             requestedMode: device.requestedMode, modeFallbackReason: device.modeFallbackReason,
-            deviceKind: deviceKind)
+            deviceKind: deviceKind, deviceTraits: deviceTraits)
     }
 
     /// 蘇生の記録の1行に、蘇生を始めてからの経過秒を前置する(`[revive +12.3s] …`)
@@ -1240,7 +1245,8 @@ public enum ProfileWorkerFactory {
             }
             guard let first = provisioned?.first else { return nil }
             let kind = first.physical ? nil : SimulatorCatalog.blueprintsByUDID()[first.udid].map(SimulatorCatalog.kind(of:))
-            return makeIOSWorker(device: first, iosApp: iosApp, deviceKind: kind)
+            // 性質は呼び手(RunOrchestrator の復帰)が旧いレーンのものを引き継ぐ
+            return makeIOSWorker(device: first, iosApp: iosApp, deviceKind: kind, deviceTraits: nil)
         }
         if let device = resolved.androidDevices.first(where: { $0.name == name }) {
             do {
@@ -1520,7 +1526,11 @@ public enum ProfileWorkerFactory {
                 }
             }
         }
-        guard var rebuilt = try? await buildIOSWorkers(resolved: resolved, repoRoot: repoRoot,
+        // 作り直す台の性質は、いまのレーンが持っている観測をそのまま引き継ぐ(観測し直さない)
+        let carriedTraits = workers.reduce(into: [String: DeviceTraits]()) { map, worker in
+            if let name = worker.logicalName, let traits = worker.deviceTraits { map[name] = traits }
+        }
+        guard var rebuilt = try? await buildIOSWorkers(resolved: resolved, repoRoot: repoRoot, deviceTraits: carriedTraits,
                                                        supplyStage: nil, mayEraseSimulatorForRecovery: true,
                                                        log: log) else { return nil }
         do {

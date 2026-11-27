@@ -109,11 +109,21 @@ actor ScenarioQueue {
     /// レーン → 観測した種類(`RunWorker.deviceKind`。不明は載せない)。同じ種類のレーンは対象外を試した扱いになる
     private var laneKinds: [String: Set<String>] = [:]
 
-    func laneJoined(_ lane: String?, kind: String? = nil) {
+    /// レーン → 台の性質(`RunWorker.effectiveTraits`。DR-237)。台の条件を持つ item を配るか・試した扱いにするかの判定の入力。
+    /// 参加したことのあるレーンは離脱後も残す(結論の「使った台」)
+    private var laneTraits: [String: DeviceTraits] = [:]
+
+    func laneJoined(_ lane: String?, kind: String? = nil, traits: DeviceTraits? = nil) {
         if let lane, !lane.isEmpty {
             liveLanes.insert(lane); departedLanes.remove(lane)
             if let kind { laneKinds[lane] = [kind] } else { laneKinds[lane] = nil }
+            if let traits { laneTraits[lane] = traits }
         }
+    }
+
+    /// 参加したことのあるレーンの性質(ドレインの結論の入力)
+    func joinedLaneTraits() -> [DeviceRequirementMatch.Device] {
+        laneTraits.keys.sorted().map { (id: $0, traits: laneTraits[$0]!) }
     }
 
     /// 宣言されたのに供給で合流しなかったレーン。何も試していない台が落ちたものとして数える(`laneJoined` で外れる)。
@@ -123,7 +133,10 @@ actor ScenarioQueue {
         departedLanes.insert(lane)
     }
 
+    /// このレーンへ配らない item か。**台の条件に合わない・読めなかったレーンは配らない**(判定は `DeviceRequirementGate`。
+    /// 条件の無い item は性質を見ない = 従来と同一)。その後に、対象外を試したレーン(DR-214)
     private func isExcluded(_ item: ScenarioRunItem, lane: String) -> Bool {
+        if !DeviceRequirementGate.permits(item.info.deviceRequirements, traits: laneTraits[lane]) { return true }
         guard let tried = triedLanes[item.id] else { return false }
         return tried.contains(lane) || NotApplicableHandoff.covered(lane, tried: tried, kinds: laneKinds, evidence: triedKinds(item))
     }
@@ -141,8 +154,11 @@ actor ScenarioQueue {
         triedLanes[item.id, default: []].insert(lane)
         declaredReasons[item.id] = reason
         guard !Self.bindsDevice(item) else { return .skipped }
-        let verdict = NotApplicableHandoff.decide(tried: triedLanes[item.id] ?? [], live: liveLanes, departed: departedLanes,
-            kinds: laneKinds, evidence: triedKinds(item))
+        // 条件に合わないレーンは配られないので試した扱い(回し直しの先に数えない)
+        let unfit = DeviceRequirementGate.ineligible(item.info.deviceRequirements, among: liveLanes.union(departedLanes),
+                                                     traits: laneTraits)
+        let verdict = NotApplicableHandoff.decide(tried: (triedLanes[item.id] ?? []).union(unfit), live: liveLanes,
+            departed: departedLanes, kinds: laneKinds, evidence: triedKinds(item))
         if verdict == .handOn {
             items.append(item)
             // 機械の外へ出しうる item だけ(束ねたクラス・@RunOnSingleMachine は親へ問い合わせない = 親の待ちにも関わらない)
@@ -155,8 +171,9 @@ actor ScenarioQueue {
 
     /// 試していない台が(このキューの中で)落ちているか。機械をまたぐ親へ問い合わせるときの申告(親の判定の `departed` に足される)
     func hasDepartedUntried(_ item: ScenarioRunItem) -> Bool {
-        let tried = NotApplicableHandoff.effectiveTried(tried: triedLanes[item.id] ?? [], among: departedLanes, kinds: laneKinds,
-                                                        evidence: triedKinds(item))
+        let unfit = DeviceRequirementGate.ineligible(item.info.deviceRequirements, among: departedLanes, traits: laneTraits)
+        let tried = NotApplicableHandoff.effectiveTried(tried: (triedLanes[item.id] ?? []).union(unfit), among: departedLanes,
+                                                        kinds: laneKinds, evidence: triedKinds(item))
         return !departedLanes.subtracting(tried).isEmpty
     }
 
@@ -316,6 +333,11 @@ actor ScenarioQueue {
             }
             if let item {
                 await pull.onHandOut(item)
+                // 条件に合わないレーンへ配られた単位は、このレーンで走らせず手元に戻す(合うレーンが取るか、無ければドレインの結論)
+                if !DeviceRequirementGate.permits(item.info.deviceRequirements, traits: laneTraits[lane]) {
+                    items.append(item)
+                    continue
+                }
                 if Self.bindsDevice(item), classLane[Self.className(item)] == nil { classLane[Self.className(item)] = lane }
                 if !Self.bindsDevice(item) { running[lane] = item }
                 return item

@@ -26,6 +26,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             + "commands from stdin are passed straight through to the runner")
 
     @OptionGroup var common: RunCommonOptions
+    /// 親が観測した台の性質を運ぶ内部フラグ(`RunScenarios` と同じ OptionGroup。ヘルプに出ない)
+    @OptionGroup var childTraits: ChildDeviceTraitsOption
 
     @Option(name: .customLong("scenario"), parsing: .upToNextOption,
             help: "Scenario IDs to run (Class.method; a class name alone runs all of its scenarios). Repeatable, at least one required. @Deleted / @Draft scenarios run only on an exact match")
@@ -369,6 +371,10 @@ struct ApiRunCommand: AsyncParsableCommand {
         // ロックより前に済んでいる。ここから下は runStarted 送出前の**書き込み**
         // (ワークスペースの雛形・供給の絞り込み)だけを行う
         var resolvedProfile: ResolvedProfile?
+        // 台の条件(DR-237): 供給を一覧の後に回すか・その絞り込みの材料(一覧の前に解決した全台・本数の見積り)
+        var waitsForListing = false
+        var preListing: (full: ResolvedProfile, estimate: Int?, leaseDir: URL?)?
+        let injectedDeviceTraits = try childTraits.decoded()
         // dry-run の照合に使うデバイス。**本数で絞る前**(`full`)から取る —— 絞った後だと、明示 ID の指定で
         // 本数ぶんに削られた外のデバイスが照合されず、同じ打鍵で `fleetest run --dry-run` だけが警告した
         var commandCheckDevices: [CommandTargetCheck.Device] = []
@@ -389,14 +395,25 @@ struct ApiRunCommand: AsyncParsableCommand {
             let estimate: Int? = exactCount > 0 ? exactCount : nil
             // dry-run はデバイスに触らないので MCP のデバイスを避ける理由が無い(印を読むと simctl/adb を引き、
             // 「奪う」と嘘の警告を出す)
+            let leaseDir = dryRun ? nil : (try? RepoRoot.find())?.appendingPathComponent(".fleetest")
+            // 台の条件(DR-237): ソースに宣言があり、一覧の前に台を外すなら、供給は一覧の後(`fleetest run` と同じ入口の関数)。
+            // この時点の絞り込みは、前段の確認(lease・開始スクリプトの台の一覧)のための仮の結果で、供給の台は一覧の後に決める
+            waitsForListing = !dryRun && debugOptions == nil && ProfileRunner.preListingSupplyStart(
+                project: testProject, full: full, iosScenarios: estimate, androidScenarios: estimate,
+                broadcast: false, leaseStateDir: leaseDir) == .waitForListing
+            preListing = (full: full, estimate: estimate, leaseDir: leaseDir)
             let (resolved, mcpWarnings) = ProfileRunner.limitingDevicesAvoidingMCP(
-                full, iosScenarios: estimate, androidScenarios: estimate, trim: true,
-                leaseStateDir: dryRun ? nil : (try? RepoRoot.find())?.appendingPathComponent(".fleetest"))
-            if resolved.devices.count < full.devices.count {
-                logStderr("→ Using \(resolved.devices.count) of \(full.devices.count) device(s)"
-                    + " for \(scenarios.count) scenario(s)")
+                full, iosScenarios: estimate, androidScenarios: estimate,
+                requirements: [], traits: [:], trim: true, leaseStateDir: leaseDir)
+            if waitsForListing {
+                logStderr("→ Waiting for the scenario list before preparing the devices (device conditions are declared)")
+            } else {
+                if resolved.devices.count < full.devices.count {
+                    logStderr("→ Using \(resolved.devices.count) of \(full.devices.count) device(s)"
+                        + " for \(scenarios.count) scenario(s)")
+                }
+                for warning in resolved.warnings + mcpWarnings { logStderr("⚠️ \(warning)") }
             }
-            for warning in resolved.warnings + mcpWarnings { logStderr("⚠️ \(warning)") }
             RunEnvironment.apply(resolved)
             resolvedProfile = resolved
             commandCheckDevices = full.devices.map(CommandTargetCheck.Device.init)
@@ -489,17 +506,18 @@ struct ApiRunCommand: AsyncParsableCommand {
         // シナリオ実行中しか書かれず、その手前に start-device が割り込む穴が空くため
         let supplyLease = ProfileRunner.supplyLeaseHolder(repoRoot: try? RepoRoot.find())
         cleanup.supplyLease = supplyLease
-        let androidWorkersTask: Task<[RunWorker], Error>?
-        var iosWorkersTask: Task<[RunWorker], Never>?
-        if let resolvedProfile, !dryRun, debugOptions == nil {
-            let resolved = resolvedProfile
+        var startedAndroidTask: Task<[RunWorker], Error>?
+        var startedIOSTask: Task<[RunWorker], Never>?
+        // 供給のタスクを起こす(一覧の前 = 今までどおり並行・一覧の後 = 台の条件つきで絞った後)。起こした後の片付けの待ちもここで登録する
+        func startSupply(_ resolved: ResolvedProfile, deviceTraits: [String: DeviceTraits]) {
             let shouldStop = runExit.supplyAbandon.shouldStop(interruptState)
-            androidWorkersTask = Task {
+            let android = Task {
                 for line in ProfileRunner.supplyHeaderLines(profileName: resolved.runName, resolved: resolved) { logSupply(line) }
                 // 手順は ProfileSupplyLanes.android の1箇所(fleetest run と同じ関数)。凍結 triage で全台が
                 // 除外されたら投げる = run を止める(ユーザー決定: 全滅は異常)
                 let workers = try await ProfileSupplyLanes.android(
-                    resolved: resolved, supplyLease: supplyLease, supplyStage: supplyProgress.reporter,
+                    resolved: resolved, deviceTraits: deviceTraits, supplyLease: supplyLease,
+                    supplyStage: supplyProgress.reporter,
                     triage: triageBox, isStopped: shouldStop,
                     wipeStatus: { self.emitLine(ApiWipeStatusEvent(device: $0, phase: $1)) }) { logSupply($0) }
                 // "🚀 Starting with…" は iOS の合流有無が分かってから1回だけ出す(下の
@@ -507,21 +525,26 @@ struct ApiRunCommand: AsyncParsableCommand {
                 // 「iOS joins…」と言ってしまう。RunStartLine の宣言参照)
                 return workers
             }
+            startedAndroidTask = android
             if !resolved.iosDevices.isEmpty {
-                iosWorkersTask = Task {
+                startedIOSTask = Task {
                     // 手順は ProfileSupplyLanes.ios の1箇所。失敗は空で返り、全滅の扱いは RunOrchestrator の
                     // 遅延参加(1台も合流しなければ配布を止める)か、performanceMode の LaneGate が決める
                     await ProfileSupplyLanes.ios(
-                        resolved: resolved, supplyLease: supplyLease, supplyStage: supplyProgress.reporter,
+                        resolved: resolved, deviceTraits: deviceTraits, supplyLease: supplyLease,
+                        supplyStage: supplyProgress.reporter,
                         triage: triageBox, isStopped: shouldStop) { logSupply($0) }
                 }
             }
-        } else {
-            androidWorkersTask = nil
-        }
-        if androidWorkersTask != nil {
-            let supplyTasks = (android: androidWorkersTask, ios: iosWorkersTask)
+            let supplyTasks = (android: startedAndroidTask, ios: startedIOSTask)
             runExit.settle = { await ProfileRunner.settleSupplyTasks(android: supplyTasks.android, ios: supplyTasks.ios) }
+        }
+        if let resolvedProfile, !dryRun, debugOptions == nil, !waitsForListing {
+            // 一覧の前は宣言が分からないので、ソースに宣言の文字列があるときだけ観測する(無ければ [:] = 観測しない)
+            let traits = DeviceRequirementEntry.traitsForRun(
+                injected: injectedDeviceTraits, resolved: resolvedProfile,
+                declared: DeviceRequirementEntry.sourcesDeclare(project: testProject))
+            startSupply(resolvedProfile, deviceTraits: traits)
         }
 
         // **ビルドの前にも中断を見る**(走っている供給は isStopped で段の境目に止まる。Task.cancel は撃たない =
@@ -572,6 +595,33 @@ struct ApiRunCommand: AsyncParsableCommand {
         guard !selected.isEmpty else {
             throw ValidationError("nothing to run (every scenario is marked @Deleted or @Draft)")
         }
+        // 台の条件(DR-237): 一覧で分かった宣言に合う台を残して絞る。待っていた回はここで供給を始める。
+        // 待たなかった回は、一覧の前に外した台が宣言に要らなかったかを確かめる(grep の漏れ・古い --skip-build のバイナリ)
+        let requirementSets = selected.compactMap(\.deviceRequirements).filter { !$0.isEmpty }
+        if let preListing, !dryRun, debugOptions == nil, let provisional = resolvedProfile {
+            if waitsForListing {
+                let traits = DeviceRequirementEntry.traitsForRun(
+                    injected: injectedDeviceTraits, resolved: preListing.full, declared: !requirementSets.isEmpty)
+                let (resolved, mcpWarnings) = ProfileRunner.limitingDevicesAvoidingMCP(
+                    preListing.full, iosScenarios: preListing.estimate, androidScenarios: preListing.estimate,
+                    requirements: requirementSets, traits: traits, trim: true, leaseStateDir: preListing.leaseDir)
+                if resolved.devices.count < preListing.full.devices.count {
+                    logStderr("→ Using \(resolved.devices.count) of \(preListing.full.devices.count) device(s)"
+                        + " for \(scenarios.count) scenario(s)")
+                }
+                for warning in resolved.warnings + mcpWarnings { logStderr("⚠️ \(warning)") }
+                RunEnvironment.apply(resolved)
+                resolvedProfile = resolved
+                startSupply(resolved, deviceTraits: traits)
+            } else if !requirementSets.isEmpty, provisional.devices.count < preListing.full.devices.count {
+                let traits = DeviceRequirementEntry.traitsForRun(
+                    injected: injectedDeviceTraits, resolved: preListing.full, declared: true)
+                try ProfileRunner.requireDevicesForDeclarations(
+                    requirements: requirementSets, full: preListing.full, kept: provisional, traits: traits)
+            }
+        }
+        let androidWorkersTask = startedAndroidTask
+        let iosWorkersTask = startedIOSTask
         // クラスの寄せ方(RR-8.3)の選び方の検査(`fleetest run` と同じ関数)。dry-run は掛けない
         // (--debug は掛ける = 拡張の木からのデバッグ実行も途中の1本を断る。RR-8.3)
         if !dryRun {
@@ -996,7 +1046,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             }
             for outcome in await ScenarioHost.runAfterAlls(
                 project: project, shared: deviceSessions.shared,
-                target: { platforms in
+                target: { _, platforms in
                     let platform = platforms.sorted().first ?? effectivePlatform
                     return ScenarioHost.LifecycleTarget(
                         connection: platform == "android"
@@ -1049,13 +1099,14 @@ struct ApiRunCommand: AsyncParsableCommand {
             for line in ProfileRunner.supplyHeaderLines(profileName: profileName, resolved: resolved) { logSupply(line) }
             // 手順は並列経路と同じ ProfileSupplyLanes を順に呼ぶ(この経路は --debug の単発実行で、
             // 遅延参加が無いので iOS も開始前に待つ)。台帳へは記帳しないので supplyStage は渡さない
+            // --debug の単発(逐次)実行は台の条件で配らない(RunOrchestrator を通らない)ので性質は運ばない
             workers = try await ProfileSupplyLanes.android(
-                resolved: resolved, supplyLease: supplyLease, supplyStage: nil, triage: triageBox,
+                resolved: resolved, deviceTraits: [:], supplyLease: supplyLease, supplyStage: nil, triage: triageBox,
                 isStopped: { interruptState.isStopped },
                 wipeStatus: { self.emitLine(ApiWipeStatusEvent(device: $0, phase: $1)) }) { logSupply($0) }
             if !resolved.iosDevices.isEmpty {
                 let ios = await ProfileSupplyLanes.ios(
-                    resolved: resolved, supplyLease: supplyLease, supplyStage: nil, triage: triageBox,
+                    resolved: resolved, deviceTraits: [:], supplyLease: supplyLease, supplyStage: nil, triage: triageBox,
                     isStopped: { interruptState.isStopped }) { logSupply($0) }
                 // 全滅は異常として止める(並列経路の遅延参加と同じ文)
                 if ios.isEmpty {
@@ -1185,7 +1236,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             }
             for outcome in await ScenarioHost.runAfterAlls(
                 project: project, shared: deviceSessions.shared,
-                target: { platforms in
+                target: { _, platforms in
                     guard let key = sessionTargets.keys.sorted().first(where: {
                         platforms.isEmpty || platforms.contains(sessionTargets[$0]?.platform ?? "")
                     }), let target = sessionTargets[key] else { return nil }

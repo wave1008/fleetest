@@ -101,14 +101,14 @@ private enum WorkerExit {
 /// run() の完了時に finish する。イベントはバッファされるため消費開始が遅れても失われない。
 public final class RunOrchestrator: Sendable {
     public let events: AsyncStream<RunEvent>
-    private let continuation: AsyncStream<RunEvent>.Continuation
+    let continuation: AsyncStream<RunEvent>.Continuation
     private let workers: [RunWorker]
     private let settings: ScenarioExecutionSettings
     private let reportDir: URL
     private let project: TestProject
     /// デバッグ実行(ブレークポイント・ステップ実行)。呼び出し側が単一シナリオ実行時のみ指定する
     private let debug: ScenarioDebugOptions?
-    private let recorder: RunRecorder?
+    let recorder: RunRecorder?
     /// run 全体で1つ。レーン鍵(論理名)ごとのデバイスセッション。復帰したワーカーも同じ論理名なので
     /// 同じセッションを引き継ぐ(復帰はアプリのデータを消さないので setUpDevice は再実行しない)
     private let deviceSessions = RunDeviceSessionBook()
@@ -118,6 +118,8 @@ public final class RunOrchestrator: Sendable {
         let platform: String
         let connection: DriverConnection
         let leaseKey: String?
+        /// afterAll の宛先を条件で選ぶ入力(DR-237)
+        let traits: DeviceTraits
     }
     private let finishedLanes = LockedValue<[FinishedLane]>([])
     /// run profile の record:true 時のワーカー動画録画(nil = 無効)。VideoRecordingCoordinator.swift
@@ -268,6 +270,8 @@ public final class RunOrchestrator: Sendable {
     private let runPasses = Counter()
     /// 子が対象外を宣言したシナリオ数(summary.skipped)。`runPasses` にも数える(レーンは健全)
     private let runSkipped = Counter()
+    /// 台の条件に合う台が無く、全台が読めて対象外(緑)で確定した本数(`RunOrchestrator+DeviceRequirements`。summary.skipped に足し、サマリの1行に出す)
+    let deviceGapSkipped = LockedValue<Int>(0)
     /// pulled で配られた本数(= この run の total)。shared / broadcast では使わない。
     /// 対象外を親へ返して他のマシンの台へ回し直した分は引く(`resolveNotApplicable`。その結果はこの子のものでなくなる)
     private let handedOut = LockedValue<Int>(0)
@@ -735,7 +739,7 @@ public final class RunOrchestrator: Sendable {
                     continuation.yield(.workerLog(worker: worker.label, message: message))
                 })
                 await testingSlots.open()
-                await queue.laneJoined(ScenarioQueue.lane(of: worker), kind: worker.deviceKind)
+                await queue.laneJoined(ScenarioQueue.lane(of: worker), kind: worker.deviceKind, traits: worker.effectiveTraits)
                 group.addTask {
                     let failed = await self.superviseWorker(worker, queue: queue)
                     // 束ねたクラスの残りは別のレーンへ移さず実行しなかった赤にする(中断のときはドレインが記録する)
@@ -809,14 +813,22 @@ public final class RunOrchestrator: Sendable {
             let lanes = finishedLanes.withLock { $0 }
             // 選んだデバイスの名前(runAfterAlls はクラスごとに target を1回ずつ申告順に呼び、結果も同じ順で返す)
             let chosenLabels = LockedValue<[String]>([])
+            // 宛先はクラスの条件に合う台(DR-237)。合う台が無かった理由はクラスごとに控え、走らせなかった行に載せる
+            let classRequirements = Dictionary(grouping: items) { ClassPlacementRules.className(of: $0.info.id) }
+                .mapValues { DeviceRequirementGate.classLevel(of: $0.map(\.info.deviceRequirements)) }
+            let afterAllGaps = LockedValue<[String: String]>([:])
             let outcomes = await ScenarioHost.runAfterAlls(
                 project: project, shared: deviceSessions.shared,
-                target: { [appTargets, appBundleIDs] platforms in
-                    guard let lane = lanes.first(where: { platforms.isEmpty || platforms.contains($0.platform) })
-                    else {
+                target: { [appTargets, appBundleIDs] className, platforms in
+                    let choice = DeviceRequirementGate.chooseAfterAllLane(
+                        requirements: classRequirements[className] ?? DeviceRequirementSet(), platforms: platforms,
+                        lanes: lanes.map { (id: $0.label, platform: $0.platform, traits: $0.traits) })
+                    guard case .lane(let index) = choice else {
+                        if case .none(let reason?) = choice { afterAllGaps.withLock { $0[className] = reason } }
                         chosenLabels.withLock { $0.append("run") }
                         return nil
                     }
+                    let lane = lanes[index]
                     chosenLabels.withLock { $0.append(lane.label) }
                     return ScenarioHost.LifecycleTarget(
                         connection: lane.connection,
@@ -824,6 +836,7 @@ public final class RunOrchestrator: Sendable {
                         appName: appTargets[lane.platform]?.appName,
                         appBundleID: appBundleIDs[lane.platform])
                 },
+                noTargetReason: { className, _ in afterAllGaps.withLock { $0[className] } },
                 settings: settings, reportDir: reportDir.path, dryRun: false,
                 registerChildProcess: registerChildProcess,
                 acquire: { [runLeases] connection in
@@ -865,6 +878,13 @@ public final class RunOrchestrator: Sendable {
             }
             while let item = await queue.nextLocal() {
                 if cancelledBeforeStart { continue }
+                // 台の条件に合う台が無いまま残った item は、読めなかった台の有無で失敗 / 対象外に確定する(DR-237)
+                if abortReason == nil, !interrupted,
+                   let counted = await concludeDeviceRequirementGap(item, queue: queue, platform: drain.platform,
+                                                                    worker: drain.worker, perDevice: !isSharedDispatch) {
+                    failed += counted
+                    continue
+                }
                 // 対象外で戻されたまま試していない台が居なくなった item は、その事実を理由にする(DR-214)
                 let reason = (abortReason == nil && !interrupted)
                     ? await queue.declaredReason(for: item).map(NotApplicableHandoff.notRunReason(declared:)) ?? drain.reason
@@ -878,6 +898,7 @@ public final class RunOrchestrator: Sendable {
             }
         }
 
+        announceNoMatchingDevice()
         await progressState?.finish()
         let unrecovered = unrecoveredDevices?() ?? []
         let used = usedDeviceKeys.withLock { $0 }
@@ -886,7 +907,7 @@ public final class RunOrchestrator: Sendable {
             continuation.yield(.workerLog(worker: "run", message: notice))
         }
 
-        let summary = RunSummary(total: isPulled ? handedOut.value : total, failed: failed, skipped: await runSkipped.snapshot(),
+        let summary = RunSummary(total: isPulled ? handedOut.value : total, failed: failed, skipped: await runSkipped.snapshot() + deviceGapSkipped.value,
                                  degradedWorkers: await degraded.snapshot(),
                                  freezeRetries: await retries.snapshot(),
                                  fmUnavailableScenarios: await fmUnavailable.snapshot(),
@@ -1016,7 +1037,8 @@ public final class RunOrchestrator: Sendable {
             switch await runWorker(current, queue: queue, revived: revives > 0) {
             case .completed(let f):
                 let lane = FinishedLane(label: current.label, platform: current.platform,
-                                        connection: current.connection, leaseKey: Self.leaseKey(current))
+                                        connection: current.connection, leaseKey: Self.leaseKey(current),
+                                        traits: current.effectiveTraits)
                 finishedLanes.withLock { $0.append(lane) }
                 return totalFailed + f
             case .retired(let f, let retired):
@@ -1093,7 +1115,8 @@ public final class RunOrchestrator: Sendable {
                     recovery: .workerRevive))
                 // 起こし直したデバイスは admit を通らないので、ここで記録し直す(別のモードで戻ったら後の値が残る)
                 if let record = newWorker.modeRecord { recorder?.recordWorkerMode(record) }
-                current = newWorker
+                // 台の性質は論理デバイスの性質(復帰で観測し直さない)
+                current = newWorker.deviceTraits == nil ? newWorker.with(deviceTraits: retired.deviceTraits) : newWorker
             }
         }
     }
@@ -1405,6 +1428,9 @@ public final class RunOrchestrator: Sendable {
                let held = heldFinish.withLock({ $0 }),
                case .flowFinished(_, _, _, _, _, _, let declared?, _) = held.event {
                 let resolved = await resolveNotApplicable(item, worker: worker, queue: queue, declared: declared)
+                if let note = declaredMatchNote(item: item, worker: worker, declared: declared) {
+                    continuation.yield(.workerLog(worker: worker.label, message: note))
+                }
                 if resolved.verdict != .skipped {
                     notApplicableFollowUp = (resolved.verdict, declared, resolved.viaParent)
                 }

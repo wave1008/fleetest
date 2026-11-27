@@ -161,9 +161,10 @@ enum ProfileRunner {
             names: localDeviceNames, deviceMachine: DeviceMachineGrouping.localDisplayName)
         guard !full.devices.isEmpty else { return }
         let counts = full.scenarioCounts(localScenarios)
+        // 機械分担の親は台の観測を持たない(機械をまたぐ run の観測は別の段)ので、台の条件は渡さない = 従来の絞り込み
         let (resolved, _) = limitingDevicesAvoidingMCP(
             full, iosScenarios: counts.ios, androidScenarios: counts.android,
-            trim: !broadcast, leaseStateDir: leaseStateDir)
+            requirements: [], traits: [:], trim: !broadcast, leaseStateDir: leaseStateDir)
         var elapsed = 0
         let stage = { "the check of the local device(s) (waited \(elapsed)s)" }
         while true {
@@ -239,8 +240,11 @@ enum ProfileRunner {
     /// 印(`MCPDeviceLease`)が1つも無ければデバイスの実体を引かない(simctl/adb の往復を払わない)。
     /// 自分と親の pid が持つ印は数えない(MCP が起こした run が自分を「MCP が操作中」と言わない)。
     /// `trim: false`(--broadcast)は絞らず、使うデバイスの警告だけ返す
+    /// `requirements` / `traits` = 台の条件(DR-237)。条件に合う台は本数の絞り込みで落とさない(`ResolvedProfile.limitingDevices`)。
+    /// **既定値を置かない**(一覧の前に呼ぶ経路は空を渡す = 宣言を知らない。理由は `LimitingDevicesWiringTests` の表)
     static func limitingDevicesAvoidingMCP(
-        _ full: ResolvedProfile, iosScenarios: Int?, androidScenarios: Int?, trim: Bool,
+        _ full: ResolvedProfile, iosScenarios: Int?, androidScenarios: Int?,
+        requirements: [DeviceRequirementSet], traits: [String: DeviceTraits], trim: Bool,
         leaseStateDir: URL?
     ) -> (resolved: ResolvedProfile, warnings: [String]) {
         let holders = leaseStateDir.map {
@@ -264,6 +268,7 @@ enum ProfileRunner {
         }
         let resolved = trim
             ? full.limitingDevices(iosScenarios: iosScenarios, androidScenarios: androidScenarios,
+                                   requirements: requirements, traits: traits,
                                    avoiding: { heldBy[$0] != nil || marked.contains($0) })
             : full
         // trim の理由は数で言う(「空きが無かった」は実測で誤り: 実際は「空きはあったが、
@@ -357,6 +362,9 @@ enum ProfileRunner {
                     // ビルドの前に済ませた準備の段(ビルドが要る回に呼び手が渡す。片付けも呼び手が持つ)。
                     // nil なら一覧の後にここで準備する。**既定値を置かない**(渡し忘れで並行にならないまま黙って通る)
                     early: PreparedSupply?,
+                    // 親が観測した台の性質(内部フラグ `--device-traits`)。nil = 自分で観測する(宣言のある run だけ)。
+                    // **既定値を置かない**(子へ運び忘れると、子が観測し直すか、読めなかった扱いの赤になる)
+                    injectedDeviceTraits: [String: DeviceTraits]?,
                     // 準備の段の待ちと片付けはここへ載せる(本体の defer で片付けると、走っている供給の横で終了スクリプトが動く)
                     runExit: RunExitGuard
     ) async throws -> (summary: RunSummary, effectiveSettings: EffectiveSettingsRecord) {
@@ -410,14 +418,26 @@ enum ProfileRunner {
 
         // 2. 準備の段(台数の絞り込み・サービス・開始スクリプト・供給のタスクの起動)。本数はここで確定している
         // (items は解決済み)。platform 未指定のシナリオは実行時と同じ規則で片方の OS にだけ数える(`scenarioCounts`)
+        // 台の条件(DR-237): 一覧が出てから本数で絞るので、宣言のあるシナリオの条件に合う台を残す
+        let requirementSets = items.compactMap(\.info.deviceRequirements).filter { !$0.isEmpty }
         let prepared: PreparedSupply
         if let early {
             prepared = early
+            // 一覧の前に外した台が条件に要ったか(grep の漏れ・古い --skip-build のバイナリ)。要ったなら走らせず事実を言う
+            if !requirementSets.isEmpty, early.resolved.devices.count < early.full.devices.count {
+                let traits = DeviceRequirementEntry.traitsForRun(
+                    injected: injectedDeviceTraits, resolved: early.full, declared: true)
+                try Self.requireDevicesForDeclarations(
+                    requirements: requirementSets, full: early.full, kept: early.resolved, traits: traits)
+            }
         } else {
             let counts = full.scenarioCounts(items.map(\.info))
+            let traits = DeviceRequirementEntry.traitsForRun(
+                injected: injectedDeviceTraits, resolved: full, declared: !requirementSets.isEmpty)
             prepared = try await Self.prepareSupply(
                 full: full, profileName: profileName,
                 iosScenarios: counts.ios, androidScenarios: counts.android,
+                requirements: requirementSets, deviceTraits: traits,
                 scenarioCount: items.count, broadcast: broadcast, reportDirOverride: reportDirOverride,
                 failureLogDir: recorder?.runDir, supplyProgress: supplyProgress, interruptState: interruptState,
                 supplyAbandon: runExit.supplyAbandon)

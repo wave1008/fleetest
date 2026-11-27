@@ -238,17 +238,37 @@ public struct ResolvedProfile: Sendable {
     /// 本数ぶん足りるなら外す**。本数が分からない(nil = 絞らない)ときは、ほかにデバイスがあれば外す。足りないときだけ足りない
     /// ぶんを加える。本数 0 はその OS の台を外す(`deviceKeepCount`)。**既定値を置かない** —— 呼び出し元が渡し忘れると黙って
     /// MCP のデバイスを使う形へ戻る
+    ///
+    /// **台の条件(DR-237)**: `requirements` に空でない組があれば、条件の組ごとに合う台を1台先に残し(`DeviceRequirementTrim.mustKeep`。
+    /// 観測 `traits` は台の名前で引く)、本数の残りを従来の順で埋める。**宣言が無い run(空配列)は従来の `prefix` と同一**。
+    /// 必須の台が MCP の操作中でも残す(呼び手が警告する)。本数 0 の OS には必須の台も残さない
     public func limitingDevices(iosScenarios: Int?, androidScenarios: Int?,
+                                requirements: [DeviceRequirementSet], traits: [String: DeviceTraits],
                                 avoiding: (ResolvedDevice) -> Bool) -> ResolvedProfile {
         func keep(_ list: [ResolvedDevice], _ count: Int?) -> [ResolvedDevice] {
             let free = list.filter { !avoiding($0) }
             let avoided = list.filter(avoiding)
-            guard let count else { return free.isEmpty ? avoided : free }
-            if free.count >= count {
-                return Array(free.prefix(Self.deviceKeepCount(available: free.count, scenarios: count)))
+            let must = count == 0 ? [] : DeviceRequirementTrim.mustKeep(
+                devices: list, requirements: requirements, traits: traits)
+            guard !must.isEmpty else {
+                guard let count else { return free.isEmpty ? avoided : free }
+                if free.count >= count {
+                    return Array(free.prefix(Self.deviceKeepCount(available: free.count, scenarios: count)))
+                }
+                let total = Self.deviceKeepCount(available: list.count, scenarios: count)
+                return free + avoided.prefix(total - free.count)
             }
+            guard let count else {
+                let base = free.isEmpty ? avoided : free
+                return list.filter { must.contains($0) || base.contains($0) }
+            }
+            var kept = list.filter { must.contains($0) }
             let total = Self.deviceKeepCount(available: list.count, scenarios: count)
-            return free + avoided.prefix(total - free.count)
+            for device in free + avoided where !must.contains(device) {
+                if kept.count >= total { break }
+                kept.append(device)
+            }
+            return kept
         }
         let kept = Set(keep(iosDevices, iosScenarios) + keep(androidDevices, androidScenarios))
         guard kept.count < devices.count else { return self }

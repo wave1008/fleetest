@@ -427,7 +427,9 @@ extension ScenarioHost {
     /// 走らせるデバイスは `target(platforms)` が選ぶ(そのクラスのシナリオが走った OS のどれか)。選べなければ走らせず、
     /// 走らなかったことを結果に残す。中断時は呼ばない(呼び手の責務)。結果は results に載せない(シナリオではない)
     public static func runAfterAlls(project: TestProject, shared: RunSharedSession,
-                                    target: (Set<String>) -> LifecycleTarget?,
+                                    target: (_ className: String, _ platforms: Set<String>) -> LifecycleTarget?,
+                                    /// 宛先が無かった理由(nil = 既定の文言)。台の条件に合う台が無かった事実を言うのに使う
+                                    noTargetReason: (_ className: String, _ platforms: Set<String>) -> String? = { _, _ in nil },
                                     settings: ScenarioExecutionSettings, reportDir: String, dryRun: Bool,
                                     registerChildProcess: (@Sendable (Process) -> @Sendable () -> Void)?,
                                     /// 走らせる間だけデバイスを押さえる口(run の経路 = run-lease の取り直し。直指定の経路は
@@ -437,11 +439,12 @@ extension ScenarioHost {
         async -> [DeviceTearDownOutcome] {
         var outcomes: [DeviceTearDownOutcome] = []
         for (className, platforms) in shared.takePendingAfterAlls() {
-            guard let chosen = target(platforms) else {
+            guard let chosen = target(className, platforms) else {
                 outcomes.append(DeviceTearDownOutcome(
                     hook: "afterAll", className: className, ran: false, passed: false, reportPath: nil,
-                    failure: "no device that ran its \(platforms.sorted().joined(separator: "/")) scenarios"
-                        + " finished its work in this run"))
+                    failure: noTargetReason(className, platforms)
+                        ?? "no device that ran its \(platforms.sorted().joined(separator: "/")) scenarios"
+                            + " finished its work in this run"))
                 continue
             }
             var reportPath: String?

@@ -50,7 +50,7 @@ final class ProfileRunnerEffectiveSettingsTests: XCTestCase {
         let (summary, effectiveSettings) = try await ProfileRunner.run(
             project: project, profileName: "iosOnly", items: [androidOnly],
             reportDirOverride: nil, runHooksClass: nil, supplyProgress: RunSupplyProgress(),
-            interruptState: RunInterruptState(recorder: nil), early: nil, runExit: runExit)
+            interruptState: RunInterruptState(recorder: nil), early: nil, injectedDeviceTraits: nil, runExit: runExit)
         await runExit.finish()
 
         XCTAssertEqual(summary.total, 0)

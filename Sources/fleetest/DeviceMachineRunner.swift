@@ -552,7 +552,8 @@ enum DeviceMachineRunner {
         forceLock: Bool, remoteDir: String?, remoteTimeout: Int?,
         quiet: Bool, junitPath: String?, broadcast: Bool = false, runGroup: String? = nil,
         reportDir: String? = nil, workQueue: Bool = false, runMemoLink: Bool = false,
-        lockSocket: String? = nil, lockControlSocket: String? = nil
+        lockSocket: String? = nil, lockControlSocket: String? = nil,
+        deviceTraits: [String: DeviceTraits] = [:]
     ) -> [String] {
         var args = FleetRunner.buildArgs(
             project: project, host: host, profile: profile, fleetEntry: false,
@@ -561,7 +562,8 @@ enum DeviceMachineRunner {
             setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
             performanceMode: performanceMode, forceLock: forceLock,
             remoteDir: remoteDir, remoteTimeout: remoteTimeout,
-            quiet: quiet, junitPath: junitPath, broadcast: broadcast, runGroup: runGroup)
+            quiet: quiet, junitPath: junitPath, broadcast: broadcast, runGroup: runGroup,
+            deviceTraits: deviceTraits)
         if host == "local" {
             args += ["--skip-build"]
             if let reportDir { args += ["--report-dir", reportDir] }

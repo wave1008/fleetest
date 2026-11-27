@@ -123,7 +123,8 @@ final class RunProgressLedgerWiringTests: XCTestCase {
         let box = try XCTUnwrap(api.range(of: "let supplyProgress = RunSupplyProgress()"),
                                 "ApiRunCommand.swift が箱を作っていない")
         // 供給のタスクを起こす前に作る(段階は入口の書き込みより前に起きうる)
-        let task = try XCTUnwrap(api.range(of: "androidWorkersTask = Task {"))
+        // 供給のタスクは startSupply の中で起こす(一覧を待つ run は一覧の後に呼ぶ = DR-237)。箱はその定義より前
+        let task = try XCTUnwrap(api.range(of: "func startSupply("))
         XCTAssertTrue(box.lowerBound < task.lowerBound, "箱を供給のタスクより後で作っている")
         XCTAssertTrue(api.contains("supplyProgress: supplyProgress,"), "runWithProfileParallel へ箱を渡していない")
         XCTAssertTrue(api.contains("supply: supplyProgress,"), "ProfileRunOrchestrator.make へ箱を渡していない")

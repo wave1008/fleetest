@@ -48,14 +48,14 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
     func testDeprioritizedDevicesAreTrimmedFirst() {
         let a = phone("A", udid: "UA"), b = phone("B", udid: "UB"), c = phone("C", udid: "UC")
         let kept = profile([a, b, c]).limitingDevices(iosScenarios: 1, androidScenarios: 0,
-                                                      avoiding: { $0 == a })
+                                                      requirements: [], traits: [:], avoiding: { $0 == a })
         XCTAssertEqual(kept.devices.map(\.name), ["B"], "1本 = 1台。MCP の A を後回しにする")
     }
 
     func testDeprioritizedDevicesAreStillUsedWhenNothingElseIsFree() {
         let a = phone("A", udid: "UA"), b = phone("B", udid: "UB")
         let kept = profile([a, b]).limitingDevices(iosScenarios: 5, androidScenarios: 0,
-                                                   avoiding: { $0 == a })
+                                                   requirements: [], traits: [:], avoiding: { $0 == a })
         XCTAssertEqual(Set(kept.devices.map(\.name)), ["A", "B"])
     }
 
@@ -63,16 +63,16 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
     func testUntrimmedRunsDropAvoidedDevicesOnlyWhenOthersExist() {
         let a = phone("A", udid: "UA"), b = phone("B", udid: "UB"), c = phone("C", udid: "UC")
         XCTAssertEqual(profile([a, b, c]).limitingDevices(iosScenarios: nil, androidScenarios: nil,
-                                                          avoiding: { $0 == a }).devices.map(\.name), ["B", "C"])
+                                                          requirements: [], traits: [:], avoiding: { $0 == a }).devices.map(\.name), ["B", "C"])
         XCTAssertEqual(profile([a, b]).limitingDevices(iosScenarios: nil, androidScenarios: nil,
-                                                       avoiding: { _ in true }).devices.map(\.name), ["A", "B"])
+                                                       requirements: [], traits: [:], avoiding: { _ in true }).devices.map(\.name), ["A", "B"])
     }
 
     /// 避けるデバイスが無ければ先頭から本数ぶん
     func testNothingAvoidedKeepsTheOldTrimming() {
         let a = phone("A", udid: "UA"), b = phone("B", udid: "UB"), c = phone("C", udid: "UC")
         XCTAssertEqual(profile([a, b, c]).limitingDevices(iosScenarios: 1, androidScenarios: 0,
-                                                          avoiding: { _ in false }).devices.map(\.name), ["A"])
+                                                          requirements: [], traits: [:], avoiding: { _ in false }).devices.map(\.name), ["A"])
     }
 
     // MARK: - 印の読み取り
@@ -107,7 +107,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         MCPDeviceLease.write(stateDir: stateDir, key: "UA", pid: otherLivePID)
         let (resolved, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
             profile([phone("A", udid: "UA"), phone("B", udid: "UB"), phone("C", udid: "UC")]),
-            iosScenarios: 1, androidScenarios: 0, trim: true, leaseStateDir: stateDir)
+            iosScenarios: 1, androidScenarios: 0, requirements: [], traits: [:], trim: true, leaseStateDir: stateDir)
         XCTAssertEqual(resolved.devices.map(\.name), ["B"])
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
     }
@@ -117,7 +117,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         MCPDeviceLease.write(stateDir: stateDir, key: "UB", pid: otherLivePID)
         let (resolved, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
             profile([phone("A", udid: "UA"), phone("B", udid: "UB")]),
-            iosScenarios: nil, androidScenarios: nil, trim: true, leaseStateDir: stateDir)
+            iosScenarios: nil, androidScenarios: nil, requirements: [], traits: [:], trim: true, leaseStateDir: stateDir)
         XCTAssertEqual(resolved.devices.map(\.name), ["A"])
         XCTAssertEqual(warnings.count, 1, "\(warnings)")
         let warning = warnings.first ?? ""
@@ -125,7 +125,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         // --broadcast(trim: false)は外さない = 「外した」とは言わず、奪う警告だけ
         let (all, broadcastWarnings) = ProfileRunner.limitingDevicesAvoidingMCP(
             profile([phone("A", udid: "UA"), phone("B", udid: "UB")]),
-            iosScenarios: nil, androidScenarios: nil, trim: false, leaseStateDir: stateDir)
+            iosScenarios: nil, androidScenarios: nil, requirements: [], traits: [:], trim: false, leaseStateDir: stateDir)
         XCTAssertEqual(all.devices.count, 2)
         XCTAssertFalse(broadcastWarnings.contains { $0.contains("left out") }, "\(broadcastWarnings)")
     }
@@ -135,7 +135,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         MCPDeviceLease.write(stateDir: stateDir, key: "UA", pid: otherLivePID)
         let (resolved, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
             profile([phone("A", udid: "UA"), phone("B", udid: "UB")]),
-            iosScenarios: 5, androidScenarios: 0, trim: true, leaseStateDir: stateDir)
+            iosScenarios: 5, androidScenarios: 0, requirements: [], traits: [:], trim: true, leaseStateDir: stateDir)
         XCTAssertEqual(Set(resolved.devices.map(\.name)), ["A", "B"])
         XCTAssertEqual(warnings.count, 1, "\(warnings)")
         let warning = warnings.first ?? ""
@@ -147,7 +147,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         MCPDeviceLease.write(stateDir: stateDir, key: "UA", pid: getpid())
         let (resolved, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
             profile([phone("A", udid: "UA"), phone("B", udid: "UB"), phone("C", udid: "UC")]),
-            iosScenarios: 1, androidScenarios: 0, trim: true, leaseStateDir: stateDir)
+            iosScenarios: 1, androidScenarios: 0, requirements: [], traits: [:], trim: true, leaseStateDir: stateDir)
         XCTAssertEqual(resolved.devices.map(\.name), ["A"])
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
     }
@@ -157,11 +157,11 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         DeviceScreenStateStore.publish(stateDir: stateDir, key: "UA", state: .blank)
         let three = profile([phone("A", udid: "UA"), phone("B", udid: "UB"), phone("C", udid: "UC")])
         let (resolved, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
-            three, iosScenarios: 1, androidScenarios: 0, trim: true, leaseStateDir: stateDir)
+            three, iosScenarios: 1, androidScenarios: 0, requirements: [], traits: [:], trim: true, leaseStateDir: stateDir)
         XCTAssertEqual(resolved.devices.map(\.name), ["B"])
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
         let (all, _) = ProfileRunner.limitingDevicesAvoidingMCP(
-            three, iosScenarios: 3, androidScenarios: 0, trim: true, leaseStateDir: stateDir)
+            three, iosScenarios: 3, androidScenarios: 0, requirements: [], traits: [:], trim: true, leaseStateDir: stateDir)
         XCTAssertEqual(all.devices.count, 3)
     }
 
@@ -207,7 +207,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         MCPDeviceLease.write(stateDir: stateDir, key: "UD", pid: otherLivePID)
         let (resolved, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
             profile([phone("A", udid: "UA"), phone("D", udid: "UD"), phone("B", udid: "UB")]),
-            iosScenarios: 3, androidScenarios: 0, trim: true, leaseStateDir: stateDir)
+            iosScenarios: 3, androidScenarios: 0, requirements: [], traits: [:], trim: true, leaseStateDir: stateDir)
         XCTAssertEqual(Set(resolved.devices.map(\.name)), ["A", "B", "D"])
         XCTAssertEqual(warnings.count, 2, "\(warnings)")
         for warning in warnings {
@@ -222,7 +222,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
         MCPDeviceLease.write(stateDir: stateDir, key: "UA", pid: otherLivePID)
         let (_, warnings) = ProfileRunner.limitingDevicesAvoidingMCP(
             profile([phone("A", udid: "UA"), phone("B", udid: "UB")]),
-            iosScenarios: 1, androidScenarios: 0, trim: false, leaseStateDir: stateDir)
+            iosScenarios: 1, androidScenarios: 0, requirements: [], traits: [:], trim: false, leaseStateDir: stateDir)
         XCTAssertEqual(warnings.count, 1, "\(warnings)")
         XCTAssertTrue((warnings.first ?? "").contains("--broadcast runs on every device"), "\(warnings)")
     }

@@ -488,7 +488,8 @@ enum FleetRunner {
         setOverrides: [String: RunProfileSetValue] = [:], noLPT: Bool, lptHistoryRuns: Int?,
         performanceMode: Bool,
         forceLock: Bool, remoteDir: String?, remoteTimeout: Int?,
-        quiet: Bool, junitPath: String?, broadcast: Bool = false, runGroup: String? = nil
+        quiet: Bool, junitPath: String?, broadcast: Bool = false, runGroup: String? = nil,
+        deviceTraits: [String: DeviceTraits] = [:]
     ) -> [String] {
         var args = ["run", "--project", project, "--profile", profile]
         // "local" エントリも常に --runner を渡す(欠陥3)。子プロセスは自分自身が
@@ -507,6 +508,8 @@ enum FleetRunner {
             if let remoteTimeout { args += ["--remote-timeout", String(remoteTimeout)] }
         } else {
             args += ["--runner", "local"]
+            // 親の観測を運ぶ(子は観測し直さない。空 = 宣言が無い・観測していない)。リモートの機械の子へは中継しない(別の段)
+            args += ChildDeviceTraits.args(deviceTraits)
         }
         if !deviceNames.isEmpty { args += ["--device"] + deviceNames }
         // **ホストも渡す** —— 一意なのは (host, name) なので、名前だけだと子が別の機械の

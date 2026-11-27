@@ -172,7 +172,7 @@ extension MCPServer {
         }
         for outcome in await ScenarioHost.runAfterAlls(
             project: project, shared: deviceSession.shared,
-            target: { platforms in ScenarioHost.LifecycleTarget(
+            target: { _, platforms in ScenarioHost.LifecycleTarget(
                 connection: DriverConnection(platform: platforms.sorted().first ?? fallbackPlatform),
                 appPath: nil, appName: nil, appBundleID: nil) },
             settings: ScenarioExecutionSettings(fm: FMConfig(enabled: false)),
@@ -476,7 +476,7 @@ extension MCPServer {
         // 1回の呼び出し = 1デバイスなので、afterAll もこのデバイスで走らせる
         for outcome in await ScenarioHost.runAfterAlls(
             project: project, shared: deviceSession.shared,
-            target: { _ in ScenarioHost.LifecycleTarget(connection: connection, appPath: appPath,
+            target: { _, _ in ScenarioHost.LifecycleTarget(connection: connection, appPath: appPath,
                                                        appName: appName, appBundleID: appBundleID) },
             settings: exec, reportDir: reportDir, dryRun: false, registerChildProcess: nil) {
             lines.append(ScenarioHost.describe(outcome))

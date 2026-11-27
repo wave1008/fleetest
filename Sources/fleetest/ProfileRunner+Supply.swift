@@ -174,11 +174,41 @@ extension ProfileRunner {
         repoRoot.map { SupplyLeaseHolder(stateDir: $0.appendingPathComponent(".fleetest")) }
     }
 
+    /// 一覧の前に供給を始める経路(`fleetest run` のビルドが要る回・`api run`)が、一覧まで待つか。**両経路が呼ぶ1つの入口**。
+    /// ソースに宣言の文字列が無ければ台の絞り込みを試算せず並行(宣言の無い回帰の追加コストは走査だけ)。
+    /// 試算 = 一覧の前の絞り込みを条件なしで掛け、台が減るか(明示 ID の本数・MCP の印のどちらでも減りうる)
+    static func preListingSupplyStart(
+        project: TestProject, full: ResolvedProfile, iosScenarios: Int?, androidScenarios: Int?,
+        broadcast: Bool, leaseStateDir: URL?,
+        sourcesDeclare: (TestProject) -> Bool = DeviceRequirementEntry.sourcesDeclare(project:)
+    ) -> DeviceRequirementEntry.SupplyStart {
+        guard !broadcast, sourcesDeclare(project) else { return .parallelWithListing }
+        let probe = limitingDevicesAvoidingMCP(
+            full, iosScenarios: iosScenarios, androidScenarios: androidScenarios,
+            requirements: [], traits: [:], trim: true, leaseStateDir: leaseStateDir)
+        return DeviceRequirementEntry.supplyStart(
+            sourcesDeclare: true, trimsBeforeListing: probe.resolved.devices.count < full.devices.count)
+    }
+
+    /// 一覧の前に外した台が、一覧で分かった宣言に要るなら失敗にする(事実だけ。走らせない)
+    static func requireDevicesForDeclarations(requirements: [DeviceRequirementSet], full: ResolvedProfile,
+                                              kept: ResolvedProfile, traits: [String: DeviceTraits]) throws {
+        let facts = DeviceRequirementTrim.shortfall(
+            requirements: requirements, full: full.devices, kept: kept.devices, traits: traits)
+        guard !facts.isEmpty else { return }
+        throw ValidationError(
+            "device(s) needed by the declared device conditions were left out before the scenario list was known: "
+            + facts.joined(separator: "; "))
+    }
+
     /// 準備の段。`iosScenarios` / `androidScenarios` は台数の見積りに使う本数(nil = 分からないので絞らない・0 = その OS の台を用意しない)、
     /// `scenarioCount` は表示用(分からなければ nil)。`failureLogDir` = 開始スクリプトが落ちたときにサービスのログを残す場所
     /// (無ければレポートの出力先)
+    /// `requirements` = 走らせるシナリオの台の条件・`deviceTraits` = 親の観測(DR-237。一覧の前に呼ぶ経路は `[]` と、宣言の文字列が
+    /// ソースにあれば観測した値)。台は条件に合うものを残して絞り、供給したレーンへ性質を運ぶ。**既定値を置かない**
     static func prepareSupply(
         full: ResolvedProfile, profileName: String, iosScenarios: Int?, androidScenarios: Int?,
+        requirements: [DeviceRequirementSet], deviceTraits: [String: DeviceTraits],
         scenarioCount: Int?, broadcast: Bool, reportDirOverride: String?, failureLogDir: URL?,
         supplyProgress: RunSupplyProgress, interruptState: RunInterruptState, supplyAbandon: SupplyAbandon
     ) async throws -> PreparedSupply {
@@ -188,7 +218,7 @@ extension ProfileRunner {
         let leaseStateDir = (try? RepoRoot.find())?.appendingPathComponent(".fleetest")
         let (resolved, mcpWarnings) = Self.limitingDevicesAvoidingMCP(
             full, iosScenarios: iosScenarios, androidScenarios: androidScenarios,
-            trim: !broadcast, leaseStateDir: leaseStateDir)
+            requirements: requirements, traits: deviceTraits, trim: !broadcast, leaseStateDir: leaseStateDir)
         let forCount = scenarioCount.map { " for \($0) scenario(s)" } ?? ""
         if broadcast {
             ConsoleOut.out("→ Broadcasting \(scenarioCount.map { "\($0) scenario(s)" } ?? "the scenarios")"
@@ -245,12 +275,12 @@ extension ProfileRunner {
         let shouldStop = supplyAbandon.shouldStop(interruptState)
         let androidTask = Task {
             try await ProfileSupplyLanes.android(
-                resolved: resolved, supplyLease: supplyLease, supplyStage: progress,
+                resolved: resolved, deviceTraits: deviceTraits, supplyLease: supplyLease, supplyStage: progress,
                 triage: triageBox, isStopped: shouldStop) { ConsoleOut.out($0) }
         }
         let iosTask: Task<[RunWorker], Never>? = resolved.iosDevices.isEmpty ? nil : Task {
             await ProfileSupplyLanes.ios(
-                resolved: resolved, supplyLease: supplyLease, supplyStage: progress,
+                resolved: resolved, deviceTraits: deviceTraits, supplyLease: supplyLease, supplyStage: progress,
                 triage: triageBox, isStopped: shouldStop) { ConsoleOut.out($0) }
         }
         handedOver = true

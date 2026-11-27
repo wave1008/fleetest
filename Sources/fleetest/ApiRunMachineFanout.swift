@@ -361,7 +361,8 @@ enum ApiRunMachineFanout {
     static func buildArgs(
         project: String, profileName: String, group: DeviceMachineRunner.Group,
         units: [ScenarioUnitKey], options: Options, runGroup: String, workQueue: Bool = false,
-        runMemoLink: Bool = false, lockSocket: String? = nil, lockControlSocket: String? = nil
+        runMemoLink: Bool = false, lockSocket: String? = nil, lockControlSocket: String? = nil,
+        deviceTraits: [String: DeviceTraits] = [:]
     ) -> [String] {
         let machineLabel = group.machineLabel
         var args = ["api", "run", "--project", project, "--profile", profileName]
@@ -376,6 +377,8 @@ enum ApiRunMachineFanout {
             args += ["--skip-build"]
             // 発行元のロックのサーバー(RR-8.5): 手元の子はその待ち受けへ直接つなぐ
             if let lockSocket { args += ["--lock-socket", lockSocket] }
+            // 親の観測を運ぶ(子は観測し直さない。空 = 宣言が無い・観測していない)。リモートの機械の子へは中継しない(別の段)
+            args += ChildDeviceTraits.args(deviceTraits)
         } else {
             // リモートの機械(ssh 越し)の子 = 中継役へ: その機械の待ち受け(ssh の `-R` の転送先)と、終わりの知らせ用の手元の待ち受け
             if let lockSocket, let lockControlSocket {

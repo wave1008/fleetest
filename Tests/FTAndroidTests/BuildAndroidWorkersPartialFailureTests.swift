@@ -94,7 +94,7 @@ final class BuildAndroidWorkersPartialFailureTests: XCTestCase {
         let failing: Set<String> = ["d2", "d7"]
         var loggedLines: [String] = []
         let workers = try ProfileWorkerFactory.buildAndroidWorkers(
-            resolved: profile(devices: devices),
+            resolved: profile(devices: devices), deviceTraits: [:],
             log: { loggedLines.append($0) },
             makeWorker: { device in
                 if failing.contains(device.name) {
@@ -116,7 +116,7 @@ final class BuildAndroidWorkersPartialFailureTests: XCTestCase {
         let devices = androidDevices(3)
         XCTAssertThrowsError(
             try ProfileWorkerFactory.buildAndroidWorkers(
-                resolved: profile(devices: devices),
+                resolved: profile(devices: devices), deviceTraits: [:],
                 log: { _ in },
                 makeWorker: { device in throw ProbeError(label: "\(device.name) failed") })
         ) { error in
@@ -124,12 +124,26 @@ final class BuildAndroidWorkersPartialFailureTests: XCTestCase {
         }
     }
 
+    /// 親が観測した台の性質は、デバイス名で引いてレーンへ載る(観測の無い台は nil = 読めなかった扱い。DR-237)
+    func testObservedTraitsAreCarriedByDeviceName() throws {
+        let devices = androidDevices(2)
+        let traits = DeviceTraits(platform: "android", physical: false, foldable: true, homeButton: false,
+                                  osVersion: "Android 17", model: "Pixel Fold")
+        let workers = try ProfileWorkerFactory.buildAndroidWorkers(
+            resolved: profile(devices: devices), deviceTraits: [devices[0].name: traits], log: { _ in },
+            makeWorker: { device in self.worker(for: device) })
+        let byName = Dictionary(uniqueKeysWithValues: workers.map { ($0.logicalName ?? "", $0) })
+        XCTAssertEqual(byName[devices[0].name]?.deviceTraits, traits)
+        XCTAssertNil(byName[devices[1].name]?.deviceTraits)
+        XCTAssertNil(byName[devices[1].name]?.effectiveTraits.foldable, "観測の無い台の foldable は読めなかった(nil)")
+    }
+
     /// 全員成功なら失敗ログは出ない
     func testAllSucceedProducesNoFailureLog() throws {
         let devices = androidDevices(3)
         var loggedLines: [String] = []
         let workers = try ProfileWorkerFactory.buildAndroidWorkers(
-            resolved: profile(devices: devices),
+            resolved: profile(devices: devices), deviceTraits: [:],
             log: { loggedLines.append($0) },
             makeWorker: { device in self.worker(for: device) })
         XCTAssertEqual(workers.count, 3)

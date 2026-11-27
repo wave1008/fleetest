@@ -19,7 +19,8 @@ enum ProfileSupplyLanes {
     /// 供給の前から Android デバイスが0台なら空で返す(iOS だけのプロファイル)
     /// - wipeStatus: Wipe Data の進行を NDJSON へ出す口(api run だけが渡す)
     static func android(
-        resolved: ResolvedProfile, supplyLease: SupplyLeaseHolder?, supplyStage: SupplyStageReporter?,
+        resolved: ResolvedProfile, deviceTraits: [String: DeviceTraits], supplyLease: SupplyLeaseHolder?,
+        supplyStage: SupplyStageReporter?,
         triage: BlankTriageBox, isStopped: @escaping @Sendable () -> Bool,
         wipeStatus: (@Sendable (String, String) -> Void)? = nil,
         log: @escaping @Sendable (String) -> Void
@@ -52,7 +53,9 @@ enum ProfileSupplyLanes {
         // 供給(Wipe Data・古いブリッジ停止等の破壊的操作を含みうる)より前に lease を前倒しして持つ
         var workers = try await ProfileRunner.buildWorkersWithFrontLoadedLease(
             resolved: resolved, platforms: ["android"], leaseStateDir: stateDir, supplyLease: supplyLease
-        ) { try ProfileWorkerFactory.buildAndroidWorkers(resolved: resolved, log: log) }
+        ) {
+            try ProfileWorkerFactory.buildAndroidWorkers(resolved: resolved, deviceTraits: deviceTraits, log: log)
+        }
         let serials = workers.compactMap { $0.connection.serial }
         if resolved.updateWebView { updateWebViews(serials: serials, log: log) }
         // **揃わなかった場合は混在を言う**(落とさない。AndroidWebViewVersions の宣言参照)
@@ -107,7 +110,8 @@ enum ProfileSupplyLanes {
     /// 通常は run の開始後に lateWorkers の provider として呼ばれる(iOS のブリッジ供給は数十秒かかりうるので、
     /// Android の開始をそれで待たせない)
     static func ios(
-        resolved: ResolvedProfile, supplyLease: SupplyLeaseHolder?, supplyStage: SupplyStageReporter?,
+        resolved: ResolvedProfile, deviceTraits: [String: DeviceTraits], supplyLease: SupplyLeaseHolder?,
+        supplyStage: SupplyStageReporter?,
         triage: BlankTriageBox, isStopped: @escaping @Sendable () -> Bool, log: @escaping @Sendable (String) -> Void
     ) async -> [RunWorker] {
         do {
@@ -121,7 +125,7 @@ enum ProfileSupplyLanes {
                 resolved: resolved, platforms: ["ios"], leaseStateDir: stateDir, supplyLease: supplyLease
             ) {
                 let built = try await ProfileWorkerFactory.buildIOSWorkers(
-                    resolved: resolved, repoRoot: repoRoot, supplyStage: supplyStage,
+                    resolved: resolved, repoRoot: repoRoot, deviceTraits: deviceTraits, supplyStage: supplyStage,
                     mayEraseSimulatorForRecovery: true, isStopped: isStopped, log: log)
                 PhaseLog.mark("ios-workers-built")
                 return built

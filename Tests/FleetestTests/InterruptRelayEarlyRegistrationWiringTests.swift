@@ -92,14 +92,15 @@ final class InterruptRelayEarlyRegistrationWiringTests: XCTestCase {
 
     /// **`api run` の登録位置**: `RunInterruptState`/`InterruptRelay.observing` は
     /// `LocalDispatchLock(...).acquire()` より前、かつ run-setup.sh(`RunHookRunner.begin`)・
-    /// 供給タスクの起動(`androidWorkersTask`)・ビルド(`ScenarioHost.build`)より前。
+    /// 供給タスクの起動(`startSupply`)・ビルド(`ScenarioHost.build`)より前。
     /// 登録をこれらの後ろへ戻す変異はこの大小関係のどれかを崩すので必ず落ちる
     func testApiRunRegistersBeforeLockSetupSupplyAndBuild() throws {
         let text = try source("Sources/fleetest/ApiRunCommand.swift")
         let registration = try XCTUnwrap(text.range(of: "RunInterruptState(recorder:"))
         let lock = try XCTUnwrap(text.range(of: "LocalDispatchLock("))
         let setup = try XCTUnwrap(text.range(of: "ProfileRunner.prepareEnvironment("))
-        let supply = try XCTUnwrap(text.range(of: "androidWorkersTask = Task"))
+        // 一覧の前に供給を起こす呼び出し(台の条件で待つ回は一覧の後の呼び出しになり、ビルドより後で良い)
+        let supply = try XCTUnwrap(text.range(of: "startSupply(resolvedProfile, deviceTraits: traits)"))
         let build = try XCTUnwrap(text.range(of: "try ScenarioHost.build(project: testProject,"))
         XCTAssertLessThan(registration.lowerBound, lock.lowerBound,
                           "登録が dispatch.lock の取得より後(acquire の待機中の中断を拾えない)")

@@ -172,9 +172,25 @@ public struct RunWorker: @unchecked Sendable {
     /// (DR-214)。実機・Android・非プロファイル経路・読めなかったときは nil = 覆わない。プロファイルの `model` から作らない
     public let deviceKind: String?
 
+    /// 親が割り振りの前に観測した台の性質(DR-237)。nil = 観測していない(非プロファイル経路・観測を渡されなかった台)。
+    /// 読み手は `effectiveTraits`(nil を「全部読めなかった」に倒す)を使う
+    public let deviceTraits: DeviceTraits?
+
+    /// 条件の判定に使う性質。観測が無くても platform と physical は台の接続から分かる(他は読めなかった = nil)
+    public var effectiveTraits: DeviceTraits {
+        deviceTraits ?? DeviceTraits(platform: platform, physical: connection.physical)
+    }
+
+    /// 性質だけ差し替えた写し(復帰した台へ、旧い台の観測を引き継ぐ)
+    public func with(deviceTraits: DeviceTraits?) -> RunWorker {
+        RunWorker(label: label, platform: platform, driver: driver, connection: connection, logicalName: logicalName,
+                  requestedMode: requestedMode, modeFallbackReason: modeFallbackReason, deviceKind: deviceKind,
+                  deviceTraits: deviceTraits)
+    }
+
     public init(label: String, platform: String, driver: AppDriver, connection: DriverConnection,
                 logicalName: String? = nil, requestedMode: String? = nil, modeFallbackReason: String? = nil,
-                deviceKind: String?) {
+                deviceKind: String?, deviceTraits: DeviceTraits? = nil) {
         self.label = label
         self.platform = platform
         self.driver = driver
@@ -183,6 +199,7 @@ public struct RunWorker: @unchecked Sendable {
         self.requestedMode = requestedMode
         self.modeFallbackReason = modeFallbackReason
         self.deviceKind = deviceKind
+        self.deviceTraits = deviceTraits
     }
 
     /// run.json の `workerModes` の1件(iOS だけ)。worker はシナリオの記録の `worker` と同じ文字列(join できる)。
