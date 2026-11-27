@@ -96,13 +96,13 @@ final class RemoteDeveloperDirWiringTests: XCTestCase {
                                     "runRemoteAndRelay からの developerDir 中継が欠けている")
     }
 
-    /// `.refused` は checkCompatibility の中で即座に止めること(later に埋もれさせない)
+    /// `.refused` なら toolchain を照会しないこと(照会は並列の枝の中 = refused の分岐がその前に要る)
     func testRefusedOutcomeStopsInsideCheckCompatibility() throws {
         let code = try Self.source
         XCTAssertTrue(code.contains("if case .refused(let reason) = xcodeOutcome {"),
                       "refused の分岐が見当たらない")
         guard let refusedRange = code.range(of: "if case .refused(let reason) = xcodeOutcome {"),
-              let toolchainProbeRange = code.range(of: "let toolchainProbe = probeRemote(\"toolchain\")") else {
+              let toolchainProbeRange = code.range(of: "toolchainProbe = dispatcher.probeRemote(\"toolchain\")") else {
             return XCTFail("expected markers missing")
         }
         XCTAssertTrue(refusedRange.lowerBound < toolchainProbeRange.lowerBound,

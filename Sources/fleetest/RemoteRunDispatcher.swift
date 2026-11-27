@@ -388,34 +388,67 @@ struct RemoteRunDispatcher {
     private func checkCompatibility(layout: RemoteLayout) throws -> (developerDir: String?, tool: RemoteToolMatch) {
         // 照合は作業ツリーの判定用の要約で行う(コミットの SHA ではない。DR-226)。取れなければ fail-closed で止める
         // (手元の git が壊れているのに緑で走らせない)
+        // **互いに独立な照会は同時に撃つ**(直列だと ssh の往復 6 回 = LAN で約 2.9 秒。並べると最長の枝 = Xcode 選択 → toolchain の
+        // 3 往復まで)。**評価は直列のときと同じ順**(ローカルの要約 → Xcode の refused → 照合 → ワークスペース)= 止まるときの文言と順は変わらない
+        let me = UncheckedTransfer(self)   // 枝は読むだけ(ssh と ConsoleOut はスレッド安全)
+        let localToolResult = LockedValue<Result<RemoteCompat.LocalTool, Error>?>(nil)
+        let toolProbeResult = LockedValue<RemoteCompat.ProbeOutcome?>(nil)
+        let xcodeResult = LockedValue<(XcodeSelection.Outcome, RemoteCompat.ProbeOutcome?)?>(nil)
+        let workspaceResult = LockedValue<Result<String, Error>?>(nil)
+        DispatchQueue.concurrentPerform(iterations: 4) { branch in
+            let dispatcher = me.value
+            switch branch {
+            case 0:
+                let value = Result { try RemoteCompat.localTool(repoRoot: dispatcher.localRepoRoot, toolRev: dispatcher.toolRev) }
+                localToolResult.withLock { $0 = value }
+            case 1:
+                // 5行(HEAD / 全体の要約 / 判定用の要約 / 基点 / 発行者)。先頭の余計な出力(シェル初期化ファイルの echo 等)に
+                // 読み位置をずらされないよう末尾の5行を採る
+                let value = dispatcher.probeRemote("git revision") {
+                    try dispatcher.sshCapture(AlignSnapshot.remoteProbeCommand(quotedToolRoot: RemoteShell.quote(layout.toolRoot)))
+                }
+                toolProbeResult.withLock { $0 = value }
+            case 2:
+                // Xcode の選択(RR-7)。**適合照合(toolchain probe)より前に解決する**
+                // —— refused なら toolchain は照会しない、選べた場合はその DEVELOPER_DIR を toolchain probe に
+                // 使わせる(ambient のまま照合すると、あとで run が選ぶ Xcode と食い違いうる)
+                let xcodeOutcome = dispatcher.resolveXcodeSelection(layout: layout)
+                var toolchainProbe: RemoteCompat.ProbeOutcome?
+                if case .refused(let reason) = xcodeOutcome {
+                    _ = reason   // 投げるのは下の直列の評価(順を変えない)
+                } else {
+                    let developerDir = xcodeOutcome.developerDir
+                    toolchainProbe = dispatcher.probeRemote("toolchain") {
+                        try dispatcher.remoteToolchainFingerprint(developerDir: developerDir)
+                    }
+                }
+                xcodeResult.withLock { $0 = (xcodeOutcome, toolchainProbe) }
+            default:
+                let value = Result { try dispatcher.sshCapture(
+                    "test -f \(RemoteShell.quote(layout.workDir))/Package.swift && echo yes || echo no") }
+                workspaceResult.withLock { $0 = value }
+            }
+        }
+
         let localTool: RemoteCompat.LocalTool
         do {
-            localTool = try RemoteCompat.localTool(repoRoot: localRepoRoot, toolRev: toolRev)
+            localTool = try localToolResult.withLock { $0! }.get()
         } catch {
             throw RemoteDispatchError.incompatible(
                 ["git revision: could not compute the local tool digest: \(describe(error))"])
         }
-
-        // 5行(HEAD / 全体の要約 / 判定用の要約 / 基点 / 発行者)。先頭の余計な出力(シェル初期化ファイルの echo 等)に
-        // 読み位置をずらされないよう末尾の5行を採る
-        let toolProbe = probeRemote("git revision") {
-            try sshCapture(AlignSnapshot.remoteProbeCommand(quotedToolRoot: RemoteShell.quote(layout.toolRoot)))
-        }
+        let toolProbe = toolProbeResult.withLock { $0! }
         let remoteTool: AlignSnapshot.RemoteToolState? = toolProbe.capturedValue.flatMap {
             AlignSnapshot.parseRemoteProbe(Array($0.components(separatedBy: "\n").suffix(AlignSnapshot.probeLineCount)))
         }
         let localToolchain = ToolchainFingerprint.current()
 
-        // Xcode の選択(RR-7)。**適合照合(toolchain probe)より前に解決する**
-        // —— refused はここで即座に止め、選べた場合はその DEVELOPER_DIR を toolchain probe に
-        // 使わせる(ambient のまま照合すると、あとで run が選ぶ Xcode と食い違いうる)
-        let xcodeOutcome = resolveXcodeSelection(layout: layout)
-        if case .refused(let reason) = xcodeOutcome {
-            throw RemoteDispatchError.incompatible([reason])
+        let (xcodeOutcome, toolchainOutcome) = xcodeResult.withLock { $0! }
+        if case .refused(let refusal) = xcodeOutcome {
+            throw RemoteDispatchError.incompatible([refusal])
         }
         let developerDir = xcodeOutcome.developerDir
-
-        let toolchainProbe = probeRemote("toolchain") { try remoteToolchainFingerprint(developerDir: developerDir) }
+        guard let toolchainProbe = toolchainOutcome else { throw RemoteDispatchError.incompatible(["toolchain: not queried"]) }
         let verdict = RemoteCompat.verdict(
             local: localTool, remoteTool: remoteTool, remoteToolFailure: toolProbe.failureDetail,
             localToolchain: localToolchain, remoteToolchain: toolchainProbe)
@@ -437,8 +470,7 @@ struct RemoteRunDispatcher {
         // 任せると、その前の rsync が users/<issuer>/work/TestProjects/… を部分的に作ってしまい、
         // 後から remote setup してもプロジェクト作成がディレクトリ存在でスキップされて壊れる
         // (RR-12 の既知の罠と同型。実ディスパッチで確認)
-        let workspaceProbe = try sshCapture(
-            "test -f \(RemoteShell.quote(layout.workDir))/Package.swift && echo yes || echo no")
+        let workspaceProbe = try workspaceResult.withLock { $0! }.get()
         guard workspaceProbe.trimmingCharacters(in: .whitespacesAndNewlines) == "yes" else {
             throw RemoteDispatchError.remoteSetupFailed(
                 "no runner workspace at \(layout.workDir) on \(host.sshTarget)"
@@ -459,10 +491,42 @@ struct RemoteRunDispatcher {
         let toolchainIdentical: Bool?
     }
 
+    /// `gzip -1 <file> | ssh <host> <remoteCommand>` を2つのプロセスとパイプでつなぐ(sh で包まない = 中断を両方へ直接届ける)。
+    /// 戻り値は ssh の終了コード(gzip が途中で死ねば向こうの gunzip が途切れた入力で非ゼロにする)。stdout の扱いは runInherited と同じ
+    private func sendCompressed(_ file: URL, remoteCommand: String) throws -> Int32 {
+        let pipe = Pipe()
+        let gzip = Process()
+        gzip.executableURL = URL(fileURLWithPath: "/usr/bin/gzip")
+        gzip.arguments = ["-1", "-c", file.path]
+        gzip.standardInput = FileHandle.nullDevice
+        gzip.standardOutput = pipe
+        gzip.standardError = FileHandle.standardError
+        let ssh = Process()
+        ssh.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        ssh.arguments = sshBase + [host.sshTarget, remoteCommand]
+        ssh.standardInput = pipe
+        ssh.standardOutput = runInheritedStdoutGoesToStderr(mode: mode)
+            ? FileHandle.standardError : FileHandle.standardOutput
+        ssh.standardError = FileHandle.standardError
+        let waitForGzip = ProcessExitWait.prepareBlocking(gzip)
+        let waitForSsh = ProcessExitWait.prepareBlocking(ssh)
+        try ssh.run()
+        do { try gzip.run() } catch { ssh.terminate(); waitForSsh(); throw error }
+        // 親の持つパイプの端を閉じる(残すと gzip の終了後も ssh の stdin に EOF が届かない)
+        try? pipe.fileHandleForReading.close()
+        try? pipe.fileHandleForWriting.close()
+        let relayGzip = InterruptRelay.forwarding(to: gzip)
+        let relaySsh = InterruptRelay.forwarding(to: ssh)
+        defer { relayGzip.stop(); relaySsh.stop() }
+        waitForGzip()
+        waitForSsh()
+        return gzip.terminationStatus == 0 ? ssh.terminationStatus : gzip.terminationStatus
+    }
+
     /// 手元の製品が新しく、ランナーのツールと toolchain が完全に一致するときだけ、シナリオ実行バイナリを送って
     /// 子へ渡す引数を返す(`PrebuiltScenarios.decide`)。送らない・送れないときは空 = 子が今までどおり自分でビルドする。
-    /// 置き場はディスパッチ単位ディレクトリの下(回収後の `cleanupDispatchDir` で一緒に消える)。圧縮は付けない
-    /// (LAN で約 100 MB が約 5 秒。圧縮の効果は ssh 越しで未測定)
+    /// 置き場はディスパッチ単位ディレクトリの下(回収後の `cleanupDispatchDir` で一緒に消える)。`gzip -1` で流す
+    /// (約 105 MB → 約 32 MB。LAN の M1Max で rsync -a 3.7 秒 → 1.5 秒。rsync -z は 3.4 秒で効かず、差分転送はプロジェクト間で 25% しか一致しない)
     private func sendPrebuiltScenarios(project: TestProject, layout: RemoteLayout, stamp: String,
                                        tool: RemoteToolMatch) -> [String] {
         let binary = ScenarioHost.freshBuiltBinary(project: project)
@@ -478,11 +542,11 @@ struct RemoteRunDispatcher {
         let megabytes = ((try? FileManager.default.attributesOfItem(atPath: binary.path)[.size] as? NSNumber)?.intValue ?? 0) / 1_000_000
         log("==> sending the prebuilt scenarios (\(megabytes) MB) to \(host.sshTarget)")
         do {
-            _ = try sshCapture("mkdir -p \(RemoteShell.quote(PrebuiltScenarios.stagingDir(workDir: layout.workDir, stamp: stamp)))")
-            let status = try runInherited(["rsync", "-a"] + SSHOptions.rsyncRemoteShellArgs
-                                          + [binary.path, "\(host.sshTarget):\(remotePath)"])
+            let status = try sendCompressed(
+                binary, remoteCommand: PrebuiltSend.receiveCommand(
+                    stagingDir: PrebuiltScenarios.stagingDir(workDir: layout.workDir, stamp: stamp), remotePath: remotePath))
             guard status == 0 else {
-                log("⚠️ could not send the prebuilt scenarios (rsync exited with \(status)) — \(host.sshTarget) builds them itself")
+                log("⚠️ could not send the prebuilt scenarios (the transfer exited with \(status)) — \(host.sshTarget) builds them itself")
                 return []
             }
         } catch {
@@ -505,9 +569,15 @@ struct RemoteRunDispatcher {
 
     private func remoteToolchainFingerprint(developerDir: String?) throws -> String {
         let prefix = developerDir.map { "export DEVELOPER_DIR=\(RemoteShell.quote($0)) && " } ?? ""
-        let xcodeVersion = try sshCapture("\(prefix)xcodebuild -version")
-        let sdkBuild = try sshCapture("\(prefix)xcrun --sdk iphonesimulator --show-sdk-build-version")
-        return ToolchainFingerprint.compose(xcodeVersionOutput: xcodeVersion, sdkBuild: sdkBuild)
+        // 1往復にまとめる(区切りの行の前後に分ける)。**前段が失敗したら後段を撃たない**(`&&`)= 直列の2回と同じく失敗で投げる
+        let separator = "__fleetest_toolchain_separator__"
+        let output = try sshCapture("\(prefix)xcodebuild -version && echo \(separator) && \(prefix)xcrun --sdk iphonesimulator --show-sdk-build-version")
+        guard let range = output.range(of: "\n\(separator)\n") else {
+            throw RemoteDispatchError.remoteSetupFailed("unexpected toolchain query output on \(host.sshTarget): \(output.suffix(200))")
+        }
+        return ToolchainFingerprint.compose(
+            xcodeVersionOutput: String(output[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines),
+            sdkBuild: String(output[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     // MARK: - 2. 同一ホストへの二重ディスパッチ防止(RR-5)
