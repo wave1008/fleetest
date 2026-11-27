@@ -302,7 +302,7 @@ public final class StdioPullSource: ScenarioPullSource {
     }
 
     public func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
-                                     departedUntried: Bool) async -> NotApplicableHandoff.Verdict {
+                                     departedUntried: Bool, kinds: Set<String>) async -> NotApplicableHandoff.Verdict {
         reader.start()
         return await withCheckedContinuation { (continuation: CheckedContinuation<NotApplicableHandoff.Verdict, Never>) in
             let request: Int? = state.withLock { s in
@@ -314,7 +314,7 @@ public final class StdioPullSource: ScenarioPullSource {
             }
             guard let request else { continuation.resume(returning: .skipped); return }
             write(WorkQueueProtocol.encode(WorkQueueProtocol.NotApplicable(
-                req: request, unit: unit, lane: lane, platform: platform, dep: departedUntried)))
+                req: request, unit: unit, lane: lane, platform: platform, dep: departedUntried, kinds: kinds)))
         }
     }
 

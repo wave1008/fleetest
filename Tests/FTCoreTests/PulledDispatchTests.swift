@@ -21,7 +21,7 @@ final class PulledDispatchTests: XCTestCase {
         let stops = LockedValue(0)
         func stopWaiting() { stops.withLock { $0 += 1 } }
         func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
-                                  departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
+                                  departedUntried: Bool, kinds: Set<String>) async -> NotApplicableHandoff.Verdict { .skipped }
         let kept = LockedValue<[String]>([])
         func noteKept(unit: ScenarioUnitKey, on: Bool) { kept.withLock { $0.append("\(unit.id):\(on)") } }
     }
@@ -88,7 +88,7 @@ final class PulledDispatchTests: XCTestCase {
             }
             func stopWaiting() {}
             func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
-                                      departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
+                                      departedUntried: Bool, kinds: Set<String>) async -> NotApplicableHandoff.Verdict { .skipped }
             func noteKept(unit: ScenarioUnitKey, on: Bool) {}
             func answer(_ unit: ScenarioUnitKey?) { waiter.withLock { $0?.resume(returning: unit); $0 = nil } }
         }
@@ -264,7 +264,7 @@ final class PulledDispatchTests: XCTestCase {
             }
             func stopWaiting() {}
             func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
-                                      departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
+                                      departedUntried: Bool, kinds: Set<String>) async -> NotApplicableHandoff.Verdict { .skipped }
             func noteKept(unit: ScenarioUnitKey, on: Bool) {}
         }
         let a = item("A")

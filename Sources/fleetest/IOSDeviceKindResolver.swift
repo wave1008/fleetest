@@ -12,11 +12,13 @@ enum IOSDeviceKindResolver {
     /// 尽きたらその機械は不明 = 台ごとの回し直しに戻り、配り手が1行言う(遅くなるだけで誤らない)
     static let remoteTimeoutSeconds = Double(SSHOptions.connectTimeoutSeconds) + SimulatorCatalog.simctlTimeoutSeconds
 
-    /// 純粋部。nil = 不明(iOS の指定が無い・実機を含む・simctl の出力が読めない・1台でも解決できない)。
+    /// 純粋部。nil = 観測できなかった(iOS の指定が無い・simctl の出力が読めない・1台でも解決できない)。
+    /// 空集合 = 観測の対象外(実機を含む = simctl の種類が無い。覆わない点は nil と同じだが、失敗ではないので配り手は言わない)。
     /// 解決は `BridgeProvisioner` と同じ `SimulatorCatalog.resolve`
     static func kinds(simctlOutput: String?, specs: [DeviceSpec]) -> Set<String>? {
-        guard !specs.isEmpty, !specs.contains(where: \.isPhysical),
-              let data = simctlOutput?.data(using: .utf8),
+        guard !specs.isEmpty else { return nil }
+        if specs.contains(where: \.isPhysical) { return [] }
+        guard let data = simctlOutput?.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let devices = SimulatorCatalog.devices(simctlJSON: json) else { return nil }
         let blueprints = SimulatorCatalog.blueprints(simctlJSON: json)
@@ -44,18 +46,41 @@ enum IOSDeviceKindResolver {
         let results = LockedValue<[Int: Set<String>]>([:])
         DispatchQueue.concurrentPerform(iterations: jobs.count) { i in
             let job = jobs[i]
-            if let kinds = kinds(simctlOutput: simctlOutput(machine: job.machine), specs: job.specs) {
+            if let kinds = kinds(simctlOutput: cachedSimctlOutput(machine: job.machine), specs: job.specs) {
                 results.withLock { $0[job.entry] = kinds }
             }
         }
         return results.value
     }
 
-    /// その機械の `simctl list -j devices`。**終了コードを見る**(失敗 = 不明。空として読まない)
+    /// 機械 → `simctl list -j devices` の出力(nil = 読めなかった)。**プロセスで機械ごとに1回だけ撃つ** —— 複数対象の run は対象ごとに
+    /// 配り手を作るので、引くたびに撃つと同じ機械へ ssh が対象の数だけ重なる。run の開始の時点の一覧 = 子の供給と同じ頃の観測
+    private static let outputs = LockedValue<[String: String?]>([:])
+    /// 機械ごとの撃つ順番(同じ機械を同時に2回撃たない。待った側は控えを読む)
+    private static let fetchLocks = LockedValue<[String: NSLock]>([:])
+
+    static func cachedSimctlOutput(machine: String?) -> String? {
+        let key = MachineDispatch.isExplicitLocal(machine) || machine == nil ? "local" : machine!
+        let lock = fetchLocks.withLock { locks -> NSLock in
+            if let existing = locks[key] { return existing }
+            let created = NSLock()
+            locks[key] = created
+            return created
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        if let hit = outputs.withLock({ $0[key] }) { return hit }
+        let output = simctlOutput(machine: machine)
+        outputs.withLock { $0[key] = .some(output) }
+        return output
+    }
+
+    /// その機械の `simctl list -j devices`。**終了コードを見る**(失敗 = 不明。空として読まない)。
+    /// 中断で止まる(`abortable` = `BuildAbort` に載る。ssh は中断のリレーの例外にしない = process-lifecycle.md)
     static func simctlOutput(machine: String?) -> String? {
         let words = ["xcrun", "simctl", "list", "-j", "devices"]
         if MachineDispatch.isExplicitLocal(machine) || machine == nil {
-            return (try? Shell.run(words, timeout: SimulatorCatalog.simctlTimeoutSeconds))?.outputIfSucceeded
+            return (try? Shell.run(words, timeout: SimulatorCatalog.simctlTimeoutSeconds, abortable: true))?.outputIfSucceeded
         }
         guard let machine, let resolved = try? RemoteHostResolver.resolve(rawHost: machine, remoteDirOverride: nil) else {
             return nil
@@ -63,6 +88,6 @@ enum IOSDeviceKindResolver {
         return (try? Shell.run(
             ["ssh"] + SSHOptions.batchConnectArgs + SSHOptions.keepAliveArgs
                 + [resolved.hostSpec.sshTarget, words.joined(separator: " ")],
-            timeout: remoteTimeoutSeconds))?.outputIfSucceeded
+            timeout: remoteTimeoutSeconds, abortable: true))?.outputIfSucceeded
     }
 }

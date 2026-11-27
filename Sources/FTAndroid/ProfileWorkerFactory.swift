@@ -63,6 +63,11 @@ public enum ProfileWorkerFactory {
         }
         // 種類は simctl の1回の読みから(読めなければ全台 nil = 覆わない)。実機は引かない
         let blueprints = simulators.isEmpty ? [:] : SimulatorCatalog.blueprintsByUDID()
+        let unobserved = simulators.filter { blueprints[$0.udid] == nil }.map(\.name)
+        if !unobserved.isEmpty {
+            log("→ could not read the simulator kind of \(unobserved.joined(separator: ", "));"
+                + " not-applicable scenarios are handed to each of them")
+        }
         return provisioned.map {
             makeIOSWorker(device: $0, iosApp: iosApp,
                           deviceKind: $0.physical ? nil : blueprints[$0.udid].map(SimulatorCatalog.kind(of:)))

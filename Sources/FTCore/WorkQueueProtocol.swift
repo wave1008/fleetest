@@ -40,8 +40,14 @@ public enum WorkQueueProtocol {
         public let lane: String
         public let platform: String
         public let dep: Bool
+        /// 子の中でこの単位を試して対象外と答えた台で観測した種類(DR-214。iOS の Simulator だけ)。**省略 = 観測していない**(覆わない)。
+        /// 親はこれだけを「その種類で試した」証拠にする(プロファイルを引き直した種類は、子が実際に使った台と限らない)
+        public let kinds: [String]?
 
-        public init(req: Int, unit: ScenarioUnitKey, lane: String, platform: String, dep: Bool) {
+        /// 載せる種類の上限。超えたら載せない(= 観測していない扱い。遅くなるだけで誤らない)。根拠: 1種類 約 25 バイト、行は約 1024 バイトまで
+        public static let maxKinds = 8
+
+        public init(req: Int, unit: ScenarioUnitKey, lane: String, platform: String, dep: Bool, kinds: Set<String>) {
             self.op = "na"
             self.req = req
             self.id = unit.id
@@ -49,6 +55,7 @@ public enum WorkQueueProtocol {
             self.lane = lane
             self.platform = platform
             self.dep = dep
+            self.kinds = kinds.isEmpty || kinds.count > Self.maxKinds ? nil : kinds.sorted()
         }
 
         public var unit: ScenarioUnitKey { ScenarioUnitKey(id: id, variant: variant) }

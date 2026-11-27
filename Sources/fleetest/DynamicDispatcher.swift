@@ -35,6 +35,8 @@ final class DynamicDispatcher: Sendable {
         let platform: String
         var tried: Set<Int> = []
         var departedInChild = false
+        /// 試したエントリの子が観測した種類(`na.kinds`)。覆いの証拠はこれだけ(エントリの種類の見込みからは作らない)
+        var evidence: Set<String> = []
     }
 
     private struct State {
@@ -72,7 +74,8 @@ final class DynamicDispatcher: Sendable {
     /// エントリ番号 → 束ねたときのログに出す名前(マシン名)
     private let entryLabel: @Sendable (Int) -> String
     private let log: @Sendable (String) -> Void
-    /// platform → エントリ番号 → 観測した種類(iOS だけ引く)。**I/O なので臨界区間の外で呼ぶ**。答えは platform ごとに1回だけ使う
+    /// platform → エントリ番号 → 観測した種類(iOS だけ引く。空集合 = 観測の対象外 = 実機を含む)。**I/O なので臨界区間の外で呼ぶ**。
+    /// 答えは platform ごとに1回だけ使う
     private let entryKindsResolver: @Sendable (_ platform: String) -> [Int: Set<String>]
     /// `entryKindsResolver` を引いた platform。引く間は他の対象外の問い合わせも待つ(2回引かない)
     private let kindsResolved = LockedValue<Set<String>>([])
@@ -102,6 +105,11 @@ final class DynamicDispatcher: Sendable {
         self.nowMs = nowMs
         self.timer = timer
         self.send = send
+        // 種類は配り手を作った時点で裏で引く(子の出力を読むスレッドの上で ssh を待たない。対象外が来るころには引き終えている)。
+        // 引いている最中に対象外が来たら `kindsResolveGate` で待つ。iOS の台を持つエントリが2つ未満なら覆う相手が無いので引かない
+        if entryPlatforms.values.filter({ $0.contains("ios") }).count >= 2, scenarios.contains(where: { $0.platform == "ios" }) {
+            DispatchQueue.global(qos: .utility).async { [self] in resolveKindsIfNeeded(platform: "ios") }
+        }
     }
 
     // MARK: - 入口
@@ -144,6 +152,7 @@ final class DynamicDispatcher: Sendable {
             var record = s.notApplicable[unit] ?? NotApplicableRecord(platform: na.platform)
             record.tried.insert(entry)
             record.departedInChild = record.departedInChild || na.dep
+            record.evidence.formUnion(na.kinds ?? [])
             s.notApplicable[unit] = record
             let known = Set(entryPlatforms.filter { $0.value.contains(na.platform) }.keys)
                 .union(s.lanes.keys.filter { $0.platform == na.platform }.map(\.entry))
@@ -153,7 +162,7 @@ final class DynamicDispatcher: Sendable {
                 tried: Set(record.tried.map(String.init)),
                 live: Set(known.subtracting(left).map(String.init)),
                 departed: Set(left.map(String.init)).union(record.departedInChild ? ["child-local"] : []),
-                kinds: Self.kinds(of: record.platform, s))
+                kinds: Self.kinds(of: record.platform, s), evidence: record.evidence)
             guard verdict == .handOn else { return drainLocked(&s) }
             s.pending.append(scenario)
             if let index = s.assigned[entry]?.lastIndex(of: unit) { s.assigned[entry]?.remove(at: index) }
@@ -173,7 +182,7 @@ final class DynamicDispatcher: Sendable {
         guard kindsResolved.withLock({ $0.insert(platform).inserted }) else { return }
         let kinds = entryKindsResolver(platform)
         state.withLock { $0.entryKinds[platform] = kinds }
-        // 観測できなかったエントリは台ごとの回し直しに戻る(誤りではないが遅い)。黙らずに1行言う
+        // 観測できなかったエントリは台ごとの回し直しに戻る(誤りではないが遅い)。黙らずに1行言う(空集合 = 実機を含む = 対象外なので言わない)
         let unknown = entryPlatforms.filter { $0.value.contains(platform) && kinds[$0.key] == nil }.keys.sorted()
         if !unknown.isEmpty {
             log("→ could not observe the \(platform) device kinds on \(unknown.map(entryLabel).joined(separator: ", "));"
@@ -193,7 +202,7 @@ final class DynamicDispatcher: Sendable {
         guard let record = s.notApplicable[unit] else { return false }
         return record.tried.contains(entry)
             || NotApplicableHandoff.covered(String(entry), tried: Set(record.tried.map(String.init)),
-                                            kinds: kinds(of: record.platform, s))
+                                            kinds: kinds(of: record.platform, s), evidence: record.evidence)
     }
 
     /// 子が、配った単位を機械の中で回し直し始めた / 終えた(`kept`。返事なし)。割り当てていない単位は無視する(偽の知らせで待たせない)

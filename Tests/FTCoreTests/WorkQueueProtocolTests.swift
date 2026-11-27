@@ -27,11 +27,11 @@ final class WorkQueueProtocolTests: XCTestCase {
         let line = WorkQueueProtocol.encode(reply)
         XCTAssertEqual(line, #"{"ftWork":{"id":"Login.S0010","req":3,"variant":"dark"}}"#)
         XCTAssertEqual(WorkQueueProtocol.decodeReply(line)?.unit, unit)
-        let na = WorkQueueProtocol.NotApplicable(req: 5, unit: unit, lane: "a", platform: "ios", dep: false)
+        let na = WorkQueueProtocol.NotApplicable(req: 5, unit: unit, lane: "a", platform: "ios", dep: false, kinds: [])
         let naLine = WorkQueueProtocol.encode(na)
         XCTAssertTrue(naLine.contains(#""variant":"dark""#))
         XCTAssertEqual(WorkQueueProtocol.decodeNotApplicable(naLine)?.unit, unit)
-        let plain = WorkQueueProtocol.NotApplicable(req: 5, unit: ScenarioUnitKey(id: "A.b", variant: nil), lane: "a", platform: "ios", dep: false)
+        let plain = WorkQueueProtocol.NotApplicable(req: 5, unit: ScenarioUnitKey(id: "A.b", variant: nil), lane: "a", platform: "ios", dep: false, kinds: [])
         XCTAssertFalse(WorkQueueProtocol.encode(plain).contains("variant"), "バリアントの無い行に variant を載せない")
     }
 

@@ -33,31 +33,29 @@ public enum NotApplicableHandoff {
     }
 
     /// 試した台と同じ種類(観測した機種 × runtime)の台は試した扱いにするか(iOS だけ。DR-214)。
-    /// `kinds` = 鍵 → 観測した種類の集合。**不明(欄無し・空)は覆わない** —— 実行プロファイルの `model` は表示用で
-    /// 識別に使わない(折りたたみ機を取りこぼして誤った緑にするのを防ぐ)。1つでも試した種類に無ければ覆わない。
-    /// **試した側で数えるのは種類が1つだけの鍵** —— 機械をまたぐ親の鍵(エントリ)は台の集まりで、子は台を絞って一部しか使わないことがある
-    /// (`ResolvedProfile.limitingDevices`)。種類の混ざったエントリの「対象外」は、使わなかった種類を試した証拠にならない
-    public static func covered(_ key: String, tried: Set<String>, kinds: [String: Set<String>]) -> Bool {
+    /// - kinds: 鍵 → その鍵の台で観測した種類(まだ試していない側の見込み)。**不明(欄無し・空)は覆わない**
+    /// - evidence: 試して対象外と答えた台で**実際に観測した**種類。証拠はこれだけ —— 鍵の種類から作らない
+    ///   (親の鍵 = エントリは台の集まりで、子は一部の台しか使わないことがある = `ResolvedProfile.limitingDevices`)。
+    ///   実行プロファイルの `model` は表示用で識別に使わない(折りたたみ機を取りこぼして誤った緑にするのを防ぐ)
+    public static func covered(_ key: String, tried: Set<String>, kinds: [String: Set<String>], evidence: Set<String>) -> Bool {
         guard !tried.contains(key), let own = kinds[key], !own.isEmpty else { return false }
-        let triedKinds = tried.reduce(into: Set<String>()) { result, key in
-            if let kind = kinds[key], kind.count == 1 { result.formUnion(kind) }
-        }
-        return own.isSubset(of: triedKinds)
+        return own.isSubset(of: evidence)
     }
 
     /// 試した台 + 試した台と同じ種類の台(`keys` の中から)
-    public static func effectiveTried(tried: Set<String>, among keys: Set<String>, kinds: [String: Set<String>]) -> Set<String> {
-        tried.union(keys.filter { covered($0, tried: tried, kinds: kinds) })
+    public static func effectiveTried(tried: Set<String>, among keys: Set<String>, kinds: [String: Set<String>],
+                                      evidence: Set<String>) -> Set<String> {
+        tried.union(keys.filter { covered($0, tried: tried, kinds: kinds, evidence: evidence) })
     }
 
     /// - tried: このシナリオを試して対象外と宣言した台(今回の台を含む)
     /// - live: いま run に居る同じ OS の台(試した台を含んでよい)
     /// - departed: run から落ちた(供給で合流できなかった・離脱した・終わった)同じ OS の台
-    /// - kinds: 鍵 → 観測した種類(`covered`)。渡せる情報が無い呼び手は [:]
+    /// - kinds / evidence: `covered`。渡せる情報が無い呼び手は [:] / []
     /// 判定の順序に意味がある: 生きた未試行の台 > 落ちた未試行の台 > どちらも無い。
     public static func decide(tried: Set<String>, live: Set<String>, departed: Set<String>,
-                              kinds: [String: Set<String>]) -> Verdict {
-        let effective = effectiveTried(tried: tried, among: live.union(departed), kinds: kinds)
+                              kinds: [String: Set<String>], evidence: Set<String>) -> Verdict {
+        let effective = effectiveTried(tried: tried, among: live.union(departed), kinds: kinds, evidence: evidence)
         if !live.subtracting(effective).isEmpty { return .handOn }
         if !departed.subtracting(effective).isEmpty { return .notRun }
         return .skipped

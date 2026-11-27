@@ -920,7 +920,7 @@ public final class RunOrchestrator: Sendable {
         guard local != .handOn, item.info.placement == nil, let target = await queue.pullTarget() else { return (local, false) }
         let verdict = await target.source.declareNotApplicable(
             platform: target.platform, lane: lane, unit: item.unitKey,
-            departedUntried: await queue.hasDepartedUntried(item))
+            departedUntried: await queue.hasDepartedUntried(item), kinds: await queue.triedKinds(item))
         return (verdict, verdict == .handOn)
     }
 

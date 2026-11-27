@@ -228,16 +228,19 @@ final class StdioPullSourceTests: XCTestCase {
         let input = makePipe()
         let written = LockedValue<[String]>([])
         let source = StdioPullSource(inputFD: input.read, write: { line in written.withLock { $0.append(line) } })
-        async let verdict = source.declareNotApplicable(platform: "ios", lane: "pro", unit: ScenarioUnitKey(id: "F.S1", variant: nil), departedUntried: true)
+        async let verdict = source.declareNotApplicable(platform: "ios", lane: "pro", unit: ScenarioUnitKey(id: "F.S1", variant: nil), departedUntried: true,
+                                                        kinds: ["iPhone-18-Pro|iOS-27-2"])
         for _ in 0..<200 where written.withLock({ $0.isEmpty }) { try? await Task.sleep(for: .milliseconds(10)) }
         let na = written.withLock { $0 }.first.flatMap(WorkQueueProtocol.decodeNotApplicable)
         XCTAssertEqual(na?.id, "F.S1")
         XCTAssertEqual(na?.dep, true)
+        XCTAssertEqual(na?.kinds, ["iPhone-18-Pro|iOS-27-2"], "試した台の観測した種類を親へ載せる(DR-214)")
         send(WorkQueueProtocol.encode(WorkQueueProtocol.Reply(req: na?.req ?? -1, verdict: .handOn)), to: input.write)
         let handed = await verdict
         XCTAssertEqual(handed, .handOn)
 
-        async let pending = source.declareNotApplicable(platform: "ios", lane: "pro", unit: ScenarioUnitKey(id: "F.S2", variant: nil), departedUntried: false)
+        async let pending = source.declareNotApplicable(platform: "ios", lane: "pro", unit: ScenarioUnitKey(id: "F.S2", variant: nil), departedUntried: false,
+                                                        kinds: [])
         for _ in 0..<200 where written.withLock({ $0.count < 2 }) { try? await Task.sleep(for: .milliseconds(10)) }
         source.stopWaiting()
         let stopped = await pending

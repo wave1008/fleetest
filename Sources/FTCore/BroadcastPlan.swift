@@ -44,10 +44,11 @@ public protocol ScenarioPullSource: Sendable {
     /// 渡し済みの返事が届かなかったレーンは、親が中断で none を返す相手にならず、子が終わらなくなる
     func stopWaiting()
     /// 対象外(DR-214): 機械の中に回し直す先が無かった対象外の item を、機械の外(他のマシンの未試行の台)へ回せるか親に聞く。
-    /// `departedUntried` = このキューの中で試していない台が落ちている。中断・親の消失は `.skipped`(従来の確定)。
+    /// `departedUntried` = このキューの中で試していない台が落ちている。`kinds` = このキューの中で試して対象外と答えた台の観測した種類
+    /// (`ScenarioQueue.triedKinds`)。中断・親の消失は `.skipped`(従来の確定)。
     /// **既定実装を置かない**(新しい配り手が問い合わせを忘れると、対象外が確定のまま 0 本実行の緑になる)
     func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
-                              departedUntried: Bool) async -> NotApplicableHandoff.Verdict
+                              departedUntried: Bool, kinds: Set<String>) async -> NotApplicableHandoff.Verdict
     /// 対象外(DR-214): 配られた単位を機械の中の別の台へ回し直し始めた(`on: true`)・終わった(`on: false`)ことを親へ知らせる(返事なし)。
     /// **既定実装を置かない**(知らせ忘れると、親が他のマシンの尽きたレーンを終わらせ、後の対象外が「未試行の台が落ちた」赤になる)
     func noteKept(unit: ScenarioUnitKey, on: Bool)

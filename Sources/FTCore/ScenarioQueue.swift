@@ -125,7 +125,7 @@ actor ScenarioQueue {
 
     private func isExcluded(_ item: ScenarioRunItem, lane: String) -> Bool {
         guard let tried = triedLanes[item.id] else { return false }
-        return tried.contains(lane) || NotApplicableHandoff.covered(lane, tried: tried, kinds: laneKinds)
+        return tried.contains(lane) || NotApplicableHandoff.covered(lane, tried: tried, kinds: laneKinds, evidence: triedKinds(item))
     }
 
     /// 他のレーンが走らせている item が、対象外で自分(未試行)へ戻ってくるかもしれないか
@@ -142,7 +142,7 @@ actor ScenarioQueue {
         declaredReasons[item.id] = reason
         guard !Self.bindsDevice(item) else { return .skipped }
         let verdict = NotApplicableHandoff.decide(tried: triedLanes[item.id] ?? [], live: liveLanes, departed: departedLanes,
-            kinds: laneKinds)
+            kinds: laneKinds, evidence: triedKinds(item))
         if verdict == .handOn {
             items.append(item)
             // 機械の外へ出しうる item だけ(束ねたクラス・@RunOnSingleMachine は親へ問い合わせない = 親の待ちにも関わらない)
@@ -155,8 +155,14 @@ actor ScenarioQueue {
 
     /// 試していない台が(このキューの中で)落ちているか。機械をまたぐ親へ問い合わせるときの申告(親の判定の `departed` に足される)
     func hasDepartedUntried(_ item: ScenarioRunItem) -> Bool {
-        let tried = NotApplicableHandoff.effectiveTried(tried: triedLanes[item.id] ?? [], among: departedLanes, kinds: laneKinds)
+        let tried = NotApplicableHandoff.effectiveTried(tried: triedLanes[item.id] ?? [], among: departedLanes, kinds: laneKinds,
+                                                        evidence: triedKinds(item))
         return !departedLanes.subtracting(tried).isEmpty
+    }
+
+    /// item を試して対象外と答えたレーンで観測した種類(レーン = 1台なので、そのレーンの種類が証拠になる)。親への問い合わせにも載せる
+    func triedKinds(_ item: ScenarioRunItem) -> Set<String> {
+        (triedLanes[item.id] ?? []).reduce(into: Set<String>()) { $0.formUnion(laneKinds[$1] ?? []) }
     }
 
     /// 親の配り手につながっているときだけ(対象外を機械の外へ回せるか聞く相手)

@@ -169,8 +169,11 @@ public enum SimulatorCatalog {
     }
 
     /// 対象外の回し直しで「同じ種類」と見なす鍵(機種 × runtime。DR-214)。観測値だけで作る(プロファイルの `model` は使わない)
+    /// 共通の接頭辞(`com.apple.CoreSimulator.SimDeviceType.` / `….SimRuntime.`)を外す = 親子のワイヤの1行に載る短さ(WorkQueueProtocol 冒頭)
     public static func kind(of blueprint: Blueprint) -> String {
-        blueprint.deviceTypeIdentifier + "|" + blueprint.runtimeIdentifier
+        func short(_ id: String, _ prefix: String) -> String { id.hasPrefix(prefix) ? String(id.dropFirst(prefix.count)) : id }
+        return short(blueprint.deviceTypeIdentifier, "com.apple.CoreSimulator.SimDeviceType.") + "|"
+            + short(blueprint.runtimeIdentifier, "com.apple.CoreSimulator.SimRuntime.")
     }
 
     /// UDID → 作り直し用の識別子。simctl が非ゼロで終われば空(= 「無い」ではなく「読めない」。

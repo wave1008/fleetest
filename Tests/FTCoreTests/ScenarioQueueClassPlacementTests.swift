@@ -231,7 +231,7 @@ final class ScenarioQueueClassPlacementTests: XCTestCase {
             }
             func stopWaiting() {}
             func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
-                                      departedUntried: Bool) async -> NotApplicableHandoff.Verdict { .skipped }
+                                      departedUntried: Bool, kinds: Set<String>) async -> NotApplicableHandoff.Verdict { .skipped }
             func noteKept(unit: ScenarioUnitKey, on: Bool) {}
         }
         let source = PerLaneSource()

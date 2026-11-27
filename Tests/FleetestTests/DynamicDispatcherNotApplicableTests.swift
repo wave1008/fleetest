@@ -25,8 +25,8 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         WorkQueueProtocol.Want(req: req, lane: lane, platform: "ios")
     }
 
-    private func na(_ req: Int, id: String, lane: String, dep: Bool = false) -> WorkQueueProtocol.NotApplicable {
-        WorkQueueProtocol.NotApplicable(req: req, unit: ScenarioUnitKey(id: id, variant: nil), lane: lane, platform: "ios", dep: dep)
+    private func na(_ req: Int, id: String, lane: String, dep: Bool = false, kinds: Set<String> = []) -> WorkQueueProtocol.NotApplicable {
+        WorkQueueProtocol.NotApplicable(req: req, unit: ScenarioUnitKey(id: id, variant: nil), lane: lane, platform: "ios", dep: dep, kinds: kinds)
     }
 
     private let fold = Scenario(id: "Fold.S1", variant: nil, platform: "ios")
@@ -58,7 +58,8 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
             return [0: ["pro|ios27"], 1: ["pro|ios27"]]
         })
         XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
-        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .skipped))
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro", kinds: ["pro|ios27"]), fromEntry: 0),
+                       .init(req: 2, verdict: .skipped))
         XCTAssertEqual(resolved.value, ["ios"])
         XCTAssertEqual(d.assignedUnits(entry: 1), [])
         XCTAssertTrue(sent.value.isEmpty)
@@ -69,7 +70,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         let sent = LockedValue<[String]>([])
         let d = makeDispatcher([fold], entries: 3, sent: sent, kinds: { _ in [0: ["pro"], 1: ["pro"], 2: ["fold"]] })
         XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
-        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .handOn))
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro", kinds: ["pro"]), fromEntry: 0), .init(req: 2, verdict: .handOn))
         XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 1), .init(req: 1, none: true),
                        "覆ったエントリ 1 へは渡さず、戻ってくる見込みも無い")
         XCTAssertEqual(d.assignedUnits(entry: 1), [])
@@ -85,16 +86,25 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
             entryPlatforms: [0: ["ios", "android"], 1: ["ios", "android"]],
             entryKinds: { _ in [0: ["pro"], 1: ["pro"]] }, send: { _, _ in })
         XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
-        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .skipped),
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro", kinds: ["pro"]), fromEntry: 0), .init(req: 2, verdict: .skipped),
                        "同じ iOS の種類のエントリ 1 は覆われる")
         let androidWant = WorkQueueProtocol.Want(req: 3, lane: "pixel", platform: "android")
         XCTAssertEqual(d.handle(androidWant, fromEntry: 0), .init(req: 3, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil)))
         let androidNA = WorkQueueProtocol.NotApplicable(
-            req: 4, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil), lane: "pixel", platform: "android", dep: false)
+            req: 4, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil), lane: "pixel", platform: "android", dep: false, kinds: ["pro"])
         XCTAssertEqual(d.handleNotApplicable(androidNA, fromEntry: 0), .init(req: 4, verdict: .handOn),
                        "Android の台は iOS の種類で覆わない = エントリ 1 の Android の台で試す")
         XCTAssertEqual(d.handle(WorkQueueProtocol.Want(req: 5, lane: "pixel", platform: "android"), fromEntry: 1),
                        .init(req: 5, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil)))
+    }
+
+    /// 覆いの証拠は子が送った種類(`na.kinds`)だけ。エントリの種類の見込みが同じでも、子が観測を送らなければ覆わない
+    /// (子が実際に使った台は、プロファイルを引き直した台と限らない)
+    func testEntryKindsAloneAreNotEvidence() {
+        let d = makeDispatcher([fold], entries: 2, kinds: { _ in [0: ["pro"], 1: ["pro"]] })
+        _ = d.handle(want(1, lane: "pro"), fromEntry: 0)
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .handOn))
+        XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 1), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
     }
 
     /// 種類が違う・不明なエントリは覆わない。resolver は platform ごとに1回だけ引く
@@ -103,7 +113,8 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
             let calls = LockedValue(0)
             let d = makeDispatcher([fold], entries: 2, kinds: { _ in calls.withLock { $0 += 1 }; return kinds })
             _ = d.handle(want(1, lane: "pro"), fromEntry: 0)
-            XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .handOn), "\(kinds)")
+            XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro", kinds: ["pro"]), fromEntry: 0),
+                           .init(req: 2, verdict: .handOn), "\(kinds)")
             XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 1), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
             _ = d.handleNotApplicable(na(3, id: "Fold.S1", lane: "duo"), fromEntry: 1)
             XCTAssertEqual(calls.value, 1)

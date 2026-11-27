@@ -45,9 +45,9 @@ final class NotApplicableMutualHandOnTests: XCTestCase {
         func stopWaiting() {}
 
         func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
-                                  departedUntried: Bool) async -> NotApplicableHandoff.Verdict {
+                                  departedUntried: Bool, kinds: Set<String>) async -> NotApplicableHandoff.Verdict {
             let reply = dispatcher.value?.handleNotApplicable(
-                WorkQueueProtocol.NotApplicable(req: 0, unit: unit, lane: lane, platform: platform, dep: departedUntried),
+                WorkQueueProtocol.NotApplicable(req: 0, unit: unit, lane: lane, platform: platform, dep: departedUntried, kinds: kinds),
                 fromEntry: entry)
             return reply?.verdict.flatMap(NotApplicableHandoff.Verdict.init(wire:)) ?? .skipped
         }
@@ -71,7 +71,8 @@ final class NotApplicableMutualHandOnTests: XCTestCase {
             let local = await queue.noteNotApplicable(got, lane: lane, reason: "needs a foldable device")
             if local == .handOn { return }
             let verdict = await bridge.declareNotApplicable(
-                platform: "ios", lane: lane, unit: got.unitKey, departedUntried: await queue.hasDepartedUntried(got))
+                platform: "ios", lane: lane, unit: got.unitKey, departedUntried: await queue.hasDepartedUntried(got),
+                kinds: await queue.triedKinds(got))
             if verdict != .handOn { finals.withLock { $0[got.info.id] = verdict } }
         }
         if let first { await declare(first) }
