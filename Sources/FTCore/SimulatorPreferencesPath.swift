@@ -7,11 +7,9 @@
 import Foundation
 
 public enum SimulatorPreferencesPath {
-    /// ドメインの名前 = 1つの名前(`/`・制御文字・`.`・`..` を含まない)。アプリや SDK は空白や記号の入った名前でも書く。
-    /// **`.plist` で終わる名前は断る** —— `defaults delete` は拡張子を省いても付けても同じファイルを指すので、`x.plist` を通すと
-    /// `x.plist.plist` を確かめて `x.plist`(symlink でありうる)に作用させてしまう
+    /// ドメインの名前 = 1つの名前(`/`・制御文字・`.`・`..` を含まない)。アプリや SDK は空白や記号の入った名前でも書く
     public static func isDomainName(_ name: String) -> Bool {
-        !name.isEmpty && name != "." && name != ".." && !name.lowercased().hasSuffix(".plist")
+        !name.isEmpty && name != "." && name != ".."
             && !name.unicodeScalars.contains { $0 == "/" || $0.value < 0x20 || $0.value == 0x7f }
     }
 
@@ -24,7 +22,8 @@ public enum SimulatorPreferencesPath {
     }
 
     /// `path` = `<container>/Library/Preferences[/ByHost]/<ドメイン>` で、置き場が実体のまま容器の中にあり、
-    /// `<ドメイン>` も `<ドメイン>.plist` も symlink でないか
+    /// `<ドメイン>` も `<ドメイン>.plist` も symlink でないか。**両方を見る** —— `defaults delete` は拡張子を省いても付けても
+    /// 同じファイルを指すので、`x.plist` を渡されたら `x.plist` そのもの(symlink でありうる)に作用する
     public static func isDomain(_ path: String, inContainer container: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         guard isDomainName(name),

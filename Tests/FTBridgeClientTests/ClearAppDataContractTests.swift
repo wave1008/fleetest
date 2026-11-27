@@ -70,8 +70,10 @@ final class ClearAppDataContractTests: XCTestCase {
         var hits: [String] = []
         for case let url as URL in enumerator where url.pathExtension == "swift" {
             let text = try String(contentsOf: url, encoding: .utf8)
+            // ラベルを丸ごと書いた形と、cfprefsd を起こし直す語を同じ行に書いた形(ラベルを組み立てる・killall 等)
             for line in text.split(separator: "\n") where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
-                && line.contains("com.apple.cfprefsd") {
+                && (line.contains("com.apple.cfprefsd")
+                    || (line.contains("cfprefsd") && ["kickstart", "kill", "stop"].contains { line.contains($0) })) {
                 hits.append("\(url.lastPathComponent): \(line.trimmingCharacters(in: .whitespaces))")
             }
         }

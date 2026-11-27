@@ -98,7 +98,6 @@ final class SimctlPolicyTests: XCTestCase {
             mine + "/Bundle/Application/ABC-1/Library/Preferences/com.example.app",                     // アプリの本体の側
             mine + "/Data/Application/ABC-1/Library/Caches/com.example.app",                            // 設定の置き場でない
             mine + "/Data/Application/ABC-1/Library/Preferences/a\nb",                                // 制御文字
-            mine + "/Data/Application/ABC-1/Library/Preferences/x.plist",                              // 拡張子付き(そのものに作用する)
             mine + "/Data/Application/ABC-1/Library/Preferences/Other/com.example.app",                // ByHost 以外の下の階層
             FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Preferences/com.apple.dock", // ホストの設定
         ] {

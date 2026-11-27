@@ -155,8 +155,8 @@ public enum SimctlPolicy {
             return refusal
         }
         let container = String(path[..<marker.lowerBound])
-        let root = FileManager.default.homeDirectoryForCurrentUser.path
-            + "/Library/Developer/CoreSimulator/Devices/\(udid)/data/Containers"
+        // ホームは子の枠と同じ取り方(パスワードの台帳。HOME を見ない = `ScenarioSandbox.realHome`)
+        let root = ScenarioSandbox.realHome() + "/Library/Developer/CoreSimulator/Devices/\(udid)/data/Containers"
         let realContainer = ScenarioSandbox.canonicalPath(container)
         let realRoot = ScenarioSandbox.canonicalPath(root)
         let inLane = ["/Data/Application/", "/Shared/AppGroup/"].contains { kind in

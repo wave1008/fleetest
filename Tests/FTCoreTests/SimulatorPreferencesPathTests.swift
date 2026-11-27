@@ -18,10 +18,10 @@ final class SimulatorPreferencesPathTests: XCTestCase {
     override func tearDown() { try? FileManager.default.removeItem(at: root) }
 
     func testDomainNames() {
-        for ok in ["com.example.app", "Some SDK", "group.com.example+beta", "-g", "日本語"] {
+        for ok in ["com.example.app", "Some SDK", "group.com.example+beta", "-g", "日本語", "cache.plist"] {
             XCTAssertTrue(SimulatorPreferencesPath.isDomainName(ok), ok)
         }
-        for bad in ["", ".", "..", "a/b", "a\nb", "a\u{7f}", "x.plist", "X.PLIST"] {
+        for bad in ["", ".", "..", "a/b", "a\nb", "a\u{7f}"] {
             XCTAssertFalse(SimulatorPreferencesPath.isDomainName(bad), bad)
         }
     }

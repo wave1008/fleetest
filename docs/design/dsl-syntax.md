@@ -426,13 +426,14 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
   (下端から 1/4 強・0.08 秒相当・press 0.05)。判定は `/appstate` ではできない
   (実機の `XCUIApplication.state` はスイッチャー表示中でも foreground を返す)
 - **`clearAppData` の機構は OS で違う**: Android = `pm clear` / iOS = データコンテナの中身を
-  削除 + **cfprefsd の入れ直し** + `simctl privacy reset all`。**中身の削除だけでは
+  削除 + **各設定のドメインを cfprefsd に消させる** + `simctl privacy reset all`。**中身の削除だけでは
   NSUserDefaults が戻る**(cfprefsd がドメインを抱えていて、次の起動で消したはずの値を配り
   plist を書き直す。2026-08-05 実測: 消して起動を3回で launch_count が 2→3→4)。
-  `launchctl kickstart -k system/com.apple.cfprefsd.xpc.daemon` で 3/3 初期化される。
-  **順序は「ファイルを消してから入れ直す」**(先に入れ直すとディスクの旧値を読み直す)。
-  `defaults delete` は効かず(サンドボックスのドメインが見えない)、`killall` はシムに無い。
-  `ClearAppDataContractTests` が2段の欠落を検出する。
+  **アプリを止めた後・容器を空にする前**に、`Library/Preferences[/ByHost]/*.plist` のドメインを
+  `simctl spawn <udid> defaults delete <パス>` で消させる(ドメイン名では見えないのでパスで名指す。3/3 で初期化)。
+  **cfprefsd を起こし直さない**(`launchctl kickstart -k …cfprefsd.xpc.daemon` は 3/3 初期化されるが、以後
+  SpringBoard の外観の部品が変更を受け取らず `setAppearance` がアプリへ届かなくなる = docs/verification/resolved.md)。
+  `ClearAppDataContractTests` が段の欠落と cfprefsd の起こし直しを検出する(`SimulatorPreferencesFlush`)。
   **権限はコンテナの外(TCC.db)にある**ので後者を省くと
   「Android では権限ダイアログが出るのに iOS では出ない」という OS 差が黙って生まれる
   (`pm clear` は権限もリセットする)。**ドライバの層では iOS はシミュレータ専用**(実機は devicectl に同等手段が

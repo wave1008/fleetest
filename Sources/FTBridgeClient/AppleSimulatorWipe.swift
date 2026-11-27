@@ -98,14 +98,20 @@ public enum AppleSimulatorWipe {
         }
         // 設定のキャッシュは空にする前に cfprefsd に消させる(group の分は下で同じく。理由と順序は SimulatorPreferencesFlush 冒頭)
         // symlink の容器・設定の置き場は辿らない(下の emptyContents が容器を断る。その前に先の設定を消させない)
-        func flushUnlessLinked(_ container: String) -> [(path: String, detail: String)] {
-            if (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil { return [] }
-            switch SimulatorPreferencesFlush.domainPaths(container: container) {
-            case .domains(let domains): return SimulatorPreferencesFlush.flush(udid: udid, domainPaths: domains)
-            case .refused(let why): return [(container, "refused: \(why)")]
+        var preferenceProblems: [String] = []
+        func flushUnlessLinked(_ container: String, label: String, always: [String]) {
+            if (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil { return }
+            switch SimulatorPreferencesFlush.domainPaths(container: container, always: always) {
+            case .domains(let domains):
+                for failure in SimulatorPreferencesFlush.flush(udid: udid, domainPaths: domains) {
+                    preferenceProblems.append("could not clear the cached preferences \((failure.path as NSString).lastPathComponent)"
+                        + " in \(label) (\(failure.detail)) — preference values cached by the daemon may come back")
+                }
+            case .refused(let why):
+                preferenceProblems.append("did not clear the preferences of \(label): \(why)")
             }
         }
-        var unflushed = flushUnlessLinked(dataPath)
+        flushUnlessLinked(dataPath, label: "the data container", always: [bundleID])
         guard let dataWipe = emptyContents(of: dataPath) else {
             throw DriverError.badResponse(status: 500,
                 body: "the data container of \(bundleID) is a symbolic link (\(dataPath)) — refusing to delete what it points to")
@@ -125,7 +131,7 @@ public enum AppleSimulatorWipe {
                 report.problems.append("\(parsed.unparsableLines) line(s) of the group container listing could not be read, so any group container on them was not wiped")
             }
             for group in parsed.groups {
-                unflushed += flushUnlessLinked(group.path)
+                flushUnlessLinked(group.path, label: "group container \(group.id)", always: [])
                 guard let result = emptyContents(of: group.path, skipping: [containerMetadataName]) else {
                     report.problems.append("group container \(group.id) (\(group.path)) is a symbolic link — not wiped")
                     continue
@@ -142,10 +148,7 @@ public enum AppleSimulatorWipe {
                 + " \(listing.status): \(listing.tail)) — none were wiped")
         }
 
-        for failure in unflushed {
-            report.problems.append("could not clear the cached preferences \((failure.path as NSString).lastPathComponent)"
-                + " (\(failure.detail)) — preference values cached by the daemon may come back")
-        }
+        report.problems += preferenceProblems
         let privacy = try Shell.run(["xcrun", "simctl", "privacy", udid, "reset", "all", bundleID])
         if privacy.status != 0 {
             report.problems.append("simctl privacy reset failed (exit \(privacy.status): \(privacy.tail)) — permission grants remain")

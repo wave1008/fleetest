@@ -5,7 +5,8 @@
 // 代わりにドメインをパスで名指しして `defaults delete` させると、cfprefsd のキャッシュも落ちる(消して起動した起動回数が 1 に戻る = 3/3。
 // ファイルを消すだけなら 2→3・3→4 と戻ってくる)。ByHost の plist もパスで消せる(実測)。
 // **順序は「アプリを止めた後・容器を空にする前」**: 空にした後ではドメインが無く `defaults delete` は 1(not found)で終わり、
-// 成否を終了コードで言えない。アプリ自身は止めてあるので書き戻さない(初回起動で作ったドメインも、止めた直後には plist がある = 実測)。
+// 成否を終了コードで言えない(0 以外は plist に値が無ければ成功とみなす = `flush`)。アプリ自身は止めてあるので書き戻さない。
+// アプリ自身のドメインはファイルが無くても消させる(cfprefsd がまだ書いていない値をキャッシュにだけ持っている場合)。
 // **group の容器はこの前提が成り立たない**(同じ group のウィジェット・拡張が動いていれば書き戻しうる)
 
 import FTCore
@@ -23,9 +24,10 @@ public enum SimulatorPreferencesFlush {
         case refused(String)
     }
 
-    /// **空にする前に**呼ぶ。置き場が無ければ空。置き場か plist が symlink・置き場が読めないなら `.refused`
-    /// (symlink の先の設定を消させない。黙って外すと、そのドメインのキャッシュが残ったまま「消えた」と言う)
-    public static func domainPaths(container: String) -> Listing {
+    /// **空にする前に**呼ぶ。`always` = ファイルが無くても含めるドメイン(アプリ自身)。置き場か plist が symlink・置き場が読めないなら
+    /// `.refused`(symlink の先の設定を消させない。黙って外すと、そのドメインのキャッシュが残ったまま「消えた」と言う)。
+    /// ドメインの名前として通らない名前(制御文字等)の plist は飛ばす(空にする段がファイルを消す。容器ごと断ると clearAppData が毎回止まる)
+    public static func domainPaths(container: String, always: [String]) -> Listing {
         let preferences = container + "/Library/Preferences"
         var paths: [String] = []
         for dir in [preferences, preferences + "/ByHost"] {
@@ -40,11 +42,15 @@ public enum SimulatorPreferencesFlush {
             }
             for name in names where name.lowercased().hasSuffix(".plist") {
                 let domain = dir + "/" + String(name.dropLast(".plist".count))
-                guard SimulatorPreferencesPath.isDomain(domain, inContainer: container) else {
-                    return .refused("\(relative(dir + "/" + name, container)) is a symbolic link or not a preferences domain")
+                if SimulatorPreferencesPath.isSymlink(domain) || SimulatorPreferencesPath.isSymlink(domain + ".plist") {
+                    return .refused("\(relative(dir + "/" + name, container)) is a symbolic link")
                 }
-                paths.append(domain)
+                if SimulatorPreferencesPath.isDomain(domain, inContainer: container) { paths.append(domain) }
             }
+        }
+        for name in always where SimulatorPreferencesPath.isDomainName(name) {
+            let domain = preferences + "/" + name
+            if !paths.contains(domain), SimulatorPreferencesPath.isDomain(domain, inContainer: container) { paths.append(domain) }
         }
         return .domains(paths.sorted())
     }

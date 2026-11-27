@@ -504,7 +504,11 @@ final class ScenarioSandboxTests: XCTestCase {
         XCTAssertNotEqual(try runSandboxed(["/bin/ln", "-s", path("outside"), path(app + "Library/Preferences")], scope: lane), 0)
         XCTAssertNotEqual(try runSandboxed(["/bin/ln", path("outside/host.plist"), path(app + "Library/x.plist")], scope: lane), 0)
         XCTAssertEqual(try runSandboxed(["/usr/bin/touch", path(app + "Library/ok.plist")], scope: lane), 0)
-        XCTAssertEqual(try runSandboxed(["/bin/mkdir", path(app + "Library/Preferences2")], scope: lane), 0)
+        // フォルダも作れない・外で作ったフォルダ(symlink を中に持ちうる)を移し入れられない。中身ごとの削除はできる
+        XCTAssertNotEqual(try runSandboxed(["/bin/mkdir", path(app + "Library/Preferences2")], scope: lane), 0)
+        try FileManager.default.createDirectory(atPath: path("writable/L"), withIntermediateDirectories: true)
+        XCTAssertNotEqual(try runSandboxed(["/bin/mv", path("writable/L"), path(app + "Library/L")], scope: lane), 0)
+        XCTAssertEqual(try runSandboxed(["/bin/rm", "-rf", path(app + "Library")], scope: lane), 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: path(app + "Library/x.plist")))
     }
 

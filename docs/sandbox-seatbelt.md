@@ -297,13 +297,17 @@ E2E では赤にならないが、書けないと**黙って効かなくなる**
 |---|---|
 | 列挙に無い動詞(`erase`・`delete`・`io`・`push` など) | 使っていない操作を開けない |
 | レーン以外のデバイス | 他のレーンのデバイスを壊せる |
-| `spawn` の固定2形以外 | Simulator の中 = 枠の外で任意のコマンドを起こす口 |
+| `spawn` の固定の形以外 | Simulator の中 = 枠の外で任意のコマンドを起こす口 |
 | 子が書ける場所からの `install` | 枠の中で作った実行物を Simulator で動かせる |
 | `launch` の環境変数のうち、決まった4つ以外 | 起動するアプリ(枠の外のプロセス)へ任意の環境を渡せる |
 | ツール本体の `InAppBridge/build/` 以外の `DYLD_INSERT_LIBRARIES` | 任意のライブラリを注入できる |
 
-`spawn` で残した2形は、`launchctl list` と、`clearAppData` 後の
-`launchctl kickstart -k system/com.apple.cfprefsd.xpc.daemon`。
+`spawn` で残した形は、`launchctl list` と、`clearAppData` が消す前に撃つ `defaults delete <パス>`
+(パスはそのレーンの Simulator のアプリの容器の `Library/Preferences[/ByHost]/<ドメイン>` だけ。symlink を辿った実体で
+`SimulatorPreferencesPath` が判定する)。cfprefsd の起こし直し(`launchctl kickstart -k system/com.apple.cfprefsd.xpc.daemon`)は
+通さない(SpringBoard の外観の部品が壊れる = docs/verification/resolved.md「setAppearance がアプリへ届かない」)。
+あわせて**子は Simulator のデータ容器の中に symlink・ハードリンク・フォルダを作れない**(容器の外のファイルへ出る道。
+フォルダは symlink を中に持つものを外で作って移し入れる形があるため。子が容器に書くのは `clearAppData` の削除だけ)。
 
 ### SB-6.3 親を落とされない
 

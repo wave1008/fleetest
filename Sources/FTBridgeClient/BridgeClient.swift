@@ -481,7 +481,7 @@ public final class BridgeClient: AppDriver, Sendable {
         // 消したはずの値を配って plist を書き直す(消して起動を3回で launch_count が 2→3→4)。空にする前に、ドメインを
         // パスで名指しして cfprefsd に消させる。**cfprefsd を起こし直さない**(SpringBoard の外観の部品が壊れる = SimulatorPreferencesFlush 冒頭)
         let domains: [String]
-        switch SimulatorPreferencesFlush.domainPaths(container: path) {
+        switch SimulatorPreferencesFlush.domainPaths(container: path, always: [bundleID]) {
         case .domains(let listed): domains = listed
         case .refused(let why):
             throw DriverError.badResponse(status: 500,

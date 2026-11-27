@@ -21,14 +21,14 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
     /// ディスクにある .plist だけがドメイン(設定でないファイルは含めない)。ByHost の分も含める
     func testListsPlistDomainsIncludingByHost() {
         let dir = prefs.path + "/"
-        XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path),
+        XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: []),
                        .domains([dir + "ByHost/com.example.app.ABCD", dir + "com.example.app", dir + "com.vendor.sdk"]))
     }
 
     /// 設定の置き場が無い容器(group の容器・作られたばかりのアプリ)は空 = 何も撃たない(無いドメインの delete は 1 で終わる)
     func testMissingPreferencesDirectoryYieldsNothing() throws {
         try FileManager.default.removeItem(at: container.appendingPathComponent("Library"))
-        XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path), .domains([]))
+        XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: []), .domains([]))
     }
 
     /// 置き場か plist が symlink なら断る(黙って外すと、そのドメインのキャッシュを残したまま「消えた」と言う)
@@ -38,12 +38,12 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
         try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(at: prefs.appendingPathComponent("com.linked.plist"),
                                                    withDestinationURL: outside.appendingPathComponent("x.plist"))
-        guard case .refused = SimulatorPreferencesFlush.domainPaths(container: container.path) else {
+        guard case .refused = SimulatorPreferencesFlush.domainPaths(container: container.path, always: []) else {
             return XCTFail("symlink の plist を断っていない")
         }
         try FileManager.default.removeItem(at: prefs)
         try FileManager.default.createSymbolicLink(at: prefs, withDestinationURL: outside)
-        guard case .refused = SimulatorPreferencesFlush.domainPaths(container: container.path) else {
+        guard case .refused = SimulatorPreferencesFlush.domainPaths(container: container.path, always: []) else {
             return XCTFail("symlink の置き場を断っていない")
         }
     }
@@ -52,7 +52,7 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
     func testUnreadablePreferencesLocationIsRefusedWithItsOwnReason() throws {
         try FileManager.default.removeItem(at: prefs)
         FileManager.default.createFile(atPath: prefs.path, contents: Data())
-        guard case .refused(let why) = SimulatorPreferencesFlush.domainPaths(container: container.path) else {
+        guard case .refused(let why) = SimulatorPreferencesFlush.domainPaths(container: container.path, always: []) else {
             return XCTFail("読めない置き場を断っていない")
         }
         XCTAssertTrue(why.contains("not a readable directory"), why)
@@ -73,5 +73,26 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
         FileManager.default.createFile(atPath: prefs.appendingPathComponent("garbage.plist").path, contents: Data("not a plist".utf8))
         XCTAssertFalse(SimulatorPreferencesFlush.hasValues(plist: prefs.appendingPathComponent("garbage.plist").path))
         XCTAssertTrue(SimulatorPreferencesFlush.hasValues(plist: try write("keys.plist", ["launch_count": 2])))
+    }
+
+    /// アプリ自身のドメインはファイルが無くても消させる(cfprefsd がまだ書いていない値をキャッシュにだけ持っている場合)
+    func testAlwaysDomainsAreIncludedEvenWithoutAFile() {
+        let dir = prefs.path + "/"
+        XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: ["com.example.app", "com.example.cached"]),
+                       .domains([dir + "ByHost/com.example.app.ABCD", dir + "com.example.app", dir + "com.example.cached", dir + "com.vendor.sdk"]))
+    }
+
+    /// ドメインの名前として通らない plist は飛ばす(容器ごと断らない)。拡張子が二重の名前はその手前までがドメイン
+    func testOddNamesAreSkippedOrKeptNotRefused() {
+        FileManager.default.createFile(atPath: prefs.appendingPathComponent("a\u{01}b.plist").path, contents: Data())
+        FileManager.default.createFile(atPath: prefs.appendingPathComponent("cache.plist.plist").path, contents: Data())
+        let dir = prefs.path + "/"
+        XCTAssertEqual(SimulatorPreferencesFlush.domainPaths(container: container.path, always: []),
+                       .domains([dir + "ByHost/com.example.app.ABCD", dir + "cache.plist", dir + "com.example.app", dir + "com.vendor.sdk"]))
+    }
+
+    /// 既定の上限(秒)。他のテストは差し替えないので、既定を戻す変更はここでしか落ちない
+    func testDeleteTimeoutIsPinned() {
+        XCTAssertEqual(SimulatorPreferencesFlush.deleteTimeoutSeconds, 30)
     }
 }
