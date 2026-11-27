@@ -318,7 +318,7 @@ enum ProfileRunner {
         // 「(one per scenario)」が needed を生まない。そのときは数の内訳を出さない
         let derivation = needed == scenarios
             ? " (one per scenario)"
-            : " (every device this profile has on this machine)"
+            : " (every device this run can use on this machine: the profile's, or those --device picked)"
         return "needed \(plural(needed, "lane"))" + derivation + " but \(freeClause)"
     }
 

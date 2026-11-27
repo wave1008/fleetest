@@ -402,9 +402,20 @@ extension MCPServer {
         // 覚えている木が無ければチェック自体をしない(照合の起点が無いのに撃つのは
         // 余計な往復を増やすだけ)。指紋は記憶から読むだけなので往復は増えない
         let wantsSnapshotAfter = args["snapshotAfter"] as? Bool == true
-        let beforeBack = target == "back" ? lastSnapshots[Self.sessionKey(args)] : nil
+        var beforeBack = target == "back" ? lastSnapshots[Self.sessionKey(args)] : nil
+        // Android の覚えている木はキーボードの状態を持たない(dumpsys は頼んだ回だけ = AndroidDriver)。持たないまま比べると、キーボードを
+        // 閉じただけの back を「効かなかった」と言った(DSL の back() と同じく、撃つ前に状態付きで読み直す = BackEffect.closedKeyboardOnly)
+        let isAndroidBack = target == "back" && navigation is AndroidDriver
+        if isAndroidBack, beforeBack != nil {
+            navigation.captureKeyboardStateOnNextSnapshot()
+            beforeBack = try? await freshSnapshot(navigation, args: args)
+        }
         // back はアラート・覆いが前面にあるとそちらへ届く(座標の経路と同じ「直近の木」の確認。撃つ前に読む)
         let backCoverWarning = target == "back" ? await verifiedTreeCoverWarning(navigation, args: args) : ""
+        // 後の最初の読みにキーボードの状態を頼む(覆いの確かめが読み直すと頼みを使うので、その後・撃つ直前に立てる)
+        if isAndroidBack, let before = beforeBack, KeyboardWait.isShown(before) {
+            navigation.captureKeyboardStateOnNextSnapshot()
+        }
         switch target {
         case "back": try await navigation.back()
         case "home": try await navigation.home()
@@ -464,7 +475,10 @@ extension MCPServer {
                     if !BackEffect.hadNoEffect(before: before, after: after) { break }
                 }
             }
-            if BackEffect.shouldWarn(before: before, afterObservations: observations) {
+            if isAndroidBack, let first = observations.first, BackEffect.closedKeyboardOnly(before: before, after: first) {
+                backIneffectiveNote = ". note: back closed the soft keyboard; the screen did not go back"
+                    + " (to go back as well, call ft_navigate back again)"
+            } else if BackEffect.shouldWarn(before: before, afterObservations: observations) {
                 backIneffectiveNote = ". note: " + BackEffect.note(advice: BackEffect.mcpAdvice)
             }
         }
@@ -552,7 +566,7 @@ extension MCPServer {
         let pickerDriver = try await driver(args)
         let (element, labelNote) = try await verifiedElement(ref, driver: pickerDriver, args: args)
         guard element.type == "pickerWheel" else {
-            throw MCPError("ft_set_picker_value turns a pickerWheel, but [\(ref)] is a \(element.type)"
+            throw MCPError("ft_set_picker_value turns a pickerWheel, but [\(ref)] is \(EnglishArticle.indefinite(element.type))"
                 + " — nothing was sent. Pick the wheel inside the picker (ft_snapshot lists them as pickerWheel)")
         }
         let guardNote = try await refGestureGuard(element, driver: pickerDriver, isAndroid: pickerDriver is AndroidDriver,

@@ -83,7 +83,8 @@ public enum ScenarioReportWriter {
                 // 要素一覧より前に置く: アプリが覆われていたなら、要素の中身を読む前にこれが答え
                 md += "\n> ⚠️ **Another window is in front of the app**: "
                 md += scene.failureForegroundWindows.joined(separator: ", ")
-                md += ". Input may have been swallowed by it, so `tap` can report success while nothing happened"
+                md += scene.failureForegroundMaySwallow
+                    ? ". Input may have been swallowed by it, so `tap` can report success while nothing happened" : ""
                 // アプリ自身のダイアログ・PopupWindow だけなら「別のプロセスの窓」とは言わない(印は ownDialogs が付ける)
                 md += scene.failureForegroundWindows.allSatisfy { $0.hasSuffix(StepExecutor.ownDialogWindowMarker) }
                     ? " (the app's own dialog or popup window takes what is behind it out of the app element list).\n"

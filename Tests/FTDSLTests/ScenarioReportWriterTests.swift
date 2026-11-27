@@ -299,6 +299,26 @@ final class ScenarioReportWriterTests: XCTestCase {
         XCTAssertTrue(mixed.contains("owned by other processes"), mixed)
     }
 
+    /// md の「吸われた」は失敗の側の判定(`failureForegroundMaySwallow`)に従う(止めたアプリ・抜けた back の後にログだけ黙って md が言った
+    /// = 探索 11/27 im4 F1)
+    func testSwallowClaimFollowsTheFailureJudgement() throws {
+        func markdown(maySwallow: Bool) throws -> String {
+            var record = ScenarioRecordData(id: "S.t", title: "", app: "a", platform: "android")
+            var scene = SceneRecordData(number: 1, title: "a")
+            scene.steps = [DSLStepRecord(index: 1, section: "action", description: "tap", status: .failed("x"), file: "", line: 0)]
+            scene.failureForegroundWindows = ["com.android.launcher"]
+            scene.failureForegroundMaySwallow = maySwallow
+            record.scenes = [scene]
+            let dir = try makeTempDir()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            return try String(contentsOf: try ScenarioReportWriter.write(record: record, to: dir), encoding: .utf8)
+        }
+        XCTAssertTrue(try markdown(maySwallow: true).contains("may have been swallowed"))
+        let quiet = try markdown(maySwallow: false)
+        XCTAssertFalse(quiet.contains("swallowed"), quiet)
+        XCTAssertTrue(quiet.contains("Another window is in front of the app"), quiet)
+    }
+
     func testFailedSceneWritesEvidenceNextToTheReport() throws {
         var record = ScenarioRecordData(id: "Sample.testCase", title: "サンプル",
                                         app: "com.example.app", platform: "ios")

@@ -1426,7 +1426,7 @@ extension MCPServer {
     /// 0個(そもそも入力の器ではない)・2個以上(どれを指すべきか言えない)のどちらも、
     /// 黙って撃つと**別の要素を操作してしまう**(ボタンを押す・焦点のある別の欄へ入る)
     static func notATextFieldRefusal(_ target: ElementInfo, ref: Int) -> String {
-        "[\(ref)] is a \(target.type), not a text field, and it does not contain exactly one text"
+        "[\(ref)] is \(EnglishArticle.indefinite(target.type)), not a text field, and it does not contain exactly one text"
             + " field either — refusing before anything is typed/cleared (typing into it anyway"
             + " tends to fire whatever it is instead — a button, a link — or land on an unrelated"
             + " field that currently has focus). Take a fresh ft_snapshot and target the actual"

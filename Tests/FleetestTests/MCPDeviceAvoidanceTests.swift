@@ -189,7 +189,7 @@ final class MCPDeviceAvoidanceTests: XCTestCase {
     func testShortageReasonDoesNotDeriveWhenTheKeepCountIsClamped() {
         let text = ProfileRunner.shortageReason(needed: 3, scenarios: 10, free: 2)
         XCTAssertEqual(text,
-                       "needed 3 lanes (every device this profile has on this machine)"
+                       "needed 3 lanes (every device this run can use on this machine: the profile's, or those --device picked)"
                        + " but only 2 devices were free")
         XCTAssertFalse(text.contains("per scenario"), "クランプされた形で内訳を書いている: \(text)")
     }

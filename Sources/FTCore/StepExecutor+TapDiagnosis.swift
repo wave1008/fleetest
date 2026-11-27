@@ -252,7 +252,7 @@ extension StepExecutor {
               let container = LocatorResolver.childlessScopeContainer(of: locator, in: elements) else { return "" }
         let reason: String
         if !LocatorResolver.childlessContainerIsGroup(container) {
-            reason = " — it is a \(container.type), which holds no other elements"
+            reason = " — it is \(EnglishArticle.indefinite(container.type)), which holds no other elements"
         } else if !isAndroid {
             reason = " — on iOS, Compose Multiplatform lists the contents of a Row/Column that only has a testTag beside it rather than under it"
         } else {

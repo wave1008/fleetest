@@ -79,6 +79,8 @@ public struct SceneRecordData: Sendable {
     /// これが空でないなら「操作がそこに吸われて ✅ のまま何も起きなかった」を第一に疑う
     /// (アプリの a11y ツリーには他プロセスの window が出ないため、要素一覧では気付けない)
     public var failureForegroundWindows: [String] = []
+    /// 手前の窓が操作を吸ったかもしれないか(FTRuntime.handleFailure が決める。偽ならログもレポートも「吸われた」と言わない)
+    public var failureForegroundMaySwallow = true
     /// 失敗時にアプリの process が既に無かった(Android のみ。クラッシュの疑い)ことの表示行。
     /// 空 = 言うことなし。中身は appProcessEvidence のクロージャが決める(FTDSL は FTAndroid に
     /// 依存しないため、行の組み立ては FTScenarioRunner 側)

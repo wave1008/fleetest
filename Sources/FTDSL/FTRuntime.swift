@@ -1977,18 +1977,18 @@ public final class FTDriveCore {
         // (要素一覧・スクショだけでは「なぜ操作が効かなかったのか」に辿り着けない)
         let overlays = appLaunchedInThisProcess && appUnderTestLife == .notLaunched ? [] : foregroundOverlays?(executor.lastLaunchedAppBundleID) ?? []  // 起動が一度も成功していない(未インストール等)= 前面に出ていないので覆われたと言わない。試みた印 appLaunchedInThisProcess だけでは決まらない
         guard !overlays.isEmpty else { return }
+        // 「吸われた」と言わない(ログと md が共有): 止めたアプリ(窓は止めた後に出ただけ)・直前が抜けた back()(その後に送った操作が無い)
+        let mayBeSwallowed = !(stoppedByScenario || precedingStepWasBackLeftApp)
         let recorded = withState { () -> Bool in
             guard let index = currentSceneIndex else { return false }
             record.scenes[index].failureForegroundWindows = overlays
+            record.scenes[index].failureForegroundMaySwallow = mayBeSwallowed
             return true
         }
-        if recorded {
-            // 直前がアプリを抜けた back()(注記 back-left-app)なら事実だけ添える(最初の画面とは限らないので理由は言わない)
-            let afterBack = precedingStepWasBackLeftApp ? " — the preceding back() left the app" : ""
-            // 「吸われた」と言わない: 止めたアプリ(窓は止めた後に出ただけ)・直前が抜けた back()(その後に送った操作が無い)
-            let swallowed = stoppedByScenario || precedingStepWasBackLeftApp ? "" : " (interactions may have been swallowed by it)"
+        if recorded {  // 直前がアプリを抜けた back() なら事実だけ添える(最初の画面とは限らないので理由は言わない)
             emit(.log("⚠️ Another window is in front of the app: \(overlays.joined(separator: ", "))"
-                      + swallowed + afterBack))
+                      + (mayBeSwallowed ? " (interactions may have been swallowed by it)" : "")
+                      + (precedingStepWasBackLeftApp ? " — the preceding back() left the app" : "")))
         }
     }
 

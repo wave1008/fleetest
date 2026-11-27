@@ -98,7 +98,7 @@ extension MCPServer {
         // 理由は DSL と同じ選び方(葉の型なら中身を持たない型・iOS の入れ物の型だけ CMP の平坦化)
         let reason: String
         if !LocatorResolver.childlessContainerIsGroup(container) {
-            reason = " (it is a \(container.type), which holds no other elements)"
+            reason = " (it is \(EnglishArticle.indefinite(container.type)), which holds no other elements)"
         } else if !isAndroid {
             reason = " (on iOS, Compose Multiplatform lists the contents of a Row/Column that only has a testTag beside it)"
         } else {

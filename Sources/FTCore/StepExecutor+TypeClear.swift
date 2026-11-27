@@ -552,7 +552,7 @@ extension StepExecutor {
         guard verdict == .notATextField(positively: true) else {
             return nil
         }
-        return "the target is a \(element.type), not a text field — refusing before anything is"
+        return "the target is \(EnglishArticle.indefinite(element.type)), not a text field — refusing before anything is"
             + " \(action == "type" ? "typed" : "cleared") (\(action) taps its target first, so the"
             + " \(element.type) would fire — a submit or a purchase). Point the selector at the input field itself."
     }
@@ -818,7 +818,7 @@ extension StepExecutor {
     /// 内側にちょうど1つ入力欄があれば名指しする(`TapTargetGeometry.nonInputTypeTargetNote` と同じ規則)
     static func nonTextInputFallbackRefusal(_ element: ElementInfo, in elements: [ElementInfo],
                                                      action: String) -> String {
-        var message = "the target is a \(element.type), not a text field — \(action) cannot succeed on"
+        var message = "the target is \(EnglishArticle.indefinite(element.type)), not a text field — \(action) cannot succeed on"
             + " either bridge. The tap that resolved this element may already have landed, so it was"
             + " not retried via XCUITest (a retry could trigger the \(element.type) a second time)."
         if let note = TapTargetGeometry.nonInputTypeTargetNote(element, in: elements) {

@@ -840,7 +840,7 @@ public enum TapTargetGeometry {
         } else {
             how = "ref \(field.ref)"
         }
-        return "the target is a \(target.type), not a text field — typing into a container relies"
+        return "the target is \(EnglishArticle.indefinite(target.type)), not a text field — typing into a container relies"
             + " on focus landing on the field inside it, which is not guaranteed (the value can"
             + " end up something you did not type). Target the field itself: \(how)"
     }
