@@ -36,9 +36,20 @@ final class ClearAppDataContractTests: XCTestCase {
 
         XCTAssertTrue(body.contains("removeItem"),
                       "データコンテナの中身を消す手順が落ちている")
-        XCTAssertTrue(body.contains("kickstart") && body.contains("cfprefsd"),
-                      "cfprefsd を入れ直す手順が落ちている = UserDefaults が消去を生き延びる"
+        XCTAssertTrue(body.contains("SimulatorPreferencesFlush.flush("),
+                      "設定のキャッシュを落とす手順が落ちている = UserDefaults が消去を生き延びる"
                       + "(消去は成功を返すので黙って通る)")
+        XCTAssertFalse(body.contains("kickstart"),
+                       "cfprefsd を起こし直している = SpringBoard の外観の部品が壊れ、setAppearance がアプリへ届かなくなる(外観が届かない件 = docs/verification/resolved.md)")
+        // 設定は空にする前に消させる(空にした後ではドメインが無く、`defaults delete` が 1 で終わって成否を言えない)
+        if let flush = body.range(of: "SimulatorPreferencesFlush.flush("), let remove = body.range(of: "removeItem") {
+            XCTAssertLessThan(flush.lowerBound, remove.lowerBound, "設定を、容器を空にした後で消させている")
+        } else {
+            XCTFail("設定を消させる手順か容器を空にする手順が見つからない")
+        }
+        if let stop = body.range(of: "stopOnSimulator("), let flush = body.range(of: "SimulatorPreferencesFlush.flush(") {
+            XCTAssertLessThan(stop.lowerBound, flush.lowerBound, "アプリを止める前に設定を消させている(動いているアプリが書き戻す)")
+        }
         XCTAssertTrue(body.contains("resetPrivacyOnSimulator"),
                       "権限リセットが落ちている(権限はコンテナの外にある)")
         // **消す前に simctl で終了する**: ランナーの terminate はセッションの外で起動したアプリに効かず、
@@ -49,6 +60,22 @@ final class ClearAppDataContractTests: XCTestCase {
         if let stop, let remove {
             XCTAssertLessThan(stop.lowerBound, remove.lowerBound, "終了より先に消している")
         }
+    }
+
+    /// **cfprefsd を起こし直す撃ち方を Sources のどこにも書かない**(コメントは除く)。起こし直すと SpringBoard の外観の部品が
+    /// 以後の外観の変更を受け取れなくなる(外観が届かない件 = docs/verification/resolved.md。clearAppData と AppleSimulatorWipe の2か所にあった)
+    func testNoSourceRestartsCfprefsd() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root.appendingPathComponent("Sources"), includingPropertiesForKeys: nil))
+        var hits: [String] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            for line in text.split(separator: "\n") where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+                && line.contains("com.apple.cfprefsd") {
+                hits.append("\(url.lastPathComponent): \(line.trimmingCharacters(in: .whitespaces))")
+            }
+        }
+        XCTAssertEqual(hits, [])
     }
 
     /// `stopOnSimulator` 自身が simctl terminate を撃ち、終了コードで分ける(0 = 止めた / 3 = 動いていなかった)

@@ -75,7 +75,7 @@ public enum AppleSimulatorWipe {
         return lines.joined(separator: "\n")
     }
 
-    /// 止める → データコンテナ → 各 group コンテナを空にし、cfprefsd を入れ直し、権限を戻す。
+    /// 止める → データコンテナ → 各 group コンテナを空にし、設定のキャッシュを落とし(`SimulatorPreferencesFlush`)、権限を戻す。
     /// データコンテナの失敗は投げる(消えたと言えない)。group の列挙・消去・権限の失敗は `problems` に事実で残す
     public static func wipe(bundleID: String, udid: String) throws -> Report {
         try BridgeClient.stopOnSimulator(
@@ -91,6 +91,13 @@ public enum AppleSimulatorWipe {
         guard dataPath.hasPrefix("/") else {
             throw DriverError.badResponse(status: 500, body: "could not resolve the data container for \(bundleID)")
         }
+        // 設定のキャッシュは空にする前に cfprefsd に消させる(group の分は下で同じく。理由と順序は SimulatorPreferencesFlush 冒頭)
+        // symlink の容器は辿らない(下の emptyContents が断る。その前に先の設定を消させない)
+        func flushUnlessLinked(_ container: String) -> [(path: String, detail: String)] {
+            (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil ? []
+                : SimulatorPreferencesFlush.flush(udid: udid, domainPaths: SimulatorPreferencesFlush.domainPaths(container: container))
+        }
+        var unflushed = flushUnlessLinked(dataPath)
         guard let dataWipe = emptyContents(of: dataPath) else {
             throw DriverError.badResponse(status: 500,
                 body: "the data container of \(bundleID) is a symbolic link (\(dataPath)) — refusing to delete what it points to")
@@ -110,6 +117,7 @@ public enum AppleSimulatorWipe {
                 report.problems.append("\(parsed.unparsableLines) line(s) of the group container listing could not be read, so any group container on them was not wiped")
             }
             for group in parsed.groups {
+                unflushed += flushUnlessLinked(group.path)
                 guard let result = emptyContents(of: group.path, skipping: [containerMetadataName]) else {
                     report.problems.append("group container \(group.id) (\(group.path)) is a symbolic link — not wiped")
                     continue
@@ -126,11 +134,9 @@ public enum AppleSimulatorWipe {
                 + " \(listing.status): \(listing.tail)) — none were wiped")
         }
 
-        // 順序は「ファイルを消してから再起動」(BridgeClient.clearAppDataOnSimulator と同じ理由: cfprefsd が旧値を配り直す)
-        let prefs = try Shell.run(["xcrun", "simctl", "spawn", udid,
-                                   "launchctl", "kickstart", "-k", "system/com.apple.cfprefsd.xpc.daemon"])
-        if prefs.status != 0 {
-            report.problems.append("could not restart cfprefsd (exit \(prefs.status): \(prefs.tail)) — preference values cached by the daemon may come back")
+        for failure in unflushed {
+            report.problems.append("could not clear the cached preferences \((failure.path as NSString).lastPathComponent)"
+                + " (\(failure.detail)) — preference values cached by the daemon may come back")
         }
         let privacy = try Shell.run(["xcrun", "simctl", "privacy", udid, "reset", "all", bundleID])
         if privacy.status != 0 {

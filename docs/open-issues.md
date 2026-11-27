@@ -27,11 +27,11 @@
 | 属性 | 意味 | 件数 | 項目 |
 |---|---|---|---|
 | 着手可 | 原因を観測していて(MN-108)、次の手が決まっているもの | 0 |  |
-| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 3 | OI-347・OI-366・OI-378 |
+| 要測定 | 症状は観測したが原因は推測のもの。次の一手は原因を測ること(推測のまま直さない = MN-108) | 2 | OI-366・OI-378 |
 | 要判断 | 直し方の選択をユーザーが決めるもの | 0 |  |
 | 木に材料なし | 木(スナップショット)に判定の材料が無く、ブリッジの申告など別の材料が要るもの | 14 | OI-156・OI-161・OI-163・OI-170・OI-200・OI-205・OI-211・OI-216・OI-238・OI-245・OI-279・OI-327・OI-386・OI-387 |
 | 低頻度 | たまにしか出ない(数十〜数百回に1回)か、しばらく再現していないもの。効果の判定や再現に多くの周回が要る | 35 | OI-127・OI-137・OI-138・OI-146・OI-161・OI-163・OI-173・OI-177・OI-190・OI-196・OI-198・OI-214・OI-220・OI-221・OI-226・OI-228・OI-229・OI-231・OI-233・OI-234・OI-236・OI-250・OI-269・OI-289・OI-292・OI-297・OI-314・OI-320・OI-321・OI-325・OI-346・OI-359・OI-366・OI-378・OI-385 |
-| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 12 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-315・OI-347・OI-385 |
+| 環境側 | OS・Simulator・GPU・マシンの側が原因と測定で分かった部分があるもの。ツールは検知と回復まで | 11 | OI-184・OI-198・OI-214・OI-221・OI-228・OI-231・OI-233・OI-234・OI-235・OI-315・OI-385 |
 | 据え置き | 直さないと決めたもの。症状が出たら見直す | 47 | OI-58・OI-140・OI-155・OI-161・OI-168・OI-170・OI-172・OI-173・OI-181・OI-182・OI-186・OI-192・OI-193・OI-194・OI-195・OI-197・OI-200・OI-201・OI-202・OI-204・OI-205・OI-206・OI-207・OI-208・OI-209・OI-210・OI-211・OI-216・OI-219・OI-221・OI-224・OI-225・OI-228・OI-233・OI-234・OI-235・OI-236・OI-253・OI-255・OI-256・OI-282・OI-291・OI-298・OI-315・OI-370・OI-379・OI-385 |
 
 低頻度の項目は、手順のシナリオが分かるものを `Scripts/soak.py` で空いた機械に回し続けて出た回を貯める(対象の表は `Scripts/soak-targets.json`・使い方は docs/verification/operations.md)。各ステップの判定の分かれ目は結果 JSON の `trace`(docs/results-json.md)に残る。
@@ -39,38 +39,6 @@
 ## 着手可
 
 ## 要測定
-### OI-347 iOS Simulator が、設定した外観・文字サイズをアプリへ届けない状態になる(きっかけが未特定)
-- 状態: 再現済み
-- 確認: d3c382e39(2026-11-22。回帰の後の Simulator 8 台中 5 台・夜の回帰でリモートの3機すべて。回復手段は確認済み・きっかけは未特定)
-- 属性: 要測定・環境側
-- 運用: 要注意 — 設定の読み返しは合うので、アプリが受け取ったかを確かめるシナリオ(`#txt_appearance` 等)だけが赤になる
-- 優先度: 中 — ツールの検出(`display-not-applied`)と次のシナリオの前の回復で、誤った成功は止めた。きっかけが分からず、起きた回のシナリオは赤のまま
-
-- 観測: 外観を変えても画面へ届かない端末がある。設定の値は正しく書かれ、`devicectl` も `simctl ui` も「設定できた・読み返しても dark」と答えるが、設定アプリもステータスバーもライトのまま。SpringBoard を起こし直す(`simctl spawn <udid> launchctl kickstart -k system/com.apple.SpringBoard`)と直る(前面のアプリと XCUITest ランナーも終了する)。cfprefsd の起こし直しでは直らない。ツールの経路で起動し直した直後は 8 台とも正常で、run の途中でこの状態になる
-- 試して再現しなかったこと: 連打・負荷・simctl の多用
-- 次の一手: (下の 11/25 夜の測定で更新)
-- 入れたもの: in-app の `/status`(`screenAppearance` / `contentSizeCategory`)とのつき合わせ(`DisplayAppCheck`)・`display-not-applied` で失敗・次のシナリオの前に SpringBoard とランナーを起こし直す(`DisplayRecoveryRequests`)・その失敗の結果を捨てて1回だけ振り直す(cause `displayNotApplied`。レーンは離脱させない。`RunOrchestrator.requeuesForDisplayNotApplied`)。xcuitest モードと Android は確かめない
-- 11/22 夜の回帰(d3c382e39): `表示条件を切り替えられること.S0010` が iOS の4 SUT で赤(M4Max・M1Ultra×2・M1Max = リモートの3機すべて。手元の Simulator は同日の run で緑)。検出は正しかった(失敗時の画面はライト・アプリは light を報告)。回復は4台とも走り、3台は SpringBoard の起こし直しとブリッジの作り直しで終わった(24.5〜33.5 秒)。1台(RN)は「ブリッジが 8129 でなく 8123 で戻った」で回復を諦めた。M1Ultra で別の run として回し直しても同じ赤。`propagation.py`(devicectl / simctl)で M1Ultra の起動中の Simulator 7 台を測ると **7 台とも dark が画面へ届かない**(設定アプリでも)。1台の SpringBoard を起こし直すと届いた。= この状態はリモートの Simulator に広く残っており、回復は run の中の次のシナリオにしか効かない(run の終わりで要求は消える)。macOS は手元・M1Ultra・M1Max が 27.2.1、M4Max が 26.7.3 で、版では分かれない
-- 評価 8回目(11/23・`_work/scen-eval-20261123/`): 本番(inapp-boost)で2回出て、どちらも検出 → SpringBoard の起こし直し → 回し直しで回復した(手元 Sim -08 の dc_cmp_ios・M1Ultra の va_e2ey_cmp_ios = 回し直しの後 6/6 緑)。作成側(MCP = xcuitest モード)では確かめないので、`setAppearance(.dark)` が端末では dark・アプリは light のまま赤になり、作成者は理由が分からなかった(dc_cmp_ios の Sim -04・dc_flutter_ios の Sim -05・va_cmp_ios_img。文字サイズは同じ時刻に届いた)。docs の注意点は navigation に足した
-- 処理(2026-11-23・評価 8回目の後の処理): きっかけを測る材料(状態になる直前のログ)は今回も残せていない。評価では本番の検出と回復が 2/2 で働いた(上の 8回目の行)
-- 評価 9回目(11/23 夜・`_work/scen-eval-20261123b/`): 本番(手元 Sim の dc_cmp_ios)で `display-not-applied` が検出された。作成側(MCP)では 14 プロジェクトが「読み返しは dark・アプリが届いたかは見ない」を挙げ、dc_flutter_ios はアプリが light のまま赤(作成者は理由が分からない)
-
-- 評価 11回目(11/24): 本番の va_swiftui_ios(手元 Sim)で1 run に3回・fd_xm_rn(M1Max)で1回。検出 → SpringBoard の起こし直し → 振り直しで1件は緑に戻り、`コントロール操作.S0010@dark-large` は振り直しの上限(1回)で赤のまま。作成側(MCP)では ip_va_cmp が `setAppearance(.dark)` の緑のままアプリは light(文字サイズは届いた)
-- 処理(2026-11-24・評価 11回目の後の処理): 本番 8 run で検出(手元 4・M1Max 2・M1Ultra 1・iPad 1)。**8 run 中 4 run は、その台の最初のシナリオで既に届かない状態**(run の前から壊れていた = きっかけは run の外)。手元の va_swiftui_ios(Sim -09)は1 run の中で同じ台に **6 回**出た = SpringBoard の起こし直しで回復しても run の中で同じ状態へ戻る(回復が続かない)。きっかけを測る材料(状態になる直前の SpringBoard のログ)は今回も残せていない。次の一手は変えない
-- 回帰 11/25 02:0x(`regress.py --ios-xcuitest`・全マシン): E2E-iOS・E2E-Flutter・E2E-RN の ios-xcuitest で「表示条件を切り替えられること」S0010 の `textIs "#txt_appearance" == "dark"` が `light` で赤(手元2・M1Max 1)。シナリオの後の読みは `appearance=dark` = 端末は暗くなったがアプリへ届かない同じ形。手元で xcuitest の同じシナリオを4回回して1回赤(E2E-Flutter)
-- 再発(2026-11-25 の回帰・`--ios-xcuitest`): E2E スイートの iOS の5プロファイル(CMP の xcuitest・iOS の両モード・RN の両モード)の赤はこのシナリオ(表示条件を切り替えられること S0010)だけ。inapp-boost は `setAppearance .dark` の段・xcuitest は続く `textIs "#txt_appearance" == "dark"` の段で赤
-- 測る口(2026-11-25): `display-not-applied` の回復で SpringBoard を起こし直す直前と、Simulator のワーカーの蘇生の前に、端末の状態とログを保存する(`SimulatorDiagnosticsCapture`。`launchctl list` の SpringBoard・backboardd・InputUI 等の行・端末の統合ログの直近 10 分(SpringBoard・backboardd・外観の語)の末尾 800 行・ホストの SpringBoard / backboardd の .ips の直近1時間の一覧。置き場は run の結果フォルダの `diagnostics/`)。統合ログは端末に残るので、状態になる前の分まで遡って読める(M1Ultra の Sim で `log show` の条件が通ることを確認・2 秒・381 行)。検出の経路では未通過
-- 測定(2026-11-25 夜・手元・E2E-iOS の inapp-boost で「表示条件を切り替えられること」を全 8 台へ 3 周): 2 周目で -02・-03(と -08)が `display-not-applied` → 測る口が採取 → SpringBoard の起こし直し → 振り直しで緑(3 周とも全体は緑)。**採取した統合ログの末尾 800 行は XCUITest が SpringBoard の木を読む行(`com.apple.dt.xctest`)で埋まっていた**(10 分で 15,072 行・末尾は約1秒ぶん)ので、端末の統合ログを直接読み直した:
-  - 届いた台(-04)は、外観の要求(dtconfigurationd の 「SetUserInterfaceStyle」)の 12ms 後に SpringBoard の `UserInterfaceStyleArbiter`(外観を決める部品)が `modeChanged:1` → `changing style from 1 to 2` → 「forwarding Dark to scenes」と動き、1.4 秒後にアプリのシーンを Dark に書き換えた。届かなかった台(-02)は、要求も設定の書き込みも同じに出ているのに、部品の行が1つも出ない(cfprefsd の `ByHost` の「Couldn't open」と dtconfigurationd の peer の 1001 のエラーは両方の台に出る = 分かれ目ではない。設定のファイルも同じ)
-  - **壊れた状態は SpringBoard の起動の時点で決まる**: 部品の動きを SpringBoard ごとに数えると、壊れたもの(-02 の pid 6624・-03 の 10765・-08 の 61465 / 17167)は起動の瞬間の1回(`forReason:0`)だけで以後1度も動かず(-02 は 17:55 の起動から 4 時間 40 分)、正常なもの(-04 の 10832・-06 の 13911)は変更のたびに動いた。壊れたものも正常なものも Simulator の起動(17:30〜18:00)で立ち上がったもので、起動直後の部品の行は同じ(起動の行だけでは見分けられない)
-  - SpringBoard の起こし直し(`launchctl kickstart -k`)は 15 回すべて正常な SpringBoard になった(-05・毎回ダークにして部品が動いたかを読んだ)= 回復の手は効く。11/24 の「1 run に同じ台で 6 回」は、起こし直しの後にまた壊れた形で、今夜の 15 回とは合わない(材料不足)
-- 測る口の直し(2026-11-25 夜): 採取の統合ログから XCUITest の行を除き、外観の部品の行を含める(`SimulatorDiagnosticsCapture.logPredicate`)。加えて部品が変更を受けた行だけを 24 時間遡って全部書く節を足した(「起動から1度も動いていない」を毎回言える)
-- 次の一手: 壊れた SpringBoard が起動のときに何をしていたか(Simulator の起動の経路・同時に起動した台の数・起動直後のアプリの起動)を、上の節が付いた次の採取と Simulator の起動のログで突き合わせる。推測のまま直さない
-- 処理(2026-11-26): XCUITest ランナーを起こす前(`BridgeProvisioner` の供給で `ensureBooted` の直後)に、外観を反対へ1度変えて外観の部品が「changing style」を記録したかを統合ログで読み、元へ戻す。記録しなければ SpringBoard を起こし直して1回だけ確かめ直す(`SimulatorAppearanceArbiter`)。手元 Sim -08 で、ランナーの起動の前に外観が dark → light と1往復し(反応あり = 起こし直さない・約4秒)、続く表示条件のシナリオが緑なことを確認。起こし直す側は壊れた SpringBoard を作れないので単体テストだけ。ランナーを使い回す run では確かめない(従来の検出と回復)。きっかけ(起動の時に何が壊すか)は未特定のまま
-- xcuitest モードの全体の回帰(2026-11-26 夕・652aa2c): E2E の4 SUT の「表示条件」S0010 が手元・M1Max・M1Ultra で `textIs "#txt_appearance" == "dark"` の赤(4本)。どのレーンも起動中の XCUITest ブリッジを使い回した(`reusing the running xcuitest bridge`)= 使い回す台では SpringBoard を起こし直さない設計(`restartAllowed` が偽)の範囲
-- 全体の回帰(2026-11-26 夜・c38ddf4f1・inapp-boost と Android): 「表示条件を切り替えられること」S0010 が4 SUT で `setAppearance .dark` の段の赤(手元の CMP -06・Flutter -01、M1Max の iOS、M1Ultra の RN)。4本とも振り直しで緑になり、対象は合格。供給の確かめ(`SimulatorAppearanceArbiter`)は「部品が反応しない → SpringBoard を起こし直す」を手元で4台(-04・-06・-07・-08)、「確かめられない(部品の起動の行がログに無い)」を10回(M1Max・M1Ultra が中心)出した。**手元の -06 は供給で起こし直した台なのに、その後のシナリオで届かなかった** = 起こし直しの後にまた壊れる形(11/24 の「1 run に6回」と同型)
-- 全体の回帰(2026-11-27 未明・064380e5b): 同じ S0010 が2本で `setAppearance .dark` の段の赤(手元の Flutter -07・M1Ultra の RN -05)。2本とも振り直し(`display settings that did not reach the app … requeued`)で緑になり、24 対象すべて合格
-
 ### OI-378 Android の Emulator で、入力した欄を ACTION_SET_TEXT の後に見つけ直せず赤(文字は入っている)
 - 状態: 再現済み
 - 確認: ac3b32b62(2026-11-24)

@@ -225,3 +225,40 @@ pointerdown すら見ない(JS プローブ)・inapp-boost モード限定(xcuit
 **見えている部分の中心**で `elementFromPoint` を撃つ(`WebViewDOMSnapshot.swift` の `hittable`)。
 **判定と実射で基準がずれている**。今回の失敗は対象が画面内に完全に収まっており座標も一致して
 いたので**この件の原因ではない**が、部分的に隠れた要素では実害が出うる。
+
+## iOS の setAppearance がアプリへ届かない(2026-11-27・**解決** — clearAppData の cfprefsd の起こし直し)
+
+**症状**: `setAppearance(.dark)` の後、端末の設定は dark と読み返せるのにアプリ(と設定アプリ・ステータスバー)はライトのまま。
+`display-not-applied` の検出 → SpringBoard の起こし直し → 振り直しで緑に戻るが、回帰のたびにリモートの台で数本出ていた
+(11/27 の3回の回帰で採取 11 件・どれもリモート)。SpringBoard の外観の部品(`UserInterfaceStyleArbiter`)が変更を受けない状態。
+
+**原因**: `clearAppData()`(と MCP の Apple アプリの消去 `AppleSimulatorWipe`)が NSUserDefaults を確実に消すために
+`launchctl kickstart -k system/com.apple.cfprefsd.xpc.daemon` で cfprefsd を起こし直していた。**起こし直した後の SpringBoard の
+外観の部品は、以後の外観の変更を受け取らない**(購読が切れる)。`clearAppData` は多くのシナリオの先頭にあるので、起こし直して
+直しても次の `clearAppData` でまた壊れる。
+
+**決め手**(M1Ultra の Simulator 1台・反応 = 外観を反対へ変えて部品が「changing style」を記録したか):
+
+| 手順 | 結果 |
+|---|---|
+| 反応する台で容疑のクラスを1つずつ回す(回転・ディープリンク・イレギュラーハンドラ・条件分岐とダイアログ) | 先頭で `clearAppData` を撃つ「条件分岐とダイアログ」の直後に無反応になった |
+| SpringBoard を起こし直す → cfprefsd の起こし直しだけを撃つ | **3/3 で無反応**(起こし直し直後は 3/3 反応) |
+| 対照: SpringBoard を起こし直す → 何もしない | 反応したまま |
+| 消し方の比較(アプリを2回起動して起動回数を書かせ、消して起動) | ファイルを消すだけ = 2→3・3→4(キャッシュが書き戻す)/ 空にする前にドメインをパスで `defaults delete` = 3/3 で 1、部品も反応したまま |
+| 直した後(同じ台・同じ SpringBoard で `clearAppData` を含む5クラス + 表示条件、E2E の4 SUT) | すべて緑・部品は反応し続けた |
+
+**直し方**: `SimulatorPreferencesFlush` —— アプリを止めた後・容器を空にする前に、`Library/Preferences/*.plist` のドメインを
+`simctl spawn <udid> defaults delete <パス>` で cfprefsd に消させる(ファイルとキャッシュの両方)。空にした後では無いドメインの
+delete が 1(not found)で終わり成否を言えないので、順序はこの形。cfprefsd を起こし直す撃ち方は Sources に書かない
+(`ClearAppDataContractTests.testNoSourceRestartsCfprefsd`)・子の仲介も通さない(`SimctlPolicy`)。
+
+**誤っていた見立て**(11/25 夜に「壊れた状態は SpringBoard の起動の時点で決まる」と書いた): 採取の外観の部品の節を SpringBoard の
+pid ごとに数え直すと、壊れた SpringBoard の多くは起動の後に動いていて、最後に動いてから1.5〜10時間の間に壊れていた。
+起動の時点ではなく、その間に撃った `clearAppData` が壊していた。
+
+**残した守り**: `display-not-applied` の検出と振り直し・供給の時点の反応の確かめ(`SimulatorAppearanceArbiter`)・採取
+(`SimulatorDiagnosticsCapture`)。cfprefsd を起こし直す別の経路(利用者の手作業・他のツール)でも同じ状態になるため。
+
+**調べ方**(同じ型の「設定は合うのに届かない」を見たら): 起動中の全 Simulator で「外観を反対へ1回変える → 3秒 → 戻す → その
+SpringBoard の pid で `changing style` を読む」を撃ち(SpringBoard は起こし直さない)、反応しない台の採取から最後に動いた時刻を
+引き、その後にその台で回ったシナリオを結果 JSON から並べる。反応する台で容疑を1つずつ回して確かめる

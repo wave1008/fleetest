@@ -130,17 +130,39 @@ public enum SimctlPolicy {
             guard arguments.count == 2 else { return shape(verb) }
             return device(arguments[0]) ?? bundle(arguments[1]) ?? launchEnvironment(environment, context: context)
         case "spawn":
-            // `simctl spawn` は Simulator の中(= 枠の外)で任意のコマンドを起こす口。固定の2形だけ
+            // `simctl spawn` は Simulator の中(= 枠の外)で任意のコマンドを起こす口。固定の形だけ。
+            // **cfprefsd の起こし直しは通さない**(SpringBoard の外観の部品が壊れる = FTBridgeClient の SimulatorPreferencesFlush)
             guard rest.count >= 1 else { return shape(verb) }
             let command = Array(rest.dropFirst())
-            guard command == ["launchctl", "list"]
-                    || command == ["launchctl", "kickstart", "-k", "system/com.apple.cfprefsd.xpc.daemon"] else {
-                return Refusal(reason: "simctl spawn \(command.joined(separator: " ")) is not allowed")
+            if command == ["launchctl", "list"] { return device(rest[0]) }
+            // clearAppData が消した設定のドメインを cfprefsd に消させる。そのレーンの Simulator のアプリのコンテナの中だけ
+            if command.count == 3, command[0] == "defaults", command[1] == "delete" {
+                return device(rest[0]) ?? preferencesDomain(command[2], context: context)
             }
-            return device(rest[0])
+            return Refusal(reason: "simctl spawn \(command.joined(separator: " ")) is not allowed")
         default:
             return Refusal(reason: "simctl \(verb) is not allowed from a sandboxed scenario")
         }
+    }
+
+    /// `defaults delete` してよいドメインのパス = レーンの Simulator の `data/Containers/{Data/Application,Shared/AppGroup}/<容器>/Library/Preferences/<ドメイン>`。
+    /// 別の Simulator・容器の外・ホストの設定は断る(パスは正規化してから比べる = symlink と `..` で外へ出さない)
+    static func preferencesDomain(_ path: String, context: Context) -> Refusal? {
+        let refusal = Refusal(reason: "simctl spawn defaults delete is only allowed for a preferences domain inside"
+            + " this lane's app containers: \(path)")
+        guard let udid = context.udid, !path.contains("/../"), !path.hasSuffix("/..") else { return refusal }
+        let domain = (path as NSString).lastPathComponent
+        let preferencesDir = (path as NSString).deletingLastPathComponent
+        guard isBundleID(domain), preferencesDir.hasSuffix("/Library/Preferences") else { return refusal }
+        let container = ScenarioSandbox.canonicalPath(((preferencesDir as NSString).deletingLastPathComponent as NSString)
+            .deletingLastPathComponent)
+        let root = ScenarioSandbox.canonicalPath(FileManager.default.homeDirectoryForCurrentUser.path
+            + "/Library/Developer/CoreSimulator/Devices/\(udid)/data/Containers")
+        for kind in ["/Data/Application/", "/Shared/AppGroup/"] where container.hasPrefix(root + kind) {
+            let rest = container.dropFirst(root.count + kind.count)
+            if !rest.isEmpty, !rest.contains("/") { return nil }
+        }
+        return refusal
     }
 
     private static func shape(_ verb: String) -> Refusal {

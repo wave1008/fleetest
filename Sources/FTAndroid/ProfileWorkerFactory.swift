@@ -309,7 +309,7 @@ public enum ProfileWorkerFactory {
                 return DisplayRecoveryRequests.failedMessage(
                     label: worker.label, reason: "no device definition to rebuild the bridge from")
             }
-            // 起こし直す前に状態とログを残す(OI-347 の測る口。起こし直すと直前の状態が消える)
+            // 起こし直す前に状態とログを残す(外観が届かない件 = docs/verification/resolved.md の測る口。起こし直すと直前の状態が消える)
             let captured = await SimulatorDiagnosticsCapture.captureOffCooperativePool(
                 udid: udid, reason: "display-not-applied", fallbackDirectory: repoRoot.appendingPathComponent(".fleetest"))
             captured.messages.forEach { ConsoleOut.err($0) }

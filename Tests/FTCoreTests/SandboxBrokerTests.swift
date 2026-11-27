@@ -65,7 +65,8 @@ final class SimctlPolicyTests: XCTestCase {
             simctl("launch", "--terminate-running-process", "UDID-1", "com.example.app"),
             simctl("launch", "UDID-1", "com.example.app"),
             simctl("spawn", "UDID-1", "launchctl", "list"),
-            simctl("spawn", "UDID-1", "launchctl", "kickstart", "-k", "system/com.apple.cfprefsd.xpc.daemon"),
+            simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Data/Application/ABC-1/Library/Preferences/com.example.app"),
+            simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Shared/AppGroup/G-1/Library/Preferences/group.com.example"),
             ["SIMCTL_CHILD_DYLD_INSERT_LIBRARIES=\(bridge)", "SIMCTL_CHILD_FT_PORT=8135",
              "SIMCTL_CHILD_FT_OWNER_REPO=/x", "SIMCTL_CHILD_FT_WEBVIEW_DOM=0"]
                 + simctl("launch", "--terminate-running-process", "UDID-1", "com.example.app"),
@@ -75,7 +76,36 @@ final class SimctlPolicyTests: XCTestCase {
         }
     }
 
-    /// `simctl spawn` は Simulator の中 = 枠の外で任意のコマンドを起こす口。固定の2形以外は全部断る
+    private static func containers(_ udid: String) -> String {
+        FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Developer/CoreSimulator/Devices/\(udid)/data/Containers"
+    }
+
+    /// cfprefsd の起こし直しは通さない(SpringBoard の外観の部品が壊れ、setAppearance がアプリへ届かなくなる = 外観が届かない件 = docs/verification/resolved.md)
+    func testRestartingCfprefsdIsRefused() {
+        XCTAssertNotNil(refusal(simctl("spawn", "UDID-1", "launchctl", "kickstart", "-k", "system/com.apple.cfprefsd.xpc.daemon")))
+    }
+
+    /// `defaults delete` はレーンの Simulator のアプリのコンテナの設定のドメインだけ
+    func testDefaultsDeleteIsOnlyForThisLanesAppContainerPreferences() {
+        let mine = Self.containers("UDID-1")
+        for path in [
+            Self.containers("UDID-2") + "/Data/Application/ABC-1/Library/Preferences/com.example.app",   // 別の Simulator
+            mine + "/Data/Application/ABC-1/Library/Preferences/../../../../../x/Library/Preferences/com.example.app",
+            mine + "/Data/Application/Library/Preferences/com.example.app",                             // 容器の名前が無い
+            mine + "/Data/Application/ABC-1/sub/Library/Preferences/com.example.app",                   // 容器の中の深い所
+            mine + "/Bundle/Application/ABC-1/Library/Preferences/com.example.app",                     // アプリの本体の側
+            mine + "/Data/Application/ABC-1/Library/Caches/com.example.app",                            // 設定の置き場でない
+            mine + "/Data/Application/ABC-1/Library/Preferences/-g",                                   // ドメインの形でない
+            FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Preferences/com.apple.dock", // ホストの設定
+        ] {
+            XCTAssertNotNil(refusal(simctl("spawn", "UDID-1", "defaults", "delete", path)), path)
+        }
+        XCTAssertNotNil(refusal(simctl("spawn", "UDID-2", "defaults", "delete", mine + "/Data/Application/A/Library/Preferences/x")))
+        XCTAssertNotNil(refusal(simctl("spawn", "UDID-1", "defaults", "delete")))
+        XCTAssertNotNil(refusal(simctl("spawn", "UDID-1", "defaults", "delete", "com.example.app", "key")))
+    }
+
+    /// `simctl spawn` は Simulator の中 = 枠の外で任意のコマンドを起こす口。固定の形以外は全部断る
     func testSpawnOfAnythingElseIsRefused() {
         XCTAssertNotNil(refusal(simctl("spawn", "UDID-1", "defaults", "write", "/tmp/x", "k", "v")))
         XCTAssertNotNil(refusal(simctl("spawn", "UDID-1", "launchctl", "list", "extra")))

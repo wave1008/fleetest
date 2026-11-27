@@ -1,4 +1,4 @@
-// iOS Simulator の状態とログを、不具合を検出した時点で1つのテキストへ残す(OI-347 / OI-196 / OI-269 の測る口)。
+// iOS Simulator の状態とログを、不具合を検出した時点で1つのテキストへ残す(外観が届かない件 = docs/verification/resolved.md / OI-196 / OI-269 の測る口)。
 // 統合ログ(unified log)は端末側に履歴として残るので、検出後に `log show --last` で遡れる(常時の録り続けは要らない)。
 // 判定には使わない(記録だけ)。呼び手は**親プロセス**(子はサンドボックスで simctl を直に呼べない)。
 
@@ -31,7 +31,7 @@ public enum SimulatorDiagnosticsCapture {
 
     /// `log show` の絞り込み。SpringBoard / backboardd のプロセスと、UIKit の外観(UIUserInterfaceStyle 等)に関わる行。
     /// **XCUITest の行(`com.apple.dt.xctest`)は除く**: ランナーが SpringBoard の木を読むたびに SpringBoard の名で何千行も出て、
-    /// 末尾 `logTailLines` 行が約1秒ぶんで埋まり、外観の部品(`UserInterfaceStyleArbiter`)の行を押し流した(OI-347・11/25 夜の採取 3 件)
+    /// 末尾 `logTailLines` 行が約1秒ぶんで埋まり、外観の部品(`UserInterfaceStyleArbiter`)の行を押し流した(外観が届かない件 = docs/verification/resolved.md・11/25 夜の採取 3 件)
     static let logPredicate = "(process == \"SpringBoard\" OR process == \"backboardd\""
         + " OR eventMessage CONTAINS[c] \"UIUserInterfaceStyle\" OR eventMessage CONTAINS[c] \"appearance\""
         + " OR category == \"UserInterfaceStyleArbiter\") AND NOT (subsystem == \"com.apple.dt.xctest\")"
@@ -62,9 +62,8 @@ public enum SimulatorDiagnosticsCapture {
     }
 
     /// 外観の部品(SpringBoard の `UserInterfaceStyleArbiter`)が変更を受けた行だけを長く遡る絞り込み。
-    /// 根拠(OI-347): 外観が届かない SpringBoard は、起動の瞬間の1回(`forReason:0`)の後に1度も動いていなかった
-    /// (起動から4時間40分)。届く SpringBoard は変更のたびに動く = 壊れた状態は起動の時点で決まり、`logLookbackMinutes` の窓では
-    /// 起動まで届かない。1日ぶんでも数十行(行数は `logTailLines` で切らない)・所要は 6 時間ぶんで約 1.8 秒(実測)
+    /// 根拠(外観が届かない件 = docs/verification/resolved.md): 外観が届かない SpringBoard は、最後に動いてから数時間たっていた(壊れたのは cfprefsd の起こし直しの時点で、
+    /// `logLookbackMinutes` の窓では最後に動いた所まで届かない)。1日ぶんでも数十行(行数は `logTailLines` で切らない)・所要は 6 時間ぶんで約 1.8 秒(実測)
     static let arbiterLookbackHours = 24
     static let arbiterPredicate = "category == \"UserInterfaceStyleArbiter\" AND eventMessage CONTAINS \"_updateCurrentStyleAndNotify\""
 

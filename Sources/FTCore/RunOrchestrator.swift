@@ -1498,7 +1498,7 @@ public final class RunOrchestrator: Sendable {
             // 同じ failureKind で来る(実測: エミュレータの qemu を kill すると driver-unreachable →
             // 消失)ので、下の事後プローブ(消失・凍結)を先に通してからでないと、**死んだレーンを
             // 離脱させずに振り直し続ける**ことになる
-            // **表示条件がアプリへ届かなかった iOS Simulator**(OI-347)は結果を捨てて1回だけ振り直す。端末の設定は読み返しで合い、
+            // **表示条件がアプリへ届かなかった iOS Simulator**(外観が届かない件 = docs/verification/resolved.md)は結果を捨てて1回だけ振り直す。端末の設定は読み返しで合い、
             // アプリは別の値を報告した = 観測で確定した端末の不調で、テスト対象の情報が無い。回復(SpringBoard の起こし直し)は
             // このレーンの次のシナリオの前に走る(上の DisplayRecoveryRequests)ので、レーンは離脱させない。
             // 同じレーンへ戻っても回復の後に走る。上限の回は失敗を残す(回復できない台で振り直し続けない)

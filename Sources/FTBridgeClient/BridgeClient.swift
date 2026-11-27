@@ -477,6 +477,16 @@ public final class BridgeClient: AppDriver, Sendable {
                 body: "the data container of \(bundleID) is a symbolic link (\(path)) — refusing to delete"
                     + " what it points to")
         }
+        // **ファイルを消しただけでは NSUserDefaults が戻ってくる**: cfprefsd がドメインをメモリに抱えており、次の起動で
+        // 消したはずの値を配って plist を書き直す(消して起動を3回で launch_count が 2→3→4)。空にする前に、ドメインを
+        // パスで名指しして cfprefsd に消させる。**cfprefsd を起こし直さない**(SpringBoard の外観の部品が壊れる = SimulatorPreferencesFlush 冒頭)
+        let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: SimulatorPreferencesFlush.domainPaths(container: path))
+        guard unflushed.isEmpty else {
+            throw DriverError.badResponse(status: 500,
+                body: "could not clear the cached preferences of \(bundleID) before clearing its data"
+                    + " — UserDefaults values would survive the clear: "
+                    + unflushed.prefix(3).map { "\(($0.path as NSString).lastPathComponent) (\($0.detail))" }.joined(separator: ", "))
+        }
         let entries = (try? fm.contentsOfDirectory(atPath: path)) ?? []
         var failed: [String] = []
         for entry in entries {
@@ -487,21 +497,6 @@ public final class BridgeClient: AppDriver, Sendable {
             throw DriverError.badResponse(status: 500,
                 body: "could not delete \(failed.count) item(s) in the data container of"
                     + " \(bundleID): \(failed.prefix(5).joined(separator: ", "))")
-        }
-        // **ファイルを消しただけでは NSUserDefaults が戻ってくる**(実測で確定):
-        // cfprefsd がドメインをメモリに抱えており、次の起動で消したはずの値を配って plist を
-        // 書き直す。対照実験(消して起動を3回)で launch_count が 2→3→4 と増え続けた =
-        // 消去が一度も効いていなかった。デーモンを入れ直すとキャッシュが落ちる(3/3 で初期化)。
-        // **順序は「ファイルを消してから再起動」**(先に再起動するとディスクの旧値を読み直す)。
-        // `defaults delete` は効かない(サンドボックス化されたドメインが見えず domain not found)、
-        // `killall` はシミュレータに存在しない
-        let prefsDaemon = try Shell.run(
-            ["xcrun", "simctl", "spawn", target,
-             "launchctl", "kickstart", "-k", "system/com.apple.cfprefsd.xpc.daemon"])
-        guard prefsDaemon.status == 0 else {
-            throw DriverError.badResponse(status: Int(prefsDaemon.status),
-                body: "could not restart cfprefsd after clearing the data of \(bundleID)"
-                    + " — UserDefaults values would survive the clear: \(prefsDaemon.tail)")
         }
         // 権限はコンテナの外にあるので別途戻す(resetPrivacyOnSimulator 参照)
         try resetPrivacyOnSimulator(bundleID: bundleID, target: target)
