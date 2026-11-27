@@ -434,6 +434,9 @@ DS-10 は2ファイルに分かれる。後半は dsl-execution.md。
   **cfprefsd を起こし直さない**(`launchctl kickstart -k …cfprefsd.xpc.daemon` は 3/3 初期化されるが、以後
   SpringBoard の外観の部品が変更を受け取らず `setAppearance` がアプリへ届かなくなる = docs/verification/resolved.md)。
   `ClearAppDataContractTests` が段の欠落と cfprefsd の起こし直しを検出する(`SimulatorPreferencesFlush`)。
+  **残る制約(観測はしていない)**: ディスクにまだ plist が無く cfprefsd のキャッシュにだけある別のドメイン(`UserDefaults(suiteName:)` の
+  suite 等)は名指せないので残りうる(アプリ自身のドメインと group 自身のドメインはファイルが無くても消させる。アプリを止めた直後には
+  アプリ自身の plist が書かれていた = 実測)。cfprefsd の起こし直しはこれも落とすが、外観を壊すので使わない
   **権限はコンテナの外(TCC.db)にある**ので後者を省くと
   「Android では権限ダイアログが出るのに iOS では出ない」という OS 差が黙って生まれる
   (`pm clear` は権限もリセットする)。**ドライバの層では iOS はシミュレータ専用**(実機は devicectl に同等手段が

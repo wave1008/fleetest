@@ -373,9 +373,11 @@ NSUserDefaults は cfprefsd がドメインを抱えており、次の起動で�
   「消えた」の証拠にならない(デーモンのキャッシュ・書き戻しがある)
 - **判定にはカウンタを使う**(この SUT は `launch_count`)。消えたはずの値が
   2→3→4 と増え続けることで、3回とも効いていないと即断できた。真偽値だと1回の観測で迷う
-- **候補は「実行できたか」ではなく「効いたか」で採る**。`defaults delete` は
-  exit 0 でも domain not found、`killall` はシミュレータに存在せずエラーが握り潰されていた
-  (どちらも1回だけの観測では効いたように見えた)。対照3回を並べて初めて分かれた
+- **候補は「実行できたか」ではなく「効いたか」で採る**。ドメイン名で撃つ `defaults delete <bundleID>` は
+  exit 0 でも domain not found(サンドボックスのドメインが見えない)、`killall` はシミュレータに存在せずエラーが握り潰されていた
+  (どちらも1回だけの観測では効いたように見えた)。対照3回を並べて初めて分かれた。**パスで名指す `defaults delete <容器>/Library/Preferences/<ドメイン>`
+  は効く**(容器を空にする前に撃って 3/3 初期化。今の clearAppData の手順 = `SimulatorPreferencesFlush`。cfprefsd の起こし直しは
+  SpringBoard の外観の部品を壊すので使わない = docs/verification/resolved.md「setAppearance がアプリへ届かない」)
 
 ### 「遅くなった」は同一プロセスの2回目で測る
 

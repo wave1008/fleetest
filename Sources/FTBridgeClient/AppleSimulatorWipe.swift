@@ -131,7 +131,7 @@ public enum AppleSimulatorWipe {
                 report.problems.append("\(parsed.unparsableLines) line(s) of the group container listing could not be read, so any group container on them was not wiped")
             }
             for group in parsed.groups {
-                flushUnlessLinked(group.path, label: "group container \(group.id)", always: [])
+                flushUnlessLinked(group.path, label: "group container \(group.id)", always: [group.id])
                 guard let result = emptyContents(of: group.path, skipping: [containerMetadataName]) else {
                     report.problems.append("group container \(group.id) (\(group.path)) is a symbolic link — not wiped")
                     continue

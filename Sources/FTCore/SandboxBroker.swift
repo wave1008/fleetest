@@ -145,7 +145,7 @@ public enum SimctlPolicy {
         }
     }
 
-    /// `defaults delete` してよいドメインのパス = レーンの Simulator の `data/Containers/{Data/Application,Shared/AppGroup}/<容器>/Library/Preferences/<ドメイン>`。
+    /// `defaults delete` してよいドメインのパス = レーンの Simulator の `data/Containers/Data/Application/<容器>/Library/Preferences[/ByHost]/<ドメイン>`。
     /// 別の Simulator・容器の外・ホストの設定は断る(容器の中の symlink で外へ出る形は `SimulatorPreferencesPath.isDomain` が断る)
     static func preferencesDomain(_ path: String, context: Context) -> Refusal? {
         let refusal = Refusal(reason: "simctl spawn defaults delete is only allowed for a preferences domain inside"
@@ -159,11 +159,10 @@ public enum SimctlPolicy {
         let root = ScenarioSandbox.realHome() + "/Library/Developer/CoreSimulator/Devices/\(udid)/data/Containers"
         let realContainer = ScenarioSandbox.canonicalPath(container)
         let realRoot = ScenarioSandbox.canonicalPath(root)
-        let inLane = ["/Data/Application/", "/Shared/AppGroup/"].contains { kind in
-            guard realContainer.hasPrefix(realRoot + kind) else { return false }
-            let name = realContainer.dropFirst(realRoot.count + kind.count)
-            return !name.isEmpty && !name.contains("/")
-        }
+        // アプリのデータの容器だけ(group の容器は子が書けず、子から消させる経路も無い = 開けない。消すのは親の AppleSimulatorWipe)
+        let kind = "/Data/Application/"
+        let name = realContainer.hasPrefix(realRoot + kind) ? realContainer.dropFirst(realRoot.count + kind.count) : ""
+        let inLane = !name.isEmpty && !name.contains("/")
         return inLane && SimulatorPreferencesPath.isDomain(path, inContainer: container) ? nil : refusal
     }
 

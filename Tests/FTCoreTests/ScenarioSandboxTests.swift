@@ -494,8 +494,8 @@ final class ScenarioSandboxTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: path(app + "APP-1/Library")))
     }
 
-    /// データコンテナの中に symlink とハードリンクを作れない(容器の外のファイルへ出る道。親や cfprefsd が容器の中のパスを辿ると
-    /// 先のホストのファイルに作用する = 外観が届かない件 = docs/verification/resolved.md の設定の消去)。普通のファイルとフォルダは作れる
+    /// データコンテナの中に symlink・ハードリンク・フォルダを作れない(容器の外のファイルへ出る道。親や cfprefsd が容器の中のパスを辿ると
+    /// 先のホストのファイルに作用する = 外観が届かない件 = docs/verification/resolved.md の設定の消去)。作れるのは普通のファイルだけ・削除はできる
     func testLinksCannotBeCreatedInsideTheAppDataContainer() throws {
         let app = "home/Library/Developer/CoreSimulator/Devices/UDID-1/data/Containers/Data/Application/APP-1/"
         var lane = scope()

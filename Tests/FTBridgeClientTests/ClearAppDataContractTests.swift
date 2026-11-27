@@ -47,6 +47,12 @@ final class ClearAppDataContractTests: XCTestCase {
         } else {
             XCTFail("設定を消させる手順か容器を空にする手順が見つからない")
         }
+        // 設定の問題で投げるのは容器を空にした後(先に投げると symlink の plist 等が残り、以後の clearAppData が毎回断る)
+        if let remove = body.range(of: "removeItem"), let raise = body.range(of: "body: preferencesProblem") {
+            XCTAssertLessThan(remove.lowerBound, raise.lowerBound, "設定の問題で、容器を空にする前に投げている")
+        } else {
+            XCTFail("設定の問題を投げる手順が見つからない")
+        }
         if let stop = body.range(of: "stopOnSimulator("), let flush = body.range(of: "SimulatorPreferencesFlush.flush(") {
             XCTAssertLessThan(stop.lowerBound, flush.lowerBound, "アプリを止める前に設定を消させている(動いているアプリが書き戻す)")
         }

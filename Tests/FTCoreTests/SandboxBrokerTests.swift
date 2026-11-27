@@ -66,7 +66,6 @@ final class SimctlPolicyTests: XCTestCase {
             simctl("launch", "UDID-1", "com.example.app"),
             simctl("spawn", "UDID-1", "launchctl", "list"),
             simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Data/Application/ABC-1/Library/Preferences/com.example.app"),
-            simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Shared/AppGroup/G-1/Library/Preferences/group.com.example"),
             simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Data/Application/ABC-1/Library/Preferences/Some SDK"),
             simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Data/Application/ABC-1/Library/Preferences/ByHost/com.example.app.ABCD"),
             ["SIMCTL_CHILD_DYLD_INSERT_LIBRARIES=\(bridge)", "SIMCTL_CHILD_FT_PORT=8135",
@@ -99,6 +98,7 @@ final class SimctlPolicyTests: XCTestCase {
             mine + "/Data/Application/ABC-1/Library/Caches/com.example.app",                            // 設定の置き場でない
             mine + "/Data/Application/ABC-1/Library/Preferences/a\nb",                                // 制御文字
             mine + "/Data/Application/ABC-1/Library/Preferences/Other/com.example.app",                // ByHost 以外の下の階層
+            mine + "/Shared/AppGroup/G-1/Library/Preferences/group.com.example",                       // group の容器(子は書けず、消させる経路も無い)
             FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Preferences/com.apple.dock", // ホストの設定
         ] {
             XCTAssertNotNil(refusal(simctl("spawn", "UDID-1", "defaults", "delete", path)), path)

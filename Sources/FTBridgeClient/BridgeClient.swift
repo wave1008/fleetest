@@ -480,19 +480,19 @@ public final class BridgeClient: AppDriver, Sendable {
         // **ファイルを消しただけでは NSUserDefaults が戻ってくる**: cfprefsd がドメインをメモリに抱えており、次の起動で
         // 消したはずの値を配って plist を書き直す(消して起動を3回で launch_count が 2→3→4)。空にする前に、ドメインを
         // パスで名指しして cfprefsd に消させる。**cfprefsd を起こし直さない**(SpringBoard の外観の部品が壊れる = SimulatorPreferencesFlush 冒頭)
-        let domains: [String]
+        // 消させる段の問題は控えて、容器は空にしてから投げる(先に投げると symlink の plist 等が残り、以後の clearAppData が毎回断る)
+        var preferencesProblem: String?
         switch SimulatorPreferencesFlush.domainPaths(container: path, always: [bundleID]) {
-        case .domains(let listed): domains = listed
+        case .domains(let domains):
+            let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: domains)
+            if !unflushed.isEmpty {
+                preferencesProblem = "could not clear the cached preferences of \(bundleID) — UserDefaults values may survive"
+                    + " the clear: " + unflushed.prefix(3).map { "\(($0.path as NSString).lastPathComponent) (\($0.detail))" }
+                    .joined(separator: ", ")
+            }
         case .refused(let why):
-            throw DriverError.badResponse(status: 500,
-                body: "refusing to clear the preferences of \(bundleID): \(why)")
-        }
-        let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: domains)
-        guard unflushed.isEmpty else {
-            throw DriverError.badResponse(status: 500,
-                body: "could not clear the cached preferences of \(bundleID) before clearing its data"
-                    + " — UserDefaults values would survive the clear: "
-                    + unflushed.prefix(3).map { "\(($0.path as NSString).lastPathComponent) (\($0.detail))" }.joined(separator: ", "))
+            preferencesProblem = "did not clear the cached preferences of \(bundleID) (\(why)) — the data container was"
+                + " emptied, but UserDefaults values may survive the clear"
         }
         let entries = (try? fm.contentsOfDirectory(atPath: path)) ?? []
         var failed: [String] = []
@@ -507,6 +507,8 @@ public final class BridgeClient: AppDriver, Sendable {
         }
         // 権限はコンテナの外にあるので別途戻す(resetPrivacyOnSimulator 参照)
         try resetPrivacyOnSimulator(bundleID: bundleID, target: target)
+        // **黙って緑にしない**: 設定のキャッシュを落とせなかったら「消えた」と言えない
+        if let preferencesProblem { throw DriverError.badResponse(status: 500, body: preferencesProblem) }
     }
 
     /// install は HTTP エンドポイントを持たず simctl / devicectl の役割。

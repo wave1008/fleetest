@@ -40,7 +40,8 @@ public enum SimulatorPreferencesFlush {
             guard isDirectory.boolValue, let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else {
                 return .refused("\(relative(dir, container)) is not a readable directory")
             }
-            for name in names where name.lowercased().hasSuffix(".plist") {
+            // 拡張子は区別して照合する(`defaults delete` と `hasValues` は小文字の `.plist` を見る。`Foo.PLIST` を拾うと黙って通る)
+            for name in names where name.hasSuffix(".plist") {
                 let domain = dir + "/" + String(name.dropLast(".plist".count))
                 if SimulatorPreferencesPath.isSymlink(domain) || SimulatorPreferencesPath.isSymlink(domain + ".plist") {
                     return .refused("\(relative(dir + "/" + name, container)) is a symbolic link")
@@ -72,9 +73,19 @@ public enum SimulatorPreferencesFlush {
             } catch {
                 return (path, "could not run simctl spawn defaults delete: \(error.localizedDescription)")
             }
-            if result.status == 0 || !hasValues(plist: path + ".plist") { return nil }
-            return (path, "exit \(result.status): \(result.tail)")
+            return failureDetail(status: result.status, tail: result.tail, plist: path + ".plist").map { (path, $0) }
         }
+    }
+
+    /// 1回の `defaults delete` の結果の判定(nil = 消せた / 消すべき値が無かった)。サンドボックスの中では仲介の拒否(126)と
+    /// 時間切れ(127)が終了コードで来る = 撃てていないので、値の有無で流さない
+    static func failureDetail(status: Int32, tail: String, plist: String) -> String? {
+        if status == SandboxGateway.refusedStatus || status == SandboxBroker.didNotCompleteStatus {
+            return "the sandbox broker \(status == SandboxGateway.refusedStatus ? "refused it" : "did not complete it")"
+                + " (exit \(status)): \(tail)"
+        }
+        if status == 0 || !hasValues(plist: plist) { return nil }
+        return "exit \(status): \(tail)"
     }
 
     /// plist が値を1つ以上持つ dict か(cfprefsd が読み込める形で中身がある)

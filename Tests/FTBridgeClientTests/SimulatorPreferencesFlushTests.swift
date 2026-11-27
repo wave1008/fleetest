@@ -95,4 +95,26 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
     func testDeleteTimeoutIsPinned() {
         XCTAssertEqual(SimulatorPreferencesFlush.deleteTimeoutSeconds, 30)
     }
+
+    /// 仲介の拒否(126)と時間切れ(127)は、plist に値が無くても失敗(撃てていない。値の無いドメインの not found = 1 とは別)
+    func testBrokerRefusalAndTimeoutAreFailuresEvenWithoutValues() {
+        let missing = prefs.appendingPathComponent("missing.plist").path
+        XCTAssertNotNil(SimulatorPreferencesFlush.failureDetail(status: 126, tail: "", plist: missing))
+        XCTAssertNotNil(SimulatorPreferencesFlush.failureDetail(status: 127, tail: "", plist: missing))
+        XCTAssertNil(SimulatorPreferencesFlush.failureDetail(status: 1, tail: "not found", plist: missing))
+        XCTAssertNil(SimulatorPreferencesFlush.failureDetail(status: 0, tail: "", plist: missing))
+        let keys = prefs.appendingPathComponent("keys.plist").path
+        FileManager.default.createFile(atPath: keys, contents: try? PropertyListSerialization.data(
+            fromPropertyList: ["k": 1], format: .xml, options: 0))
+        XCTAssertNotNil(SimulatorPreferencesFlush.failureDetail(status: 1, tail: "", plist: keys))
+    }
+
+    /// 拡張子は区別して照合する(`Foo.PLIST` を拾うと、delete も値の確かめも小文字の名前を見て黙って通る)
+    func testUppercaseExtensionIsNotListed() {
+        FileManager.default.createFile(atPath: prefs.appendingPathComponent("Foo.PLIST").path, contents: Data())
+        guard case .domains(let domains) = SimulatorPreferencesFlush.domainPaths(container: container.path, always: []) else {
+            return XCTFail("断らない")
+        }
+        XCTAssertFalse(domains.contains { $0.hasSuffix("/Foo") })
+    }
 }
