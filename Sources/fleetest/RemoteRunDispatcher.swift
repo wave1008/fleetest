@@ -186,7 +186,7 @@ struct RemoteRunDispatcher {
         let setupStart = Date()
         let (layout, session) = try resolveLayout()
         cacheHardwareUUID(project: project, session: session)
-        var developerDir = try checkCompatibility(layout: layout)
+        var (developerDir, toolMatch) = try checkCompatibility(layout: layout)
 
         // **ロック取得の前から観測を張る**(中断があっても、これから登録する
         // `defer { releaseDispatchLock }` を必ず走らせるため)。ここから下は Shell.run 越しの
@@ -209,7 +209,7 @@ struct RemoteRunDispatcher {
         defer { if lockDisposition.releasesAtExit { releaseDispatchLock(layout: layout) } }
         // **待った後はランナーのツールを照合し直す**(照合はロックを取る前の1回だけ。待っている間に別の `remote align` が
         // ランナーのツールを差し替えうる = 照合していない版で走る)。不一致なら throw → 上の defer がロックを外す
-        if waitedForLock { developerDir = try checkCompatibility(layout: layout) }
+        if waitedForLock { (developerDir, toolMatch) = try checkCompatibility(layout: layout) }
         // **取得の直後にもう一度見る**: 待機列で待っている間の中断はループ内(acquireDispatchLock)
         // で捕まえて外に出るが、待たずに一発で取れた場合や、待機列を抜けた直後に中断が来た場合は
         // ロックを持ったまま関数末尾まで来てしまう。**ここで拾っても安心しない** —— このあとの
@@ -227,12 +227,14 @@ struct RemoteRunDispatcher {
         try transfer(project: project, layout: layout)
 
         let stamp = Self.makeStamp()
+        // 手元のビルド済みシナリオ実行バイナリをランナーへ送る(送れなければ空 = 子が自分でビルドする)
+        let prebuiltArgs = sendPrebuiltScenarios(project: project, layout: layout, stamp: stamp, tool: toolMatch)
         let remoteReportDir = layout.dispatchReportDir(stamp: stamp)
         let remoteJUnitPath = localJUnitPath != nil
             ? "\(layout.workDir)/.fleetest/dispatch/\(stamp)/junit.xml" : nil
         // run 全体のロック(RR-8.5): 発行元がこの機械の待ち受けを渡したときだけ、ssh に転送を足して向こうの run へ転送元のパスを渡す
         let lockLink = RemoteLockLink.make(machineSocket: lockSocket, controlSocket: lockControlSocket)
-        let fleetestArgs = buildArgs(remoteReportDir, remoteWorkspace, remoteJUnitPath, lockLink?.remotePath)
+        let fleetestArgs = buildArgs(remoteReportDir, remoteWorkspace, remoteJUnitPath, lockLink?.remotePath) + prebuiltArgs
         let timeoutSeconds = RemoteTimeout.seconds(
             explicit: remoteTimeoutSeconds, scenarioCount: scenarioCount)
         announceTimeout(timeoutSeconds)
@@ -358,7 +360,7 @@ struct RemoteRunDispatcher {
     /// toolchain probe と、あとで撃つ run(runRemoteAndRelay → RemoteShell.remoteRunCommand)は
     /// 必ずこの1つの戻り値を使う** —— 別々に解決すると、ここで照合した Xcode と実際に走る Xcode が
     /// 食い違う(緑のまま別の Xcode で走る沈黙の退行)
-    private func checkCompatibility(layout: RemoteLayout) throws -> String? {
+    private func checkCompatibility(layout: RemoteLayout) throws -> (developerDir: String?, tool: RemoteToolMatch) {
         // 照合は作業ツリーの判定用の要約で行う(コミットの SHA ではない。DR-226)。取れなければ fail-closed で止める
         // (手元の git が壊れているのに緑で走らせない)
         let localTool: RemoteCompat.LocalTool
@@ -418,7 +420,51 @@ struct RemoteRunDispatcher {
                 + " — run `fleetest remote setup \(host.sshTarget)` once for this issuer"
                 + " (RR-18)")
         }
-        return developerDir
+        // ビルド済みバイナリを送る条件(`PrebuiltScenarios.decide`)の材料。**全体の要約**(align が揃える単位)と toolchain の完全一致を使う
+        // (照合の通過条件は判定用の要約と toolchain の advisory 込みで緩い = ここでは使わない)
+        let match = RemoteToolMatch(
+            digestMatches: remoteTool?.digest.map { $0 == localTool.digest },
+            toolchainIdentical: localToolchain.flatMap { local in toolchainProbe.capturedValue.map { $0 == local } })
+        return (developerDir, match)
+    }
+
+    /// 適合チェックが見た「送ったバイナリがランナーで動く」ことの材料(送る条件に使う)
+    struct RemoteToolMatch: Equatable {
+        let digestMatches: Bool?
+        let toolchainIdentical: Bool?
+    }
+
+    /// 手元の製品が新しく、ランナーのツールと toolchain が完全に一致するときだけ、シナリオ実行バイナリを送って
+    /// 子へ渡す引数を返す(`PrebuiltScenarios.decide`)。送らない・送れないときは空 = 子が今までどおり自分でビルドする。
+    /// 置き場はディスパッチ単位ディレクトリの下(回収後の `cleanupDispatchDir` で一緒に消える)。圧縮は付けない
+    /// (LAN で約 100 MB が約 5 秒。圧縮の効果は ssh 越しで未測定)
+    private func sendPrebuiltScenarios(project: TestProject, layout: RemoteLayout, stamp: String,
+                                       tool: RemoteToolMatch) -> [String] {
+        let binary = ScenarioHost.freshBuiltBinary(project: project)
+        let decision = PrebuiltScenarios.decide(.init(
+            localBinaryFresh: binary != nil, digestMatches: tool.digestMatches,
+            toolchainIdentical: tool.toolchainIdentical, toolFromWorkingTree: toolRev == nil))
+        if case .skip(let reason) = decision {
+            log("→ Not sending prebuilt scenarios (\(reason)) — \(host.sshTarget) builds them itself")
+            return []
+        }
+        guard let binary else { return [] }
+        let remotePath = PrebuiltScenarios.stagedPath(workDir: layout.workDir, stamp: stamp, productName: project.productName)
+        let megabytes = ((try? FileManager.default.attributesOfItem(atPath: binary.path)[.size] as? NSNumber)?.intValue ?? 0) / 1_000_000
+        log("==> sending the prebuilt scenarios (\(megabytes) MB) to \(host.sshTarget)")
+        do {
+            _ = try sshCapture("mkdir -p \(RemoteShell.quote(PrebuiltScenarios.stagingDir(workDir: layout.workDir, stamp: stamp)))")
+            let status = try runInherited(["rsync", "-a"] + SSHOptions.rsyncRemoteShellArgs
+                                          + [binary.path, "\(host.sshTarget):\(remotePath)"])
+            guard status == 0 else {
+                log("⚠️ could not send the prebuilt scenarios (rsync exited with \(status)) — \(host.sshTarget) builds them itself")
+                return []
+            }
+        } catch {
+            log("⚠️ could not send the prebuilt scenarios (\(describe(error))) — \(host.sshTarget) builds them itself")
+            return []
+        }
+        return PrebuiltScenarios.args(remotePath: remotePath, originRoot: Self.packageRoot(of: project).path)
     }
 
     /// **1回だけ**(probeRemote のような引き直しは無い)。失敗は「列挙できなかった」と同じ扱いで

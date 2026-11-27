@@ -360,3 +360,4 @@ paths:
 Android の文字列は `AndroidDeviceTraits.emulatorKind` の1か所・別の機械の AVD は `remote exec <機> -- api avd-kinds <AVD>...` で読む)。
 **種類はプロファイルの `model`(表示専用)から作らない・不明(実機・
   解決できない台を含むエントリ)は覆わない**・**覆いの証拠は試した台で観測した種類だけ**(子が `na` の `kinds` で送る。親がエントリの台を引き直した種類は証拠にしない = 子は台を絞り、引き直した台と使った台は限らない)・親の観測は配り手を作った時点に裏で引き、機械ごとに1回(子の出力を読むスレッドで ssh を待たない)。配る側の除外は `DynamicDispatcher.isExcluded` の1箇所
+- **手元でビルド済みのシナリオ実行バイナリは、条件が揃うときだけランナーへ送る**(`PrebuiltScenarios.decide`。手元の製品が新しい・ツールの**全体の要約**(`digest`)と toolchain の完全一致・`--tool-rev` 無し)。送る口は `RemoteRunDispatcher.performDispatch` の1箇所(置き場は `<workDir>/.fleetest/dispatch/<stamp>/prebuilt/<製品名>`)。子は内部フラグ `--prebuilt-scenarios` / `--prebuilt-origin-root`(`ChildPrebuiltScenariosOption`)で受け、`ScenarioHost.usePrebuilt` が登録して `runnerURL` が最初に見る。条件を欠くか送れなければ子は今までどおり自分でビルドする。レポートのパスは `FT_SCENARIO_ORIGIN_ROOT` で手元のルートを外す

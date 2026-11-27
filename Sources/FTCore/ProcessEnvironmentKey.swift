@@ -25,4 +25,6 @@ public enum ProcessEnvironmentKey {
     public static let simulatorControl = "FT_SIMULATOR_CONTROL"
     /// occlusion-guard の FM 段の crop の書き出し先(FTFoundationModels が書く・サンドボックスが置き場を確かめる)
     public static let occlusionDumpDir = "FT_OCCLUSION_DUMP_DIR"
+    /// 親から送られたビルド済みシナリオ実行バイナリを使う子へ、ビルドした機械のパッケージルートを渡す(`#filePath` の接頭辞を外す。書き手は `ScenarioHost.childEnvironment`・読み手は `FTRuntime.relativePath`)
+    public static let scenarioOriginRoot = "FT_SCENARIO_ORIGIN_ROOT"
 }

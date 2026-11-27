@@ -254,6 +254,8 @@ struct RunScenarios: AsyncParsableCommand {
     @OptionGroup var common: RunCommonOptions
     /// 親が観測した台の性質を運ぶ内部フラグ(`ApiRunCommand` と同じ OptionGroup。`RunCommonOptions` には置かない = ヘルプに出ない)
     @OptionGroup var childTraits: ChildDeviceTraitsOption
+    /// 親が送ったビルド済みのシナリオ実行バイナリを受ける内部フラグ(同上。ヘルプに出ない)
+    @OptionGroup var prebuilt: ChildPrebuiltScenariosOption
 
     @Option(name: .customLong("scenario"), parsing: .upToNextOption,
             help: "Scenario IDs to run (Class.method; a class name alone runs all of its scenarios). Repeatable; defaults to all. @Deleted / @Draft scenarios run only on an exact match")
@@ -616,6 +618,8 @@ struct RunScenarios: AsyncParsableCommand {
         let earlyResolved = earlyResolution?.resolvedAll
         // project の解決とシナリオ名指しの検査もロックの前(`api run` と同じ順。待った後で打ち間違いを知らせない)
         let testProject = try ScenarioHost.project(named: common.project)
+        // 親が送ったビルド済みのシナリオ実行バイナリ(あれば)。ビルド・一覧・実行のどれより前に登録する
+        prebuilt.install(project: testProject, log: { ConsoleOut.out($0) })
         // バリアントの展開の計画(宣言・`--variant`・`--scenario ID@variant` の検査もロックの前)
         var variantPlan = try RunCommonOptions.variantPlan(
             project: testProject, profile: common.profile, overrides: profileOverrides,

@@ -28,6 +28,8 @@ struct ApiRunCommand: AsyncParsableCommand {
     @OptionGroup var common: RunCommonOptions
     /// 親が観測した台の性質を運ぶ内部フラグ(`RunScenarios` と同じ OptionGroup。ヘルプに出ない)
     @OptionGroup var childTraits: ChildDeviceTraitsOption
+    /// 親が送ったビルド済みのシナリオ実行バイナリを受ける内部フラグ(同上。ヘルプに出ない)
+    @OptionGroup var prebuilt: ChildPrebuiltScenariosOption
 
     @Option(name: .customLong("scenario"), parsing: .upToNextOption,
             help: "Scenario IDs to run (Class.method; a class name alone runs all of its scenarios). Repeatable, at least one required. @Deleted / @Draft scenarios run only on an exact match")
@@ -233,6 +235,8 @@ struct ApiRunCommand: AsyncParsableCommand {
         RunEnvironment.apply(noProfileSettings)
 
         let testProject = try ScenarioHost.project(named: common.project)
+        // 親が送ったビルド済みのシナリオ実行バイナリ(あれば)。ビルド・一覧・実行のどれより前に登録する(stdout は NDJSON 専用)
+        prebuilt.install(project: testProject, log: { logStderr($0) })
 
         // NDJSON はここより後でしか出さない(emitLine(ApiRunStartedEvent) 以降)。--runner/全台が
         // リモートのプロファイルはローカルでは何も実行せずリモートの出力を中継するだけなので、

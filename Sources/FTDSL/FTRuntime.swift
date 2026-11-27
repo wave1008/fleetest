@@ -1994,6 +1994,7 @@ public final class FTDriveCore {
 
     func relativePath(_ path: String) -> String {
         let cwd = FileManager.default.currentDirectoryPath + "/"
-        return path.hasPrefix(cwd) ? String(path.dropFirst(cwd.count)) : path
+        return path.hasPrefix(cwd) ? String(path.dropFirst(cwd.count))
+            : PrebuiltScenarios.stripOriginRoot(path, originRoot: ProcessInfo.processInfo.environment[ProcessEnvironmentKey.scenarioOriginRoot])
     }
 }

@@ -218,6 +218,8 @@ public enum ScenarioHost {
             env["DEVELOPER_DIR"] = dir
         }
         env[ParentDeathWatch.environmentKey] = String(getpid())
+        env[ProcessEnvironmentKey.scenarioOriginRoot] = prebuiltOriginRoot
+        if env[ProcessEnvironmentKey.toolRoot] == nil, let toolRoot = prebuiltToolRoot { env[ProcessEnvironmentKey.toolRoot] = toolRoot }
         // 補助プロセスの救済(VisionHelperHost)。起こしていない run には外の環境の古い値も持ち込ませない
         env[VisionHelperWire.socketEnvironmentKey] = VisionHelperHost.activeSocketPath
         // FM の常駐プロセス(FMServeHost)。用意していない run には外の環境の古い値も持ち込ませない
@@ -250,6 +252,8 @@ public enum ScenarioHost {
             throw ScenarioHostError.packageRootNotFound
         }
 
+        // 親から送られたバイナリを使う子はビルドしない(指紋も残さない = ランナーの `.build` の製品が新しいとは言えない)
+        if prebuiltRunner(for: project) != nil { return }
         // 死んだ run-file の置き場を通常の run に混ぜない(指紋の計算より前 = 残骸込みの指紋にしない)
         StagedScenarioSweep.sweepIfAbandoned(scenariosDir: project.scenariosDir)
         let fingerprintSnapshot = BuildFingerprint.snapshot(repoRoot: root, scenariosDir: project.scenariosDir)
@@ -321,7 +325,8 @@ public enum ScenarioHost {
                            project: project, root: root)
     }
 
-    private static func buildNeeded(fingerprint: String?, project: TestProject, root: URL) -> Bool {
+    static func buildNeeded(fingerprint: String?, project: TestProject, root: URL) -> Bool {
+        if prebuiltRunner(for: project) != nil { return false }
         guard let fingerprint,
               fingerprint == BuildFingerprint.stored(productName: project.productName, repoRoot: root),
               (try? runnerURL(project: project)) != nil else { return true }
@@ -426,6 +431,7 @@ public enum ScenarioHost {
     private static let hostLoadPacingWarned = LockedValue(false)
 
     public static func runnerURL(project: TestProject) throws -> URL {
+        if let prebuilt = prebuiltRunner(for: project) { return prebuilt.binary }
         if let root = packageRoot() {
             let debugBinary = root.appendingPathComponent(".build/debug")
                 .appendingPathComponent(project.productName)
