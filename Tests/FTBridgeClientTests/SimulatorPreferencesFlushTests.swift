@@ -125,7 +125,7 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
         let paths = ["/c/Library/Preferences/a", "/c/Library/Preferences/b", "/c/Library/Preferences/c"]
         for firstFailure in [Int32(127), -1] {
             var called: [String] = []
-            let failures = SimulatorPreferencesFlush.flush(udid: "U", domainPaths: paths) { args, timeout in
+            let outcome = SimulatorPreferencesFlush.flush(udid: "U", domainPaths: paths, insideSandbox: true) { args, timeout in
                 called.append(args.last ?? "")
                 if args.last == paths[1] {
                     if firstFailure == -1 { throw ShellError.timedOut(args: args, seconds: timeout) }
@@ -134,8 +134,36 @@ final class SimulatorPreferencesFlushTests: XCTestCase {
                 return Shell.Result(status: 0, output: "")
             }
             XCTAssertEqual(called, Array(paths.prefix(2)), "時間切れの後も撃っている(\(firstFailure))")
-            XCTAssertEqual(failures.map(\.path), Array(paths.suffix(2)))
-            XCTAssertTrue(failures[1].detail.contains("not attempted"), failures[1].detail)
+            XCTAssertEqual(outcome.failures.map(\.path), Array(paths.suffix(2)))
+            XCTAssertTrue(outcome.failures[1].detail.contains("not attempted"), outcome.failures[1].detail)
+            XCTAssertTrue(outcome.timedOut)
         }
+    }
+
+    /// サンドボックスの外の 127 はシェルの「見つからない」= 時間切れではない(止めず、時間切れと言わない)
+    func testExit127OutsideTheSandboxIsNotATimeout() {
+        let paths = ["/c/Library/Preferences/a", "/c/Library/Preferences/b"]
+        var called: [String] = []
+        let outcome = SimulatorPreferencesFlush.flush(udid: "U", domainPaths: paths, insideSandbox: false) { args, _ in
+            called.append(args.last ?? "")
+            return Shell.Result(status: args.last == paths[0] ? 127 : 0, output: "")
+        }
+        XCTAssertEqual(called, paths)
+        XCTAssertFalse(outcome.timedOut)
+        XCTAssertEqual(outcome.failures.map(\.path), [paths[0]])
+        XCTAssertFalse(outcome.failures[0].detail.contains("timeout"), outcome.failures[0].detail)
+    }
+
+    /// ByHost だけが外を指すなら ByHost だけを断り、Library/Preferences のドメインと always は消させる
+    func testOnlyByHostIsRefusedWhenOnlyItPointsOut() throws {
+        let outside = container.deletingLastPathComponent().appendingPathComponent("outside-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.removeItem(at: prefs.appendingPathComponent("ByHost"))
+        try FileManager.default.createSymbolicLink(at: prefs.appendingPathComponent("ByHost"), withDestinationURL: outside)
+        let listing = SimulatorPreferencesFlush.domainPaths(container: container.path, always: ["com.example.cached"])
+        let dir = prefs.path + "/"
+        XCTAssertEqual(listing.domains, [dir + "com.example.app", dir + "com.example.cached", dir + "com.vendor.sdk"])
+        XCTAssertEqual(listing.refusals.count, 1)
     }
 }

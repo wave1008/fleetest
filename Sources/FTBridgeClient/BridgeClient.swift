@@ -486,11 +486,13 @@ public final class BridgeClient: AppDriver, Sendable {
         // ②危ない項目を断っただけ(symlink の plist・外を指す置き場)= 安全なドメインは消させ、容器を空にしてから投げる
         //   (先に投げると危ない項目が残り、以後の clearAppData が毎回断る)
         let listing = SimulatorPreferencesFlush.domainPaths(container: path, always: [bundleID])
-        let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: listing.domains)
+        let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: listing.domains).failures
         guard unflushed.isEmpty else {
+            // 毎回同じ失敗なら撃ち直しても通らない = 手で直す手順を言う(容器を空にして通すと、次回は黙った緑になる)
             throw DriverError.badResponse(status: 500,
                 body: "could not clear the cached preferences of \(bundleID), so its data container was left as it was"
-                    + " (the next clearAppData retries): "
+                    + " (the next clearAppData retries; if it keeps failing, delete the listed files under"
+                    + " Library/Preferences of the app's data container by hand or erase the Simulator): "
                     + unflushed.prefix(3).map { "\(($0.path as NSString).lastPathComponent) (\($0.detail))" }.joined(separator: ", "))
         }
         let preferencesProblem = listing.refusals.isEmpty ? nil

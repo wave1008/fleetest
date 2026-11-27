@@ -37,11 +37,17 @@ public enum SimulatorPreferencesFlush {
             var isDirectory: ObjCBool = false
             let exists = FileManager.default.fileExists(atPath: dir, isDirectory: &isDirectory)
             if !exists && !SimulatorPreferencesPath.isSymlink(dir) { continue }
+            // `Library/Preferences` そのものが危ないなら何も消させない。ByHost だけが危ないなら ByHost だけを外す
+            let isByHost = dir != preferences
             guard SimulatorPreferencesPath.preferencesDirectoryIsInside(dir, container: container) else {
-                return Listing(domains: [], refusals: ["\(relative(dir, container)) is a symbolic link out of the container"])
+                refusals.append("\(relative(dir, container)) is a symbolic link out of the container")
+                if isByHost { continue }
+                return Listing(domains: [], refusals: refusals)
             }
             guard isDirectory.boolValue, let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else {
-                return Listing(domains: [], refusals: ["\(relative(dir, container)) is not a readable directory"])
+                refusals.append("\(relative(dir, container)) is not a readable directory")
+                if isByHost { continue }
+                return Listing(domains: [], refusals: refusals)
             }
             // 拡張子は区別して照合する(`defaults delete` と `hasValues` は小文字の `.plist` を見る。`Foo.PLIST` を拾うと黙って通る)
             for name in names where name.hasSuffix(".plist") {
@@ -64,37 +70,47 @@ public enum SimulatorPreferencesFlush {
         path.hasPrefix(container + "/") ? String(path.dropFirst(container.count + 1)) : path
     }
 
-    /// 各ドメインを cfprefsd に消させる(ファイルとキャッシュの両方)。戻り値 = 消させられなかったドメイン(パス・理由)。
+    public struct Outcome {
+        /// 消させられなかったドメイン(パス・理由)
+        public var failures: [(path: String, detail: String)] = []
+        /// 時間切れで止めた(呼び手は以後の容器も撃たない = 詰まった Simulator で容器の数 × 上限だけ止まらない)
+        public var timedOut = false
+    }
+
+    /// 各ドメインを cfprefsd に消させる(ファイルとキャッシュの両方)。
     /// 0 以外で終わっても、plist に値が無ければ失敗にしない(空の dict・0 バイト・読めない形は cfprefsd が not found と答える =
     /// cfprefsd も読み込めていない = 消すべき値が無い。判定はファイルの中身で行い、文言を読まない)。
-    /// **時間切れが1回出たら残りは撃たない**(詰まった Simulator でドメインの数 × 上限だけ止まらない)。残りも消させられなかった扱い
-    /// - run: simctl を撃つ口(テストの差し替え口)
+    /// **時間切れが1回出たら残りは撃たない**(外 = `ShellError.timedOut`・サンドボックスの中 = 仲介の 127。外の 127 はシェルの
+    /// 「見つからない」なので止めない)。残りも消させられなかった扱い
+    /// - insideSandbox: シナリオの子の中か(127 を仲介の時間切れと読むか)。run: simctl を撃つ口(テストの差し替え口)
     public static func flush(udid: String, domainPaths: [String],
-                             run: ([String], Double) throws -> Shell.Result = { try Shell.run($0, timeout: $1) })
-        -> [(path: String, detail: String)] {
-        var failures: [(path: String, detail: String)] = []
+                             insideSandbox: Bool = ProcessInfo.processInfo.environment[SandboxGateway.environmentKey] != nil,
+                             run: ([String], Double) throws -> Shell.Result = { try Shell.run($0, timeout: $1) }) -> Outcome {
+        var outcome = Outcome()
         for (index, path) in domainPaths.enumerated() {
             let result: Shell.Result
             do {
                 result = try run(["xcrun", "simctl", "spawn", udid, "defaults", "delete", path], deleteTimeoutSeconds)
             } catch ShellError.timedOut {
-                failures.append((path, "simctl spawn defaults delete did not finish within \(Int(deleteTimeoutSeconds))s"))
-                failures += domainPaths.dropFirst(index + 1).map { ($0, "not attempted after an earlier timeout") }
-                return failures
+                outcome.failures.append((path, "simctl spawn defaults delete did not finish within \(Int(deleteTimeoutSeconds))s"))
+                outcome.failures += domainPaths.dropFirst(index + 1).map { ($0, "not attempted after an earlier timeout") }
+                outcome.timedOut = true
+                return outcome
             } catch {
-                failures.append((path, "could not run simctl spawn defaults delete: \(error.localizedDescription)"))
+                outcome.failures.append((path, "could not run simctl spawn defaults delete: \(error.localizedDescription)"))
                 continue
             }
-            if result.status == SandboxBroker.didNotCompleteStatus {
-                failures.append((path, failureDetail(status: result.status, tail: result.tail, plist: path + ".plist") ?? ""))
-                failures += domainPaths.dropFirst(index + 1).map { ($0, "not attempted after an earlier timeout") }
-                return failures
+            if insideSandbox, result.status == SandboxBroker.didNotCompleteStatus {
+                outcome.failures.append((path, "the sandbox broker did not complete it (exit \(result.status)): \(result.tail)"))
+                outcome.failures += domainPaths.dropFirst(index + 1).map { ($0, "not attempted after an earlier timeout") }
+                outcome.timedOut = true
+                return outcome
             }
             if let detail = failureDetail(status: result.status, tail: result.tail, plist: path + ".plist") {
-                failures.append((path, detail))
+                outcome.failures.append((path, detail))
             }
         }
-        return failures
+        return outcome
     }
 
     /// 1回の `defaults delete` の結果の判定(nil = 消せた / 消すべき値が無かった)。126 / 127 は値の有無で流さない

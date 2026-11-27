@@ -57,6 +57,27 @@ final class SimulatorPreferencesPathTests: XCTestCase {
         XCTAssertFalse(SimulatorPreferencesPath.isDomain(container + "/Library/Preferences/y", inContainer: container))
     }
 
+    /// `..`・`.`・`//` を含むパスは断る(判定は `..` を文字の上で畳んでから実体を見るが、撃つのは渡された文字列のまま =
+    /// symlink と `..` を組み合わせると、判定は容器の中・実際の行き先はホスト、と食い違う)
+    func testDotComponentsAreRefused() throws {
+        XCTAssertTrue(SimulatorPreferencesPath.hasOnlyPlainComponents("/a/b/c"))
+        for bad in ["a/b", "/a//b", "/a/./b", "/a/../b", "/a/b/", "/a/b/.."] {
+            XCTAssertFalse(SimulatorPreferencesPath.hasOnlyPlainComponents(bad), bad)
+        }
+        // symlink を辿って `..` で戻る形は、実在するパスなら realpath が実際の行き先で解くので置き場の判定で断られる(下)。
+        // `..` の判定はその二重の守り: 実体が容器の中のままでも `..` を含む容器のパスは断る(この判定でしか断られない形)
+        let dotted = container + "/../ABC-1"
+        XCTAssertFalse(SimulatorPreferencesPath.isDomain(dotted + "/Library/Preferences/com.example.app", inContainer: dotted))
+        try FileManager.default.createDirectory(at: outside.appendingPathComponent("Data/Application/ABC-1/Library"),
+                                                withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: outside.appendingPathComponent("Data/Application/ABC-1/Library/Preferences"),
+                                                   withDestinationURL: outside)
+        try FileManager.default.createSymbolicLink(atPath: container + "/L", withDestinationPath: outside.path + "/Data/Application/ABC-1/Library")
+        let sneaky = container + "/L/../../../../Data/Application/ABC-1/Library/Preferences/com.apple.dock"
+        let sneakyContainer = container + "/L/../../../../Data/Application/ABC-1"
+        XCTAssertFalse(SimulatorPreferencesPath.isDomain(sneaky, inContainer: sneakyContainer))
+    }
+
     func testSymlinkedPlistIsRefused() throws {
         try FileManager.default.createSymbolicLink(atPath: container + "/Library/Preferences/com.apple.dock.plist",
                                                    withDestinationPath: outside.appendingPathComponent("com.apple.dock.plist").path)

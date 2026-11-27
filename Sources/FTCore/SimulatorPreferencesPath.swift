@@ -13,8 +13,16 @@ public enum SimulatorPreferencesPath {
             && !name.unicodeScalars.contains { $0 == "/" || $0.value < 0x20 || $0.value == 0x7f }
     }
 
+    /// 絶対パスで、`.`・`..`・空の要素(`//`)を含まないか。**判定は実体で見るが、撃つのは渡された文字列のまま** —— 正規化は `..` を
+    /// 文字の上で畳んでから実体を見るので、symlink と `..` を組み合わせると判定と実際の行き先が食い違う(仲介をすり抜けてホストの設定に届く)
+    public static func hasOnlyPlainComponents(_ path: String) -> Bool {
+        guard path.hasPrefix("/") else { return false }
+        return !path.dropFirst().split(separator: "/", omittingEmptySubsequences: false).contains { $0.isEmpty || $0 == "." || $0 == ".." }
+    }
+
     /// 設定の置き場(`Library/Preferences` と `Library/Preferences/ByHost`)が実体のまま容器の中にあるか
     public static func preferencesDirectoryIsInside(_ directory: String, container: String) -> Bool {
+        guard hasOnlyPlainComponents(directory), hasOnlyPlainComponents(container) else { return false }
         let real = ScenarioSandbox.canonicalPath(container)
         let expected = [real + "/Library/Preferences", real + "/Library/Preferences/ByHost"]
         guard [container + "/Library/Preferences", container + "/Library/Preferences/ByHost"].contains(directory) else { return false }

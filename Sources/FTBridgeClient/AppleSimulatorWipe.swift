@@ -98,21 +98,36 @@ public enum AppleSimulatorWipe {
         guard dataPath.hasPrefix("/") else {
             throw DriverError.badResponse(status: 500, body: "could not resolve the data container for \(bundleID)")
         }
-        // 設定のキャッシュは空にする前に cfprefsd に消させる(group の分は下で同じく。理由と順序は SimulatorPreferencesFlush 冒頭)
-        // symlink の容器・設定の置き場は辿らない(下の emptyContents が容器を断る。その前に先の設定を消させない)
+        // 設定のキャッシュは空にする前に cfprefsd に消させる(group の分は下で同じく。理由と順序は SimulatorPreferencesFlush 冒頭)。
+        // **消させられなかった容器は空にしない**(clearAppData と同じ。空にすると消すべきドメインの手がかりが消え、次回は黙った緑)。
+        // 時間切れは容器をまたいで覚え、以後の容器は撃たずに残す。symlink の容器は辿らない(emptyContents が断る)
         var preferenceProblems: [String] = []
-        func flushUnlessLinked(_ container: String, label: String, always: [String]) {
-            if (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil { return }
+        var timedOut = false
+        /// 戻り値 = その容器を空にしてよいか
+        func flushPreferences(_ container: String, label: String, always: [String]) -> Bool {
+            if (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil { return true }
+            if timedOut {
+                preferenceProblems.append("did not clear the cached preferences in \(label) (not attempted after an earlier"
+                    + " timeout), so it was left as it was")
+                return false
+            }
             let listing = SimulatorPreferencesFlush.domainPaths(container: container, always: always)
-            for failure in SimulatorPreferencesFlush.flush(udid: udid, domainPaths: listing.domains) {
+            let outcome = SimulatorPreferencesFlush.flush(udid: udid, domainPaths: listing.domains)
+            timedOut = outcome.timedOut
+            for failure in outcome.failures {
                 preferenceProblems.append("could not clear the cached preferences \((failure.path as NSString).lastPathComponent)"
-                    + " in \(label) (\(failure.detail)) — preference values cached by the daemon may come back")
+                    + " in \(label) (\(failure.detail))")
             }
             for why in listing.refusals {
                 preferenceProblems.append("did not clear the preferences of \(label) behind \(why)")
             }
+            return outcome.failures.isEmpty
         }
-        flushUnlessLinked(dataPath, label: "the data container", always: [bundleID])
+        guard flushPreferences(dataPath, label: "the data container", always: [bundleID]) else {
+            throw DriverError.badResponse(status: 500,
+                body: "could not clear the cached preferences of \(bundleID), so its data container was left as it was: "
+                    + preferenceProblems.prefix(3).joined(separator: "; "))
+        }
         guard let dataWipe = emptyContents(of: dataPath) else {
             throw DriverError.badResponse(status: 500,
                 body: "the data container of \(bundleID) is a symbolic link (\(dataPath)) — refusing to delete what it points to")
@@ -132,8 +147,13 @@ public enum AppleSimulatorWipe {
                 report.problems.append("\(parsed.unparsableLines) line(s) of the group container listing could not be read, so any group container on them was not wiped")
             }
             for group in parsed.groups {
-                flushUnlessLinked(group.path, label: "group container \(group.id)", always: [group.id])
-                report.groupsTouched += 1
+                let linked = (try? FileManager.default.destinationOfSymbolicLink(atPath: group.path)) != nil
+                guard flushPreferences(group.path, label: "group container \(group.id)", always: [group.id]) else {
+                    report.groupsTouched += 1
+                    report.problems.append("group container \(group.id) was left as it was (its cached preferences were not cleared)")
+                    continue
+                }
+                if !linked { report.groupsTouched += 1 }
                 guard let result = emptyContents(of: group.path, skipping: [containerMetadataName]) else {
                     report.problems.append("group container \(group.id) (\(group.path)) is a symbolic link — not wiped")
                     continue
