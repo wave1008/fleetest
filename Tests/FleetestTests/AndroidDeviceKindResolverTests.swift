@@ -39,4 +39,19 @@ final class AndroidDeviceKindResolverTests: XCTestCase {
         XCTAssertNil(AndroidDeviceKindResolver.parse(stdout: "no json"))
         XCTAssertEqual(AndroidDeviceKindResolver.parse(stdout: "{}\n"), [:])
     }
+
+    /// 失敗(nil)は覚えない = 後の配り手がやり直せる。成功は覚える(ssh を撃ち直さない)
+    func testFailedLookupIsNotCachedButSuccessIs() {
+        let machine = "cache-test-\(UUID().uuidString)"
+        let avds: Set<String> = ["A"]
+        var calls = 0
+        let failing: (String?, Set<String>) -> [String: String]? = { _, _ in calls += 1; return nil }
+        XCTAssertNil(AndroidDeviceKindResolver.cachedAVDKinds(machine: machine, avds: avds, fetch: failing))
+        XCTAssertEqual(calls, 1)
+        let succeeding: (String?, Set<String>) -> [String: String]? = { _, _ in calls += 1; return ["A": "k1"] }
+        XCTAssertEqual(AndroidDeviceKindResolver.cachedAVDKinds(machine: machine, avds: avds, fetch: succeeding), ["A": "k1"])
+        XCTAssertEqual(calls, 2, "失敗の後は撃ち直す")
+        XCTAssertEqual(AndroidDeviceKindResolver.cachedAVDKinds(machine: machine, avds: avds, fetch: failing), ["A": "k1"])
+        XCTAssertEqual(calls, 2, "成功は控える")
+    }
 }

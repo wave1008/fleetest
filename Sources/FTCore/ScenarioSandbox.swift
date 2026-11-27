@@ -516,7 +516,9 @@ public enum ScenarioSandbox {
             + ["ftbridge.apk", "dispatch.lock", "dispatch.queue", "retention-sweep.lock", "services-leases",
                "fm.sock", "runs", "streams"]
             .map { scope.home + "/.fleetest/" + $0 }
-            + ["Library/Caches/fleetest/webview", "Library/Logs/fleetest/emulator"].map { scope.home + "/" + $0 }
+            // sim-boot.lock.<枠> = Simulator 起動の機械全体の枠(`SimulatorBootSlots`。親だけが flock する。子が消す・置き換えると排他が崩れる)
+            + (["Library/Caches/fleetest/webview", "Library/Logs/fleetest/emulator"] + SimulatorBootLockFiles.homeRelativePaths())
+                .map { scope.home + "/" + $0 }
     }
 
     /// 常に読ませない場所(ホーム相対)。シナリオの駆動に要らない認証情報・個人データの定番の置き場で、

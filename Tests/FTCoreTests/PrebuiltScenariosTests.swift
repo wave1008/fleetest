@@ -31,13 +31,21 @@ final class PrebuiltScenariosTests: XCTestCase {
     }
 
     /// 実行可能な偽のバイナリ(中身は使わない)。`name` が製品名と違えば「別のプロジェクトのバイナリ」
-    private func makeBinary(named name: String, executable: Bool = true) throws -> URL {
+    private func makeBinary(named name: String, executable: Bool = true, cpu: UInt32? = nil, minOS: UInt32 = 1 << 16) throws -> URL {
         let dir = repoRoot.appendingPathComponent("staged", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent(name)
-        try "#!/bin/sh\n".write(to: url, atomically: true, encoding: .utf8)
+        try machO(cpu: cpu ?? (MachOCompatibility.hostArch == .arm64 ? 0x0100_000C : 0x0100_0007), minOS: minOS)
+            .write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: executable ? 0o755 : 0o644], ofItemAtPath: url.path)
         return url
+    }
+
+    /// 最小の Mach-O(LC_BUILD_VERSION 1つ)。`minOS` は xxxx.yy.zz の符号化
+    private func machO(cpu: UInt32, minOS: UInt32) -> Data {
+        func le(_ v: UInt32) -> [UInt8] { [UInt8(v & 0xff), UInt8((v >> 8) & 0xff), UInt8((v >> 16) & 0xff), UInt8(v >> 24)] }
+        let cmd = le(0x32) + le(24) + le(1) + le(minOS) + le(0) + le(0)
+        return Data(le(0xFEED_FACF) + le(cpu) + le(0) + le(2) + le(1) + le(UInt32(cmd.count)) + le(0) + le(0) + cmd)
     }
 
     // MARK: - 親の判定(純粋関数)
@@ -114,6 +122,28 @@ final class PrebuiltScenariosTests: XCTestCase {
         XCTAssertFalse(ScenarioHost.usePrebuilt(project: project, binary: try makeBinary(named: "fleetest-scenarios-Other"),
                                                 originRoot: nil, toolRoot: nil, log: nil), "別のプロジェクトのバイナリは受けない")
         XCTAssertNil(ScenarioHost.prebuiltRunner(for: project))
+    }
+
+    /// 別の CPU・新しすぎる OS・Mach-O でないファイルは受けない(受けると全シナリオが Bad CPU type で赤)。理由を1行言ってビルドへ戻る
+    func testChildRefusesAnIncompatibleBinaryWithAReason() throws {
+        let other: UInt32 = MachOCompatibility.hostArch == .arm64 ? 0x0100_0007 : 0x0100_000C
+        let wantName = MachOCompatibility.hostArch.rawValue
+        var logs: [String] = []
+        XCTAssertFalse(ScenarioHost.usePrebuilt(project: project, binary: try makeBinary(named: project.productName, cpu: other),
+                                                originRoot: nil, toolRoot: nil, log: { logs.append($0) }))
+        XCTAssertEqual(logs.count, 1)
+        XCTAssertTrue(logs[0].contains("but this machine is \(wantName) — building here"), "\(logs)")
+        logs = []
+        XCTAssertFalse(ScenarioHost.usePrebuilt(project: project, binary: try makeBinary(named: project.productName, minOS: 999 << 16),
+                                                originRoot: nil, toolRoot: nil, log: { logs.append($0) }))
+        XCTAssertTrue(logs[0].contains("need macOS 999.0 but this machine runs"), "\(logs)")
+        logs = []
+        let script = repoRoot.appendingPathComponent("staged/\(project.productName)")
+        try "#!/bin/sh\n".write(to: script, atomically: true, encoding: .utf8)
+        XCTAssertFalse(ScenarioHost.usePrebuilt(project: project, binary: script, originRoot: nil, toolRoot: nil, log: { logs.append($0) }))
+        XCTAssertTrue(logs[0].contains("could not be read as a macOS executable"), "\(logs)")
+        XCTAssertNil(ScenarioHost.prebuiltRunner(for: project))
+        XCTAssertTrue(ScenarioHost.buildNeeded(project: project))
     }
 
     func testOverrideOfOneProjectDoesNotAnswerForAnother() throws {

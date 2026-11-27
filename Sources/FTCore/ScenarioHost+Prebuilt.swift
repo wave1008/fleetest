@@ -32,7 +32,7 @@ extension ScenarioHost {
     }
 
     /// 送られたバイナリを受け入れる。**使えなければ登録せず false**(呼び手は今までどおりビルドする)。
-    /// 製品名と一致するファイル名・実行可能・サイズ非0 だけ通す。署名の Identifier は親のビルド後の固定と同じく揃える
+    /// 製品名と一致するファイル名・実行可能・サイズ非0・この機械の CPU と OS で動く Mach-O だけ通す。署名の Identifier は親のビルド後の固定と同じく揃える
     @discardableResult
     public static func usePrebuilt(project: TestProject, binary: URL, originRoot: String?, toolRoot: String?,
                                    log: ((String) -> Void)?) -> Bool {
@@ -44,6 +44,19 @@ extension ScenarioHost {
         }
         guard FileManager.default.isExecutableFile(atPath: binary.path), size > 0 else {
             log?("→ The prebuilt scenarios from the parent are missing or not executable — building here")
+            return false
+        }
+        // 別の CPU・新しすぎる OS 向けのバイナリは全シナリオが「Bad CPU type」等で赤になる(親は機械の種類を知らない) = 子で断ってビルドする
+        switch MachOCompatibility.check(file: binary) {
+        case .compatible: break
+        case .unreadable:
+            log?("→ The prebuilt scenarios from the parent could not be read as a macOS executable — building here")
+            return false
+        case .wrongArchitecture(let have, let want):
+            log?("→ The prebuilt scenarios from the parent are for \(have.joined(separator: "/")) but this machine is \(want) — building here")
+            return false
+        case .osTooNew(let required, let host):
+            log?("→ The prebuilt scenarios from the parent need macOS \(required) but this machine runs \(host) — building here")
             return false
         }
         prebuiltRunners.withLock { $0[project.productName] = PrebuiltRunner(binary: binary, originRoot: originRoot, toolRoot: toolRoot) }

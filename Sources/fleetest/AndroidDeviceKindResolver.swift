@@ -53,10 +53,13 @@ enum AndroidDeviceKindResolver {
     }
 
     /// (機械, AVD 名の集合) → 種類。複数対象の run は対象ごとに配り手を作るので、引くたびに ssh を撃たない(プロセスで1回)
-    private static let outputs = LockedValue<[String: [String: String]?]>([:])
+    private static let outputs = LockedValue<[String: [String: String]]>([:])
     private static let fetchLocks = LockedValue<[String: NSLock]>([:])
 
-    static func cachedAVDKinds(machine: String?, avds: Set<String>) -> [String: String]? {
+    /// **成功だけ控える**(ssh の時間切れ・向こうの失敗の nil を覚えると、同じプロセスの後の配り手が一生やり直せない)。
+    /// `fetch` はテストの差し替え口
+    static func cachedAVDKinds(machine: String?, avds: Set<String>,
+                               fetch: (String?, Set<String>) -> [String: String]? = fetchAVDKinds) -> [String: String]? {
         let key = (MachineDispatch.isExplicitLocal(machine) || machine == nil ? "local" : machine!) + "\u{1}" + avds.sorted().joined(separator: "\u{1}")
         let lock = fetchLocks.withLock { locks -> NSLock in
             if let existing = locks[key] { return existing }
@@ -67,8 +70,8 @@ enum AndroidDeviceKindResolver {
         lock.lock()
         defer { lock.unlock() }
         if let hit = outputs.withLock({ $0[key] }) { return hit }
-        let kinds = fetchAVDKinds(machine: machine, avds: avds)
-        outputs.withLock { $0[key] = .some(kinds) }
+        guard let kinds = fetch(machine, avds) else { return nil }
+        outputs.withLock { $0[key] = kinds }
         return kinds
     }
 

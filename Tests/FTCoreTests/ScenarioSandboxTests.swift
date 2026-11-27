@@ -548,6 +548,14 @@ final class ScenarioSandboxTests: XCTestCase {
                                                 withIntermediateDirectories: true)
         XCTAssertNotEqual(try touch("home/Library/Logs/fleetest/emulator/metal-history.ndjson"), 0)
         XCTAssertEqual(try touch("home/Library/Caches/fleetest/fm.lock.0"), 0, "FM のロックは子も使う")
+        // Simulator 起動の枠のロック(親だけが flock。消される・置き換えられると機械全体の排他が崩れる)
+        for slot in 0..<SimulatorBootLockFiles.slotCount {
+            let rel = "home/Library/Caches/fleetest/" + SimulatorBootLockFiles.fileName(slot: slot)
+            try Data().write(to: root.appendingPathComponent(rel))
+            XCTAssertNotEqual(try runSandboxed(["/bin/rm", path(rel)]), 0, rel)
+            XCTAssertNotEqual(try touch(rel), 0, rel)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: path(rel)), rel)
+        }
     }
 
     func testSecretLocationsAreUnreadableAndOtherFilesAreReadable() throws {

@@ -10,7 +10,7 @@ import Synchronization
 public enum SimulatorBootSlots {
     /// 同時に起動してよい台数。ユーザー決定(`DeviceBooter.bootAll` の同時2台と同じ値)。
     /// 5台の一斉起動で空きメモリが 59.5GB → 0.7GB に尽き FM が死んだ → MN-97。設定・環境変数の口は置かない
-    public static let concurrency = 2
+    public static let concurrency = SimulatorBootLockFiles.slotCount
 
     /// 待ちの上限は置かない(持ち主の起動は `SimulatorBoot.bootTimeoutSeconds` で終わり、死ねば flock が外れる)。
     /// 200ms は枠が空いてから気付くまでの遅れの上限で、起動 1 台(数十秒)に対して無視できる
@@ -31,11 +31,11 @@ public enum SimulatorBootSlots {
     }
 
     private static func lockURL(slot: Int, directory: URL?) -> URL {
-        if let directory { return directory.appendingPathComponent("sim-boot.lock.\(slot)") }
+        if let directory { return directory.appendingPathComponent(SimulatorBootLockFiles.fileName(slot: slot)) }
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? TemporaryDirectory.url
         return base.appendingPathComponent("fleetest", isDirectory: true)
-            .appendingPathComponent("sim-boot.lock.\(slot)")
+            .appendingPathComponent(SimulatorBootLockFiles.fileName(slot: slot))
     }
 
     /// state を握ったまま呼ぶ
