@@ -38,13 +38,13 @@ final class FrozenIOSRecoveryTests: XCTestCase {
     private func ios(_ label: String, udid: String? = nil) -> RunWorker {
         RunWorker(label: label, platform: "ios", driver: NullDriver(),
                   connection: DriverConnection(platform: "ios", port: 8123, serial: nil,
-                                               udid: udid ?? "UDID-\(label)"))
+                                               udid: udid ?? "UDID-\(label)"), deviceKind: nil)
     }
 
     private func android(_ label: String) -> RunWorker {
         RunWorker(label: label, platform: "android", driver: NullDriver(),
                   connection: DriverConnection(platform: "android", port: 8200,
-                                               serial: "emulator-\(label)", udid: nil))
+                                               serial: "emulator-\(label)", udid: nil), deviceKind: nil)
     }
 
     // MARK: - 対象の選別
@@ -68,7 +68,7 @@ final class FrozenIOSRecoveryTests: XCTestCase {
 
     func testPhysicalDevicesAreNeverTargets() {
         let physical = RunWorker(label: "p", platform: "ios", driver: NullDriver(),
-                                 connection: DriverConnection(platform: "ios", port: 8123, udid: "UDID-p", physical: true))
+                                 connection: DriverConnection(platform: "ios", port: 8123, udid: "UDID-p", physical: true), deviceKind: nil)
         XCTAssertTrue(ProfileWorkerFactory.frozenIOSTargets(labels: ["p"], workers: [physical]).isEmpty)
     }
 
@@ -79,7 +79,7 @@ final class FrozenIOSRecoveryTests: XCTestCase {
         let androidWithUDID = RunWorker(
             label: "c", platform: "android", driver: NullDriver(),
             connection: DriverConnection(platform: "android", port: 8200,
-                                         serial: "emulator-c", udid: "UDID-c"))
+                                         serial: "emulator-c", udid: "UDID-c"), deviceKind: nil)
         let targets = ProfileWorkerFactory.frozenIOSTargets(
             labels: ["c"], workers: [ios("a"), androidWithUDID])
         XCTAssertTrue(targets.isEmpty,
@@ -90,7 +90,7 @@ final class FrozenIOSRecoveryTests: XCTestCase {
     func testIOSWorkerWithoutUDIDIsNotATarget() {
         let noUDID = RunWorker(label: "x", platform: "ios", driver: NullDriver(),
                                connection: DriverConnection(platform: "ios", port: 8123,
-                                                            serial: nil, udid: nil))
+                                                            serial: nil, udid: nil), deviceKind: nil)
         XCTAssertTrue(ProfileWorkerFactory.frozenIOSTargets(labels: ["x"], workers: [noUDID]).isEmpty)
     }
 

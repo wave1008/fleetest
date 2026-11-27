@@ -142,9 +142,9 @@ final class ScenarioQueueClassPlacementTests: XCTestCase {
     /// デバイスに束ねたクラスが複数のデバイスで同時に走る(レーン名はラベルで区別する)
     func testWorkersWithoutLogicalNameAreDistinctLanes() async {
         let a = RunWorker(label: "ios:8100", platform: "ios", driver: LaneTestDriver(),
-                          connection: DriverConnection(platform: "ios"))
+                          connection: DriverConnection(platform: "ios"), deviceKind: nil)
         let b = RunWorker(label: "ios:8101", platform: "ios", driver: LaneTestDriver(),
-                          connection: DriverConnection(platform: "ios"))
+                          connection: DriverConnection(platform: "ios"), deviceKind: nil)
         XCTAssertNotEqual(ScenarioQueue.lane(of: a), ScenarioQueue.lane(of: b))
         let queue = ScenarioQueue([item("D.s1", .singleDevice), item("D.s2", .singleDevice), item("P.s1")])
         let first = await queue.next(lane: ScenarioQueue.lane(of: a))

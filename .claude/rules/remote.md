@@ -354,4 +354,6 @@ paths:
   **親の「戻ってくるかもしれない」には同じエントリの別のレーンも数える**(1回の見直しで同じ子の1本へ渡し残りへ none を返すと、
   子が記帳する前に none でレーンを終わらせ、子の中の「試していない台が落ちた」= 赤になった)/
   **③`@RunInOrder` / `@RunOnSingleDevice` は動かさず、`@RunOnSingleMachine` は機械の中だけ**。回し直した分は子の割り当て(`assigned`)から外す
-  (結果の照合に残すと「結果が無い」になる)
+  (結果の照合に残すと「結果が無い」になる)。**iOS だけ、試した台と同じ観測の種類(simctl の機種 + runtime。`NotApplicableHandoff.covered`)の台は
+  試した扱い**(機械の中は `RunWorker.deviceKind`・親は `IOSDeviceKindResolver`)。**種類はプロファイルの `model`(表示専用)から作らない・不明(実機・Android・
+  解決できない台を含むエントリ)は覆わない**・**試した側で数えるのは種類が1つの鍵だけ**(混ざったエントリの対象外は証拠にならない)。配る側の除外は `DynamicDispatcher.isExcluded` の1箇所

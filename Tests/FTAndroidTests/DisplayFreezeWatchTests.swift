@@ -33,7 +33,7 @@ final class DisplayFreezeWatchTests: XCTestCase {
             platform: platform, port: nil,
             serial: platform == "android" ? "emulator-5554" : nil,
             udid: platform == "ios" ? "UDID-1" : nil, physical: physical)
-        return RunWorker(label: "lane", platform: platform, driver: StubDriver(), connection: connection, logicalName: "dev")
+        return RunWorker(label: "lane", platform: platform, driver: StubDriver(), connection: connection, logicalName: "dev", deviceKind: nil)
     }
 
     private func makeWatch(_ probe: Probe) -> DisplayFreezeWatch {

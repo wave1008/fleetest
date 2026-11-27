@@ -76,6 +76,7 @@ final class RunMemoRelayTests: XCTestCase {
         let dispatcher = DynamicDispatcher(
             scenarios: [DynamicSplit.Scenario(id: "A.S0010", variant: nil, platform: "ios")],
             estimateMs: { _, _ in 1000 }, lpt: false,
+            entryKinds: { _ in [:] },
             send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
         let relay = RunMemoRelay(writers: [0: zero.writer], gateMode: .startOnHello)
         let want = WorkQueueProtocol.encode(WorkQueueProtocol.Want(req: 1, lane: "a", platform: "ios"))

@@ -202,20 +202,36 @@ enum MultiTargetRunner {
                         ScenarioHost.prebuildTogether(projects: projects, log: { FleetRunner.log($0) })
                     }
                 }
-                for target in resolvedTargets where builtProjects.insert(target.project.name).inserted {
-                    let found = try parentInterrupt.stage("the scenario build", log: { FleetRunner.log($0) }) {
-                        if !skipBuild { try ScenarioHost.build(project: target.project, log: { FleetRunner.log($0) }) }
-                        return try ScenarioHost.listForRun(project: target.project, dryRun: false, compilesOCR: false)
+                // ビルドは順に(SwiftPM のロックを取り合う)、一覧はプロジェクトごとに独立なので並列に取る
+                // (1本約2秒 × 15 プロジェクトを順に払っていた)。失敗は対象の順で最初のものを投げる = 順に取っていたときと同じ
+                let projectsInOrder = resolvedTargets.map(\.project).filter { builtProjects.insert($0.name).inserted }
+                if !skipBuild {
+                    for project in projectsInOrder {
+                        try parentInterrupt.stage("the scenario build", log: { FleetRunner.log($0) }) {
+                            try ScenarioHost.build(project: project, log: { FleetRunner.log($0) })
+                        }
                     }
+                }
+                let listings = try parentInterrupt.stage("the scenario build", log: { FleetRunner.log($0) }) {
+                    let results = LockedValue<[Int: Result<ScenarioListing, Error>]>([:])
+                    DispatchQueue.concurrentPerform(iterations: projectsInOrder.count) { index in
+                        let result = Result { try ScenarioHost.listForRun(project: projectsInOrder[index], dryRun: false, compilesOCR: false) }
+                        results.withLock { $0[index] = result }
+                    }
+                    let collected = results.withLock { $0 }
+                    return try projectsInOrder.indices.map { try collected[$0]!.get() }
+                }
+                PhaseLog.mark("parent-scenarios-listed")
+                for (project, found) in zip(projectsInOrder, listings) {
                     guard !found.scenarios.isEmpty else {
                         throw ValidationError(
-                            "no scenarios (add a @TestClass under TestProjects/\(target.project.name)/scenarios/)")
+                            "no scenarios (add a @TestClass under TestProjects/\(project.name)/scenarios/)")
                     }
-                    if let hooksClass = found.runHooksClass { hooksClassByProject[target.project.name] = hooksClass }
+                    if let hooksClass = found.runHooksClass { hooksClassByProject[project.name] = hooksClass }
                     // 通常の入口と同じ選択(`@Draft` / `@Deleted` を外す)。子へは完全一致の ID で渡すので、子の側では外れない。
                     // 外して空になった対象は飛ばす(通常の入口も外して空なら成功で終わる)= 下の「当てはまるシナリオが無い」で抜ける
-                    listed[target.project.name] = try ScenarioSelection.resolve([], from: found.scenarios)
-                    healByProject[target.project.name] = HealSourceWriteBack.Collection()
+                    listed[project.name] = try ScenarioSelection.resolve([], from: found.scenarios)
+                    healByProject[project.name] = HealSourceWriteBack.Collection()
                 }
 
                 // プロジェクトごとの run メモの正本。`@RunHooks` があれば開始の行を beforeRun の結果が出るまで保留する。
@@ -292,6 +308,10 @@ enum MultiTargetRunner {
                         entryPlatforms: DynamicDispatcher.entryPlatforms(groups: targetGroups),
                         entryLabel: { targetGroups[$0].machineLabel },
                         log: { FleetRunner.log("[\(targetID)] " + $0) },
+                        entryKinds: { [project = target.project, profile = target.profile] _ in
+                            IOSDeviceKindResolver.entryKinds(
+                                project: project, profileName: profile, groups: targetGroups, overrides: setOverrides)
+                        },
                         send: { entry, reply in
                             writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] }?.write(line: WorkQueueProtocol.encode(reply))
                         })

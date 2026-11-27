@@ -106,8 +106,14 @@ actor ScenarioQueue {
     /// 親はそのレーンの次の要求で配った単位を忘れるので、知らせないと他のマシンの尽きたレーンが待たずに終わる(DR-214 ②)
     private var keptUnits: Set<URL> = []
 
-    func laneJoined(_ lane: String?) {
-        if let lane, !lane.isEmpty { liveLanes.insert(lane); departedLanes.remove(lane) }
+    /// レーン → 観測した種類(`RunWorker.deviceKind`。不明は載せない)。同じ種類のレーンは対象外を試した扱いになる
+    private var laneKinds: [String: Set<String>] = [:]
+
+    func laneJoined(_ lane: String?, kind: String? = nil) {
+        if let lane, !lane.isEmpty {
+            liveLanes.insert(lane); departedLanes.remove(lane)
+            if let kind { laneKinds[lane] = [kind] } else { laneKinds[lane] = nil }
+        }
     }
 
     /// 宣言されたのに供給で合流しなかったレーン。何も試していない台が落ちたものとして数える(`laneJoined` で外れる)。
@@ -118,7 +124,8 @@ actor ScenarioQueue {
     }
 
     private func isExcluded(_ item: ScenarioRunItem, lane: String) -> Bool {
-        triedLanes[item.id]?.contains(lane) ?? false
+        guard let tried = triedLanes[item.id] else { return false }
+        return tried.contains(lane) || NotApplicableHandoff.covered(lane, tried: tried, kinds: laneKinds)
     }
 
     /// 他のレーンが走らせている item が、対象外で自分(未試行)へ戻ってくるかもしれないか
@@ -134,7 +141,8 @@ actor ScenarioQueue {
         triedLanes[item.id, default: []].insert(lane)
         declaredReasons[item.id] = reason
         guard !Self.bindsDevice(item) else { return .skipped }
-        let verdict = NotApplicableHandoff.decide(tried: triedLanes[item.id] ?? [], live: liveLanes, departed: departedLanes)
+        let verdict = NotApplicableHandoff.decide(tried: triedLanes[item.id] ?? [], live: liveLanes, departed: departedLanes,
+            kinds: laneKinds)
         if verdict == .handOn {
             items.append(item)
             // 機械の外へ出しうる item だけ(束ねたクラス・@RunOnSingleMachine は親へ問い合わせない = 親の待ちにも関わらない)
@@ -147,7 +155,8 @@ actor ScenarioQueue {
 
     /// 試していない台が(このキューの中で)落ちているか。機械をまたぐ親へ問い合わせるときの申告(親の判定の `departed` に足される)
     func hasDepartedUntried(_ item: ScenarioRunItem) -> Bool {
-        !departedLanes.subtracting(triedLanes[item.id] ?? []).isEmpty
+        let tried = NotApplicableHandoff.effectiveTried(tried: triedLanes[item.id] ?? [], among: departedLanes, kinds: laneKinds)
+        return !departedLanes.subtracting(tried).isEmpty
     }
 
     /// 親の配り手につながっているときだけ(対象外を機械の外へ回せるか聞く相手)

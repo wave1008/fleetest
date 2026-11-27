@@ -899,7 +899,8 @@ struct ApiRunCommand: AsyncParsableCommand {
             if platformsInUse.contains("android"), let driver = try? AndroidDriver(serial: serial) {
                 primingWorkers.append(RunWorker(
                     label: "android", platform: "android", driver: driver,
-                    connection: DriverConnection(platform: "android", serial: serial)))
+                    connection: DriverConnection(platform: "android", serial: serial),
+                    deviceKind: nil))
             }
             await ProfileWorkerFactory.prepareDevicesOnStart(
                 primingWorkers, homeOnStart: noProfileSettings.homeOnStart) { logStderr($0) }

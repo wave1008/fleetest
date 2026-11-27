@@ -61,7 +61,7 @@ final class StaleRecordingRecoveryTests: XCTestCase {
 
     private func sim(_ label: String, port: UInt16 = 8123) -> RunWorker {
         RunWorker(label: label, platform: "ios", driver: StubDriver(),
-                  connection: DriverConnection(platform: "ios", port: port, udid: "UDID-\(label)"))
+                  connection: DriverConnection(platform: "ios", port: port, udid: "UDID-\(label)"), deviceKind: nil)
     }
 
     private let repo = URL(fileURLWithPath: "/tmp/dummy-repo")
@@ -110,10 +110,10 @@ final class StaleRecordingRecoveryTests: XCTestCase {
         let calls = Calls()
         let physical = RunWorker(label: "p", platform: "ios", driver: StubDriver(),
                                  connection: DriverConnection(platform: "ios", port: 8123,
-                                                              udid: "UDID-p", physical: true))
+                                                              udid: "UDID-p", physical: true), deviceKind: nil)
         let android = RunWorker(label: "d", platform: "android", driver: StubDriver(),
                                 connection: DriverConnection(platform: "android", port: 8200,
-                                                             serial: "emulator-d", udid: "UDID-d"))
+                                                             serial: "emulator-d", udid: "UDID-d"), deviceKind: nil)
         _ = await ProfileWorkerFactory.recoverStaleRecordingIOSWorkers(
             workers: [physical, android, sim("a")], resolved: profile(record: true), repoRoot: repo, apps: [:],
             probe: { await calls.probe($0); return .busy },

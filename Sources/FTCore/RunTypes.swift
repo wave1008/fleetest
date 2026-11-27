@@ -168,8 +168,13 @@ public struct RunWorker: @unchecked Sendable {
     public let requestedMode: String?
     public let modeFallbackReason: String?
 
+    /// 観測したシミュレータの種類(機種 × runtime。`SimulatorCatalog.kind`)。対象外の回し直しで同じ種類の台を試した扱いにする
+    /// (DR-214)。実機・Android・非プロファイル経路・読めなかったときは nil = 覆わない。プロファイルの `model` から作らない
+    public let deviceKind: String?
+
     public init(label: String, platform: String, driver: AppDriver, connection: DriverConnection,
-                logicalName: String? = nil, requestedMode: String? = nil, modeFallbackReason: String? = nil) {
+                logicalName: String? = nil, requestedMode: String? = nil, modeFallbackReason: String? = nil,
+                deviceKind: String?) {
         self.label = label
         self.platform = platform
         self.driver = driver
@@ -177,6 +182,7 @@ public struct RunWorker: @unchecked Sendable {
         self.logicalName = logicalName
         self.requestedMode = requestedMode
         self.modeFallbackReason = modeFallbackReason
+        self.deviceKind = deviceKind
     }
 
     /// run.json の `workerModes` の1件(iOS だけ)。worker はシナリオの記録の `worker` と同じ文字列(join できる)。

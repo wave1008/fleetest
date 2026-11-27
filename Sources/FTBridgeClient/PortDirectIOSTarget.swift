@@ -49,6 +49,6 @@ public struct PortDirectIOSTarget: Sendable {
 
     public func makeWorker(label: String, simulatorUDID: String?) -> RunWorker {
         RunWorker(label: label, platform: "ios", driver: makeDriver(),
-                  connection: connection(simulatorUDID: simulatorUDID))
+                  connection: connection(simulatorUDID: simulatorUDID), deviceKind: nil)
     }
 }

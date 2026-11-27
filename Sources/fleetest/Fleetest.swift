@@ -1486,7 +1486,8 @@ struct RunScenarios: AsyncParsableCommand {
         if platformsInUse.contains("android"), let driver = try? AndroidDriver(serial: serial) {
             primingWorkers.append(RunWorker(
                 label: "android", platform: "android", driver: driver,
-                connection: DriverConnection(platform: "android", serial: serial)))
+                connection: DriverConnection(platform: "android", serial: serial),
+                deviceKind: nil))
         }
         await ProfileWorkerFactory.prepareDevicesOnStart(
             primingWorkers, homeOnStart: homeOnStart) { ConsoleOut.out($0) }
@@ -1533,7 +1534,7 @@ struct RunScenarios: AsyncParsableCommand {
             }
             _ = try await driver.status()
             let worker = RunWorker(label: platform, platform: platform,
-                                   driver: driver, connection: connection)
+                                   driver: driver, connection: connection, deviceKind: nil)
             let deviceSession = deviceSessions[platform] ?? RunDeviceSession(shared: sharedSession)
             deviceSessions[platform] = deviceSession
             sessionConnections[platform] = connection
@@ -1624,7 +1625,8 @@ struct RunScenarios: AsyncParsableCommand {
             if let driver = try? AndroidDriver(serial: serial) {
                 workers.append(RunWorker(label: "android", platform: "android", driver: driver,
                                          connection: DriverConnection(platform: "android",
-                                                                      serial: serial)))
+                                                                      serial: serial),
+                                         deviceKind: nil))
             } else {
                 ConsoleOut.out("❌ Cannot initialise the Android driver (adb not found)")
                 // ワーカー不在の android シナリオは orchestrator が flowSkipped(失敗扱い)にする

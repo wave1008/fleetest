@@ -26,6 +26,7 @@
 - RR-8.3 クラスを1台のマシン・デバイスへ寄せる(`@RunOnSingleMachine` / `@RunOnSingleDevice` / `@RunInOrder`)
 - RR-8.4 run 全体の準備・片付け(`beforeRun` / `afterRun`)—— 第1段
 - RR-8.5 run 全体のロック(`withRunLock`)—— 第2段
+- RR-8.6 同じマシンで、終わり際に空いたデバイスから次の対象を始める(案・未決定)
 - RR-11 GUI(vscode-fleetest モニター)への影響
 
 ### [13.md](13.md) — リモート実行: フリート実行と多ホスト GUI(RR-13)

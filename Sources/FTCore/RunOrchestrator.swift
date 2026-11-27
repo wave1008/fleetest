@@ -735,7 +735,7 @@ public final class RunOrchestrator: Sendable {
                     continuation.yield(.workerLog(worker: worker.label, message: message))
                 })
                 await testingSlots.open()
-                await queue.laneJoined(ScenarioQueue.lane(of: worker))
+                await queue.laneJoined(ScenarioQueue.lane(of: worker), kind: worker.deviceKind)
                 group.addTask {
                     let failed = await self.superviseWorker(worker, queue: queue)
                     // 束ねたクラスの残りは別のレーンへ移さず実行しなかった赤にする(中断のときはドレインが記録する)

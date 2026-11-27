@@ -124,12 +124,12 @@ final class BroadcastPlanTests: XCTestCase {
     func testLaneKeyUsesLogicalNameAndFallsBackToLabel() {
         let profiled = RunWorker(label: "iPhone-01(ios:8123)", platform: "ios", driver: UnusedDriver(),
                                  connection: DriverConnection(platform: "ios", physical: false),
-                                 logicalName: "iPhone-01")
+                                 logicalName: "iPhone-01", deviceKind: nil)
         let revived = RunWorker(label: "iPhone-01(ios:8140)", platform: "ios", driver: UnusedDriver(),
                                 connection: DriverConnection(platform: "ios", physical: false),
-                                logicalName: "iPhone-01")
+                                logicalName: "iPhone-01", deviceKind: nil)
         let bare = RunWorker(label: "ios:8123", platform: "ios", driver: UnusedDriver(),
-                             connection: DriverConnection(platform: "ios", physical: false))
+                             connection: DriverConnection(platform: "ios", physical: false), deviceKind: nil)
         XCTAssertEqual(BroadcastPlan.laneKey(of: profiled), "iPhone-01")
         XCTAssertEqual(BroadcastPlan.laneKey(of: revived), BroadcastPlan.laneKey(of: profiled))
         XCTAssertEqual(BroadcastPlan.laneKey(of: bare), "ios:8123")
@@ -140,7 +140,7 @@ final class BroadcastPlanTests: XCTestCase {
         let worker = RunWorker(label: "Pixel-01(android:emulator-5554)", platform: "android",
                                driver: UnusedDriver(),
                                connection: DriverConnection(platform: "android", physical: false),
-                               logicalName: "Pixel-01")
+                               logicalName: "Pixel-01", deviceKind: nil)
         XCTAssertEqual(ScenarioRunner.recordingWorker(worker), "android:Pixel-01")
     }
 }

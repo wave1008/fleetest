@@ -40,7 +40,7 @@ final class ScreenRenderingPreRunTests: XCTestCase {
 
     private func worker(_ serial: String) -> RunWorker {
         RunWorker(label: serial, platform: "android", driver: NullDriver(),
-                  connection: DriverConnection(platform: "android", port: 8200, serial: serial))
+                  connection: DriverConnection(platform: "android", port: 8200, serial: serial), deviceKind: nil)
     }
 
     private func prepared(drawing: Bool) async throws -> (ScreenRenderingRecoverer.PreRun, URL) {
@@ -157,7 +157,7 @@ final class ScreenRenderingPreRunTests: XCTestCase {
 
     private func iosWorker(_ udid: String) -> RunWorker {
         RunWorker(label: udid, platform: "ios", driver: NullDriver(),
-                  connection: DriverConnection(platform: "ios", port: 8123, udid: udid))
+                  connection: DriverConnection(platform: "ios", port: 8123, udid: udid), deviceKind: nil)
     }
 
     /// 回復は全台を作り直す。点検が除外した台を run へ戻さない・撃った種類を事実どおり残す・何も撃てなければ台帳を戻す

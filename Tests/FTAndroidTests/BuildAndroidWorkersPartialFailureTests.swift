@@ -83,7 +83,7 @@ final class BuildAndroidWorkersPartialFailureTests: XCTestCase {
                   platform: "android", driver: StubDriver(),
                   connection: DriverConnection(platform: "android", serial: device.name,
                                                deviceName: device.name, physical: false),
-                  logicalName: device.name)
+                  logicalName: device.name, deviceKind: nil)
     }
 
     /// **本丸**: 8台中2台の解決失敗でも、6台ぶんのワーカーが返る(2026-08-16 の比率そのもの)。

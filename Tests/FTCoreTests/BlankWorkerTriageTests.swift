@@ -74,7 +74,7 @@ final class BlankWorkerTriageTests: XCTestCase {
         RunWorker(label: label, platform: platform,
                   driver: UnusedDriver(shots: box ?? ShotBox(shot)),
                   connection: DriverConnection(platform: platform, physical: physical),
-                  logicalName: label)
+                  logicalName: label, deviceKind: nil)
     }
 
     // MARK: - 対象の選び方
@@ -466,7 +466,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
     private static func worker(_ label: String, frozen: Bool) -> RunWorker {
         RunWorker(label: label, platform: "ios", driver: SwitchableDriver(frozen: frozen),
                   connection: DriverConnection(platform: "ios", port: 8123, serial: nil,
-                                               udid: "UDID-\(label)"))
+                                               udid: "UDID-\(label)"), deviceKind: nil)
     }
 
     /// 回復できたら**全レーンで開始**(除外0)
@@ -562,7 +562,7 @@ final class BlankWorkerRecoveryTests: XCTestCase {
             RunWorker(label: label, platform: "ios", driver: SwitchableDriver(frozen: frozen),
                       connection: DriverConnection(platform: "ios", port: port, serial: nil,
                                                    udid: "UDID-fixed"),
-                      logicalName: "dead")
+                      logicalName: "dead", deviceKind: nil)
         }
         let result = await BlankWorkerTriage.excludeBlankScreenWorkers(
             [w("dead(ios:8100)", port: 8100, frozen: true)],

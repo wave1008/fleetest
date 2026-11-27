@@ -66,7 +66,7 @@ final class SystemUIClientSelectionTests: XCTestCase {
     }
 
     private func worker(platform: String, connection: DriverConnection) -> RunWorker {
-        RunWorker(label: "w", platform: platform, driver: NullDriver(), connection: connection)
+        RunWorker(label: "w", platform: platform, driver: NullDriver(), connection: connection, deviceKind: nil)
     }
 
     /// inapp-boost モード(既定の iosMode)は in-app と XCUITest の両方を持つ。**XCUITest 側へ行く**

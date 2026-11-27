@@ -50,7 +50,7 @@ final class FrozenPositiveControlTests: XCTestCase {
     private func worker() -> RunWorker {
         RunWorker(label: "sim(ios:8123)", platform: "ios", driver: HealthyDriver(),
                   connection: DriverConnection(platform: "ios", udid: udid, physical: false),
-                  logicalName: "sim")
+                  logicalName: "sim", deviceKind: nil)
     }
 
     /// 注入 → トリアージが公表 → **モニターが凍結と言う**。落ちたら検知の配線が切れている

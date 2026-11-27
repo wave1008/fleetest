@@ -155,7 +155,7 @@ final class FailureFactsTests: XCTestCase {
         let worker = RunWorker(label: "Pixel 9(Android 15)-02(android:emulator-5556)",
                                platform: "android", driver: QuietDriver(),
                                connection: DriverConnection(platform: "android", physical: false),
-                               logicalName: "Pixel 9(Android 15)-02")
+                               logicalName: "Pixel 9(Android 15)-02", deviceKind: nil)
 
         XCTAssertEqual(RunOrchestrator.workerID(worker), "android:Pixel 9(Android 15)-02")
     }
@@ -163,7 +163,7 @@ final class FailureFactsTests: XCTestCase {
     /// 論理名を持たない経路(--port 等)では worker を作らない(label だけで照合させる)
     func testWorkerIDIsNilWithoutALogicalName() {
         let worker = RunWorker(label: "ios:8100", platform: "ios", driver: QuietDriver(),
-                               connection: DriverConnection(platform: "ios", physical: false), logicalName: nil)
+                               connection: DriverConnection(platform: "ios", physical: false), logicalName: nil, deviceKind: nil)
 
         XCTAssertNil(RunOrchestrator.workerID(worker))
     }
@@ -254,10 +254,10 @@ final class FailureFactsTests: XCTestCase {
     func testPreRunTriageUsesTheWorkersThemselves() {
         let excludedWorker = RunWorker(
             label: "iPhone 17(ios:8100)", platform: "ios", driver: QuietDriver(),
-            connection: DriverConnection(platform: "ios", physical: false), logicalName: "iPhone 17")
+            connection: DriverConnection(platform: "ios", physical: false), logicalName: "iPhone 17", deviceKind: nil)
         let repairedWorker = RunWorker(
             label: "Pixel 9(android:emulator-5554)", platform: "android", driver: QuietDriver(),
-            connection: DriverConnection(platform: "android", physical: false), logicalName: "Pixel 9")
+            connection: DriverConnection(platform: "android", physical: false), logicalName: "Pixel 9", deviceKind: nil)
         let records = WorkerAnomalyRecord.preRunTriage(excluded: [excludedWorker], repaired: [repairedWorker])
 
         XCTAssertEqual(records.count, 2)
@@ -271,7 +271,7 @@ final class FailureFactsTests: XCTestCase {
     /// 論理名を持たないデバイス(--port 等)は worker: nil のまま残す(集計側が数えないだけ。事実は落とさない)
     func testPreRunTriageKeepsWorkersWithoutALogicalName() {
         let worker = RunWorker(label: "ios:8199", platform: "ios", driver: QuietDriver(),
-                               connection: DriverConnection(platform: "ios", physical: false))
+                               connection: DriverConnection(platform: "ios", physical: false), deviceKind: nil)
         let records = WorkerAnomalyRecord.preRunTriage(excluded: [worker], repaired: [])
         XCTAssertEqual(records.count, 1)
         XCTAssertNil(records.first?.worker)
@@ -280,9 +280,9 @@ final class FailureFactsTests: XCTestCase {
     /// 凍結以外で除外した台は、その理由を記録する(ネットワークの無い Emulator を「画面が凍結」と書かない)
     func testPreRunTriageWritesThePerWorkerExclusionReason() {
         let frozen = RunWorker(label: "Pixel 9(android:emulator-5554)", platform: "android", driver: QuietDriver(),
-                               connection: DriverConnection(platform: "android", physical: false), logicalName: "Pixel 9")
+                               connection: DriverConnection(platform: "android", physical: false), logicalName: "Pixel 9", deviceKind: nil)
         let offline = RunWorker(label: "Pixel 9(android:emulator-5556)", platform: "android", driver: QuietDriver(),
-                                connection: DriverConnection(platform: "android", physical: false), logicalName: "Pixel 9b")
+                                connection: DriverConnection(platform: "android", physical: false), logicalName: "Pixel 9b", deviceKind: nil)
         let records = WorkerAnomalyRecord.preRunTriage(
             excluded: [frozen, offline], repaired: [],
             excludedReasons: [offline.label: "excluded before the run started: no network"])

@@ -10,12 +10,14 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
     private typealias Scenario = DynamicSplit.Scenario
 
     private func makeDispatcher(_ scenarios: [Scenario], entries: Int,
-                                sent: LockedValue<[String]> = LockedValue([])) -> DynamicDispatcher {
+                                sent: LockedValue<[String]> = LockedValue([]),
+                                kinds: @escaping @Sendable (String) -> [Int: Set<String>] = { _ in [:] }) -> DynamicDispatcher {
         DynamicDispatcher(
             scenarios: scenarios,
             estimateMs: { _, _ in 1000 },
             lpt: true,
             entryPlatforms: Dictionary(uniqueKeysWithValues: (0..<entries).map { ($0, Set(["ios"])) }),
+            entryKinds: kinds,
             send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
     }
 
@@ -45,6 +47,46 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         // 試したエントリ 1 の次の要求には戻さない
         XCTAssertEqual(d.handle(want(3, lane: "pro"), fromEntry: 1), .init(req: 3, none: true),
                        "試したエントリ 1 には戻さず、エントリ 0 が走らせているぶんを待つ理由も無い")
+    }
+
+    /// 同じ観測の種類のエントリは試した扱い(DR-214・iOS だけ): 回し直さず対象外で確定し、覆ったエントリへ単位を渡さない
+    func testSameKindEntryCountsAsTriedAndIsNeverHandedTheUnit() {
+        let sent = LockedValue<[String]>([])
+        let resolved = LockedValue<[String]>([])
+        let d = makeDispatcher([fold], entries: 2, sent: sent, kinds: { platform in
+            resolved.withLock { $0.append(platform) }
+            return [0: ["pro|ios27"], 1: ["pro|ios27"]]
+        })
+        XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .skipped))
+        XCTAssertEqual(resolved.value, ["ios"])
+        XCTAssertEqual(d.assignedUnits(entry: 1), [])
+        XCTAssertTrue(sent.value.isEmpty)
+    }
+
+    /// 3つのうち2つが同じ種類: 回し直す先は種類の違うエントリだけ。覆ったエントリの要求には渡さない(子を起こすだけの空振りを作らない)
+    func testCoveredEntryIsSkippedWhenHandingOn() {
+        let sent = LockedValue<[String]>([])
+        let d = makeDispatcher([fold], entries: 3, sent: sent, kinds: { _ in [0: ["pro"], 1: ["pro"], 2: ["fold"]] })
+        XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .handOn))
+        XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 1), .init(req: 1, none: true),
+                       "覆ったエントリ 1 へは渡さず、戻ってくる見込みも無い")
+        XCTAssertEqual(d.assignedUnits(entry: 1), [])
+        XCTAssertEqual(d.handle(want(1, lane: "fold"), fromEntry: 2), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
+    }
+
+    /// 種類が違う・不明なエントリは覆わない。resolver は platform ごとに1回だけ引く
+    func testDifferentOrUnknownKindStillHandsOn() {
+        for kinds: [Int: Set<String>] in [[0: ["pro"], 1: ["fold"]], [0: ["pro"]], [:], [0: ["pro"], 1: []]] {
+            let calls = LockedValue(0)
+            let d = makeDispatcher([fold], entries: 2, kinds: { _ in calls.withLock { $0 += 1 }; return kinds })
+            _ = d.handle(want(1, lane: "pro"), fromEntry: 0)
+            XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .handOn), "\(kinds)")
+            XCTAssertEqual(d.handle(want(1, lane: "duo"), fromEntry: 1), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
+            _ = d.handleNotApplicable(na(3, id: "Fold.S1", lane: "duo"), fromEntry: 1)
+            XCTAssertEqual(calls.value, 1)
+        }
     }
 
     /// 全エントリが試して対象外: 対象外(緑)で確定
@@ -186,6 +228,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
             timer: { _, _ in {} },
             lpt: false,
             entryPlatforms: [0: ["ios"], 1: ["ios"], 2: ["ios"]],
+            entryKinds: { _ in [:] },
             send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
         XCTAssertEqual(d.handle(want(1, lane: "x"), fromEntry: 0), .init(req: 1, unit: keyA))
         XCTAssertEqual(d.handle(want(1, lane: "y"), fromEntry: 1), .init(req: 1, unit: keyB))

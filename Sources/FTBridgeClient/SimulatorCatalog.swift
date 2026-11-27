@@ -101,9 +101,15 @@ public enum SimulatorCatalog {
         guard result.status == 0,
               let data = result.output.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let runtimes = json["devices"] as? [String: [[String: Any]]] else {
+              let found = devices(simctlJSON: json) else {
             throw SimulatorCatalogError.simctlFailed(result.tail)
         }
+        return found
+    }
+
+    /// `simctl list devices -j` の解析部(純粋関数。nil = `devices` が読めない)
+    public static func devices(simctlJSON json: [String: Any]) -> [SimDeviceInfo]? {
+        guard let runtimes = json["devices"] as? [String: [[String: Any]]] else { return nil }
         var found: [SimDeviceInfo] = []
         for (runtime, list) in runtimes {
             // "com.apple.CoreSimulator.SimRuntime.iOS-27-0" → "iOS 27.0"
@@ -162,6 +168,11 @@ public enum SimulatorCatalog {
         public let runtimeIdentifier: String
     }
 
+    /// 対象外の回し直しで「同じ種類」と見なす鍵(機種 × runtime。DR-214)。観測値だけで作る(プロファイルの `model` は使わない)
+    public static func kind(of blueprint: Blueprint) -> String {
+        blueprint.deviceTypeIdentifier + "|" + blueprint.runtimeIdentifier
+    }
+
     /// UDID → 作り直し用の識別子。simctl が非ゼロで終われば空(= 「無い」ではなく「読めない」。
     /// 呼び手は引けなかったことをエラーにする)
     public static func blueprintsByUDID() -> [String: Blueprint] {
@@ -174,7 +185,7 @@ public enum SimulatorCatalog {
     }
 
     /// blueprintsByUDID の解析部(純粋関数)。devices のキーが runtime identifier
-    static func blueprints(simctlJSON json: [String: Any]) -> [String: Blueprint] {
+    public static func blueprints(simctlJSON json: [String: Any]) -> [String: Blueprint] {
         var result: [String: Blueprint] = [:]
         for (runtime, list) in (json["devices"] as? [String: [[String: Any]]]) ?? [:] {
             for device in list {

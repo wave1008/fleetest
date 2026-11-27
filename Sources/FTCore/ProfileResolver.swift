@@ -42,6 +42,14 @@ public enum ProfileResolver {
     ///   どのデバイスが走るかが変わる(渡さないとディスパッチの計画と resolve が別のデバイス集合を見る)
     public static func runDeviceMachines(project: TestProject, runProfileName: String,
                                          overrides: [String: RunProfileSetValue] = [:]) -> [RunDeviceMachine] {
+        runDeviceEntries(project: project, runProfileName: runProfileName, overrides: overrides)
+            .map { RunDeviceMachine(machine: $0.machine, name: $0.name, platform: $0.platform) }
+    }
+
+    /// `runDeviceMachines` と同じ集合のデバイス指定そのもの(spec.machine は正規化済み)
+    public static func runDeviceEntries(project: TestProject, runProfileName: String,
+                                        overrides: [String: RunProfileSetValue] = [:])
+        -> [DeviceMachineGrouping.CatalogEntry] {
         let runURL = project.runsDir.appendingPathComponent("\(runProfileName).json")
         guard let runData = try? Data(contentsOf: runURL),
               let loadedRunDoc = try? JSONDecoder().decode(RunProfileDocument.self, from: runData) else {
@@ -52,7 +60,6 @@ public enum ProfileResolver {
         let entries = DeviceMachineGrouping.entries(runDevices: runDoc.devices ?? [], enabledOnly: true)
         return AppPlatformScoping.partition(
             entries, scope: AppPlatformScoping.scope(project: project, runDoc: runDoc)).kept
-            .map { RunDeviceMachine(machine: $0.machine, name: $0.name, platform: $0.platform) }
     }
 
     /// `enabled: false` で実行から外れているデバイス(machine 含む)。`runDeviceMachines` に載らない理由を言うために引く。

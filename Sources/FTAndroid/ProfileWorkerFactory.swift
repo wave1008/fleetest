@@ -61,7 +61,12 @@ public enum ProfileWorkerFactory {
                 }
             }
         }
-        return provisioned.map { makeIOSWorker(device: $0, iosApp: iosApp) }
+        // 種類は simctl の1回の読みから(読めなければ全台 nil = 覆わない)。実機は引かない
+        let blueprints = simulators.isEmpty ? [:] : SimulatorCatalog.blueprintsByUDID()
+        return provisioned.map {
+            makeIOSWorker(device: $0, iosApp: iosApp,
+                          deviceKind: $0.physical ? nil : blueprints[$0.udid].map(SimulatorCatalog.kind(of:)))
+        }
     }
 
     /// run 開始時に各デバイスへ `home()` を1回撃つ(実行プロファイルの `homeOnStart`。既定 true)。
@@ -1136,7 +1141,7 @@ public enum ProfileWorkerFactory {
             connection: DriverConnection(platform: "android", serial: serial,
                                          deviceName: device.name,
                                          physical: device.spec.isPhysical),
-            logicalName: device.name)
+            logicalName: device.name, deviceKind: nil)
     }
 
     /// inapp-boost モードのときサブプロセスは InAppDriver(+ XCUITest ブリッジへの回し先)を
@@ -1157,7 +1162,8 @@ public enum ProfileWorkerFactory {
 
     /// ホスト warmup 用 driver は in-app ブリッジへの BridgeClient でよい(in-app も HTTP 応答する)。
     /// 実機は宛先ホスト(LAN or iproxy)と UDID を持たせる(install が devicectl 経路に入る)
-    private static func makeIOSWorker(device: ProvisionedIOSDevice, iosApp: ResolvedAppTarget?) -> RunWorker {
+    private static func makeIOSWorker(device: ProvisionedIOSDevice, iosApp: ResolvedAppTarget?,
+                                      deviceKind: String?) -> RunWorker {
         RunWorker(
             label: RunWorker.makeLabel(deviceName: device.name, platform: "ios", id: "\(device.port)"),
             platform: "ios",
@@ -1169,7 +1175,8 @@ public enum ProfileWorkerFactory {
                                  simulatorUDID: device.physical ? nil : device.udid),
             connection: iosConnection(device: device, iosApp: iosApp),
             logicalName: device.name,
-            requestedMode: device.requestedMode, modeFallbackReason: device.modeFallbackReason)
+            requestedMode: device.requestedMode, modeFallbackReason: device.modeFallbackReason,
+            deviceKind: deviceKind)
     }
 
     /// 蘇生の記録の1行に、蘇生を始めてからの経過秒を前置する(`[revive +12.3s] …`)
@@ -1227,7 +1234,8 @@ public enum ProfileWorkerFactory {
                     + " — the bridge was still being set up, so it was cancelled")
             }
             guard let first = provisioned?.first else { return nil }
-            return makeIOSWorker(device: first, iosApp: iosApp)
+            let kind = first.physical ? nil : SimulatorCatalog.blueprintsByUDID()[first.udid].map(SimulatorCatalog.kind(of:))
+            return makeIOSWorker(device: first, iosApp: iosApp, deviceKind: kind)
         }
         if let device = resolved.androidDevices.first(where: { $0.name == name }) {
             do {
@@ -1256,7 +1264,7 @@ public enum ProfileWorkerFactory {
                     connection: DriverConnection(platform: "android", serial: serial,
                                                  deviceName: device.name,
                                                  physical: device.spec.isPhysical),
-                    logicalName: device.name)
+                    logicalName: device.name, deviceKind: nil)
             } catch {
                 return nil
             }

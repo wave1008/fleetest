@@ -31,6 +31,56 @@ final class ScenarioQueueNotApplicableTests: XCTestCase {
         XCTAssertNil(pro, "試した pro へは戻さない")
     }
 
+    /// 同じ観測の種類のレーンは試した扱い: 回し直さず対象外で確定(DR-214・iOS)
+    func testSameKindLaneCountsAsTried() async {
+        let s1 = item("S1")
+        let queue = ScenarioQueue([])
+        await queue.laneJoined("a", kind: "pro")
+        await queue.laneJoined("b", kind: "pro")
+        let verdict = await queue.noteNotApplicable(s1, lane: "a", reason: "fold")
+        XCTAssertEqual(verdict, .skipped)
+    }
+
+    /// 種類が違うレーン・種類が不明のレーンは覆わない。回し直した item を同じ種類のレーンは取らない
+    func testOtherKindLaneGetsItAndSameKindLaneDoesNot() async {
+        let s1 = item("S1")
+        let queue = ScenarioQueue([])
+        await queue.laneJoined("a", kind: "pro")
+        await queue.laneJoined("b", kind: "pro")
+        await queue.laneJoined("c", kind: "fold")
+        await queue.laneJoined("d")
+        let verdict = await queue.noteNotApplicable(s1, lane: "a", reason: "fold")
+        XCTAssertEqual(verdict, .handOn)
+        async let forB = queue.next(lane: "b", shouldStop: Self.deadline(1))
+        try? await Task.sleep(for: .milliseconds(100))
+        let forC = await queue.next(lane: "c", shouldStop: Self.deadline())
+        XCTAssertEqual(forC?.info.id, "S1")
+        await queue.laneEnded("c")
+        await queue.laneEnded("d")
+        await queue.laneEnded("a")
+        let b = await forB
+        XCTAssertNil(b, "試した種類の b へは戻さない")
+    }
+
+    /// 落ちたレーンでも試した種類と同じなら「試していない台が落ちた」に数えない
+    func testDepartedSameKindLaneIsNotUntried() async {
+        let s1 = item("S1")
+        let queue = ScenarioQueue([])
+        await queue.laneJoined("a", kind: "pro")
+        await queue.laneJoined("b", kind: "pro")
+        await queue.laneEnded("b")
+        _ = await queue.noteNotApplicable(s1, lane: "a", reason: "r")
+        let untried = await queue.hasDepartedUntried(s1)
+        XCTAssertFalse(untried)
+        let other = ScenarioQueue([])
+        await other.laneJoined("a", kind: "pro")
+        await other.laneJoined("b", kind: "fold")
+        await other.laneEnded("b")
+        _ = await other.noteNotApplicable(s1, lane: "a", reason: "r")
+        let untriedOther = await other.hasDepartedUntried(s1)
+        XCTAssertTrue(untriedOther)
+    }
+
     func testAllLanesTriedFinalizesSkipped() async {
         let s1 = item("S1")
         let queue = ScenarioQueue([])

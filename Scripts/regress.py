@@ -2,7 +2,7 @@
 # 回帰(E2E / E2EX / E2EY)を全マシンで1回の `fleetest run --target …` として回す(PT-8.1 → RR-8.2 へ統合)。
 # 配り方(空いたマシンが次の対象を取る・終わり際はシナリオ単位で手伝う・待つほうが早ければ待つ)は fleetest run が持つ。
 # ここが持つのは run の外側だけ:
-#   1. 全マシンで SUT の鮮度を確かめて要ればビルド(各スクリプトの --build-only。マシン間は並列)。
+#   1. 全マシンで SUT の鮮度を確かめて要ればビルド(各スクリプトの --build-only。マシン間もマシンの中のスイートも並列)。
 #      リモートはアライン済みのランナーのクローンで起こす = **先に Scripts/align.sh(未コミットの変更も送る)**
 #   2. 回帰の対象の一覧(スイート × SUT × OS/モード)を --target に並べて fleetest run を1回
 #   3. スクリプトが run ごとにしていた後始末: in-app の証人(E2E-CMP)・画像分類器を使えなかったシナリオを赤にする・
@@ -221,19 +221,30 @@ def run_logged(cmd, log_path, env):
 
 
 def prebuild_all(fleet, suites, suts, run_dir, env):
-    """全マシンで SUT の鮮度確認とビルド(マシン間は並列・マシンの中はスイート順)。失敗したマシンの名前を返す"""
+    """全マシンで SUT の鮮度確認とビルド(マシン間もマシンの中のスイートも並列)。失敗したマシンの名前を返す。
+    スイートの SUT は別のフォルダで成果物もその中。機械で共有するもの(クラッシュダイアログ = 保持者を数える・Flutter の SDK・
+    Gradle / CocoaPods のキャッシュ = 各自のロック)は同時に撃っても壊れない。順に撃つと変更なしでも 3 × 約 20 秒払っていた"""
     failed = {}
 
+    def prebuild_suite(machine, host, suite, codes):
+        script = SUITES[suite][0]
+        # 成果物は iOS のモードに依らない(同じ .app)ので、モードは渡さない
+        args = [f"Scripts/{script}", "--build-only"] + [f"--{s}" for s in suts] + (["--local"] if suite == "e2e" else [])
+        codes[suite] = run_logged(command(host, args), os.path.join(run_dir, f"build-{suite}@{machine}.log"), env)
+
     def prebuild(machine, host):
+        codes = {}
+        workers = [threading.Thread(target=prebuild_suite, args=(machine, host, s, codes)) for s in suites]
+        for t in workers:
+            t.start()
+        for t in workers:
+            t.join()
+        # 名指すのはスイート順で最初に落ちたもの(並列でも報告が揺れない)
         for suite in suites:
-            script = SUITES[suite][0]
-            # 成果物は iOS のモードに依らない(同じ .app)ので、モードは渡さない
-            args = [f"Scripts/{script}", "--build-only"] + [f"--{s}" for s in suts] + (["--local"] if suite == "e2e" else [])
-            log = os.path.join(run_dir, f"build-{suite}@{machine}.log")
-            code = run_logged(command(host, args), log, env)
+            code = codes[suite]
             if code != 0:
                 why = "届きません" if host is not None and code == SSH_UNREACHABLE else f"{suite} の SUT のビルドに失敗しました"
-                failed[machine] = f"{why}({os.path.relpath(log, ROOT)})"
+                failed[machine] = f"{why}({os.path.relpath(os.path.join(run_dir, f'build-{suite}@{machine}.log'), ROOT)})"
                 return
         print(f"   ✅ {machine}: SUT はそろっています")
     threads = [threading.Thread(target=prebuild, args=fm) for fm in fleet]

@@ -282,6 +282,8 @@ enum DeviceMachineRunner {
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !noLPT,
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
                               entryLabel: { groups[$0].machineLabel }, log: { FleetRunner.log($0) },
+                              entryKinds: { _ in IOSDeviceKindResolver.entryKinds(
+                                  project: project, profileName: profileName, groups: groups, overrides: setOverrides) },
                               send: { entry, reply in writers[entry]?.write(line: WorkQueueProtocol.encode(reply)) })
         }
         let interruptRelay = dispatcher.map { dispatcher in InterruptRelay.observing(catchUp: true) { dispatcher.interrupt() } }

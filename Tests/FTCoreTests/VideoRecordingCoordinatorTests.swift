@@ -97,7 +97,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
 
     private func makeWorker(_ n: Int) -> RunWorker {
         RunWorker(label: "ios:test\(n)", platform: "ios", driver: UnusedDriver(),
-                  connection: DriverConnection(platform: "ios"), logicalName: "test\(n)")
+                  connection: DriverConnection(platform: "ios"), logicalName: "test\(n)", deviceKind: nil)
     }
 
     /// 60 秒 1 セグメントのソースを返すセッションを生成する makeSession(sourceStem 由来の
@@ -163,7 +163,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
             makeSession: { _, _, stem in stems.withLock { $0.append(stem) }; return DeadSession() })
         for label in ["phone", "Phone", "σ", "ς"] {  // worker の ID は platform:label
             let worker = RunWorker(label: label, platform: "ios", driver: UnusedDriver(),
-                                   connection: DriverConnection(platform: "ios"), logicalName: label)
+                                   connection: DriverConnection(platform: "ios"), logicalName: label, deviceKind: nil)
             _ = await coordinator.start(worker)
         }
         XCTAssertEqual(stems.value, ["src-ios-phone", "src-ios-Phone~2", "src-ios-σ", "src-ios-ς~2"])
@@ -200,7 +200,7 @@ final class VideoRecordingCoordinatorExportTests: XCTestCase {
             config: VideoRecordingConfig(runDir: tmp, androidADBPath: nil, failuresOnly: false))
         let physicalIOS = DriverConnection(platform: "ios", port: 8150, udid: "00008030-XXXX", physical: true)
         let worker = RunWorker(label: "SE3(ios:8150)", platform: "ios", driver: UnusedDriver(),
-                               connection: physicalIOS, logicalName: "SE3")
+                               connection: physicalIOS, logicalName: "SE3", deviceKind: nil)
         let started = await coordinator.start(worker)
         XCTAssertTrue(started, "物理 iPhone も録画を開始する")
         let maybeDir = await coordinator.stillFramesDir(workerLabel: worker.label)

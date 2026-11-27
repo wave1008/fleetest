@@ -103,7 +103,7 @@ final class InstallStorageRecoveryTests: XCTestCase {
     private func worker(_ driver: AppDriver, serial: String = "emulator-5566") -> RunWorker {
         RunWorker(label: "Pixel-07(android:\(serial))", platform: "android", driver: driver,
                   connection: DriverConnection(platform: "android", serial: serial),
-                  logicalName: "Pixel-07")
+                  logicalName: "Pixel-07", deviceKind: nil)
     }
 
     private func apps() -> [String: ResolvedAppTarget] {

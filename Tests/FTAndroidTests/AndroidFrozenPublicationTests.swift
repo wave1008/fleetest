@@ -50,7 +50,7 @@ final class AndroidFrozenPublicationTests: XCTestCase {
     private func worker() -> RunWorker {
         RunWorker(label: "emu(android:\(serial))", platform: "android", driver: UnusedDriver(),
                   connection: DriverConnection(platform: "android", serial: serial, physical: false),
-                  logicalName: "emu")
+                  logicalName: "emu", deviceKind: nil)
     }
 
     /// 注入した機の凍結が**ストアへ公表される**(モニターが読む唯一の口)

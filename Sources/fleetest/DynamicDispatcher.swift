@@ -46,6 +46,8 @@ final class DynamicDispatcher: Sendable {
         /// レーンの印(`lanes`)はそのレーンの次の要求で消えるので、回し直し中の単位はこちらでしか見えない
         var kept: [Int: Set<ScenarioUnitKey>] = [:]
         var exited: Set<Int> = []
+        /// エントリ番号 → 観測した iOS の種類(`entryKinds` の答え。不明のエントリは載せない)。対象外が初めて来るまで空
+        var entryKinds: [Int: Set<String>] = [:]
         var interrupted = false
         var cancelTimer: Cancel?
         /// 束ねた先(RR-8.3)。渡した直後に record する
@@ -68,6 +70,11 @@ final class DynamicDispatcher: Sendable {
     /// エントリ番号 → 束ねたときのログに出す名前(マシン名)
     private let entryLabel: @Sendable (Int) -> String
     private let log: @Sendable (String) -> Void
+    /// platform → エントリ番号 → 観測した種類(iOS だけ引く)。**I/O なので臨界区間の外で呼ぶ**。答えは platform ごとに1回だけ使う
+    private let entryKindsResolver: @Sendable (_ platform: String) -> [Int: Set<String>]
+    /// `entryKindsResolver` を引いた platform。引く間は他の対象外の問い合わせも待つ(2回引かない)
+    private let kindsResolved = LockedValue<Set<String>>([])
+    private let kindsResolveGate = NSLock()
 
     /// - scenarios: 走らせるシナリオ。platform は解決済み(`resolve`)
     /// - estimateMs: (シナリオ, エントリ番号) → 見込み[ms]。エントリ番号は DynamicSplit.Lane.entry と同じ
@@ -80,11 +87,13 @@ final class DynamicDispatcher: Sendable {
          entryPlatforms: [Int: Set<String>] = [:],
          entryLabel: @escaping @Sendable (Int) -> String = { "entry \($0)" },
          log: @escaping @Sendable (String) -> Void = { _ in },
+         entryKinds: @escaping @Sendable (_ platform: String) -> [Int: Set<String>],
          send: @escaping @Sendable (Int, WorkQueueProtocol.Reply) -> Void) {
         self.lpt = lpt
         self.entryPlatforms = entryPlatforms
         self.entryLabel = entryLabel
         self.log = log
+        self.entryKindsResolver = entryKinds
         state = LockedValue(State(pending: scenarios))
         scenariosByUnit = Dictionary(scenarios.map { ($0.unitKey, $0) }, uniquingKeysWith: { first, _ in first })
         self.estimateMs = estimateMs
@@ -121,6 +130,7 @@ final class DynamicDispatcher: Sendable {
     /// 回し直す(`.handOn`)ときは pending へ戻し、その子の割り当てから外す(子は結果を捨てる = 結果の照合に残さない)
     func handleNotApplicable(_ na: WorkQueueProtocol.NotApplicable, fromEntry entry: Int) -> WorkQueueProtocol.Reply {
         var verdict: NotApplicableHandoff.Verdict = .skipped
+        resolveKindsIfNeeded(platform: na.platform)
         let answers: [(Held, WorkQueueProtocol.Reply)] = withState { s in
             // 親が割り当てたシナリオだけ(子は機械の中で別のレーンへ回すので、宣言したレーンは親の割り当てのレーンと限らない)
             let unit = na.unit
@@ -139,7 +149,8 @@ final class DynamicDispatcher: Sendable {
             verdict = NotApplicableHandoff.decide(
                 tried: Set(record.tried.map(String.init)),
                 live: Set(known.subtracting(left).map(String.init)),
-                departed: Set(left.map(String.init)).union(record.departedInChild ? ["child-local"] : []))
+                departed: Set(left.map(String.init)).union(record.departedInChild ? ["child-local"] : []),
+                kinds: Dictionary(uniqueKeysWithValues: s.entryKinds.map { (String($0.key), $0.value) }))
             guard verdict == .handOn else { return drainLocked(&s) }
             s.pending.append(scenario)
             if let index = s.assigned[entry]?.lastIndex(of: unit) { s.assigned[entry]?.remove(at: index) }
@@ -149,6 +160,26 @@ final class DynamicDispatcher: Sendable {
         }
         for (held, reply) in answers { send(held.lane.entry, reply) }
         return .init(req: na.req, verdict: verdict)
+    }
+
+    /// 種類の観測は iOS だけ(Android のプロファイルは機種を持たない = 台ごと。DR-214)。platform ごとに1回
+    private func resolveKindsIfNeeded(platform: String) {
+        guard platform == "ios" else { return }
+        kindsResolveGate.lock()
+        defer { kindsResolveGate.unlock() }
+        guard kindsResolved.withLock({ $0.insert(platform).inserted }) else { return }
+        let kinds = entryKindsResolver(platform)
+        state.withLock { $0.entryKinds = kinds }
+    }
+
+    /// そのエントリが単位を受け取れないか = 試した、または試したエントリと同じ観測の種類(DR-214)。
+    /// **配る側(`reachable`・`triedBy`・`mayReceiveHandBack`)は全部ここを通す** —— 判定が割れると、覆ったエントリへ単位を渡して
+    /// 子を起こすだけの空振りになる
+    private static func isExcluded(entry: Int, unit: ScenarioUnitKey, _ s: State) -> Bool {
+        guard let tried = s.notApplicable[unit]?.tried else { return false }
+        return tried.contains(entry)
+            || NotApplicableHandoff.covered(String(entry), tried: Set(tried.map(String.init)),
+                                            kinds: Dictionary(uniqueKeysWithValues: s.entryKinds.map { (String($0.key), $0.value) }))
     }
 
     /// 子が、配った単位を機械の中で回し直し始めた / 終えた(`kept`。返事なし)。割り当てていない単位は無視する(偽の知らせで待たせない)
@@ -273,7 +304,10 @@ final class DynamicDispatcher: Sendable {
         }
 
         // 対象外の記帳は見直しの中で変わらない(1回の drain で1回だけ作る)
-        let triedBy = s.notApplicable.mapValues(\.tried)
+        let entries = Set(s.entryKinds.keys)
+        let triedBy = s.notApplicable.reduce(into: [ScenarioUnitKey: Set<Int>]()) { result, element in
+            result[element.key] = element.value.tried.union(entries.filter { Self.isExcluded(entry: $0, unit: element.key, s) })
+        }
         var progressed = true
         while progressed {
             progressed = false
@@ -286,7 +320,7 @@ final class DynamicDispatcher: Sendable {
                     laneStates.append(DynamicSplit.LaneState(lane: lane, busy: info))
                 }
                 // 対象外で戻された(試したエントリが除外の)シナリオは、そのエントリへ渡さない
-                let reachable = s.pending.filter { !(s.notApplicable[$0.unitKey]?.tried.contains(held.lane.entry) ?? false) }
+                let reachable = s.pending.filter { !Self.isExcluded(entry: held.lane.entry, unit: $0.unitKey, s) }
                 var decision = DynamicSplit.decide(
                     for: held.lane, now: now, pending: reachable, lanes: laneStates, estimateMs: estimateMs, lpt: lpt,
                     bindings: s.bindings, entryPlatforms: entryPlatforms,
@@ -338,7 +372,7 @@ final class DynamicDispatcher: Sendable {
     private static func mayReceiveHandBack(_ requester: DynamicSplit.Lane, _ s: State,
                                            scenariosByUnit: [ScenarioUnitKey: DynamicSplit.Scenario]) -> Bool {
         func untried(_ unit: ScenarioUnitKey) -> Bool {
-            !(s.notApplicable[unit]?.tried.contains(requester.entry) ?? false)
+            !isExcluded(entry: requester.entry, unit: unit, s)
         }
         let running = s.lanes.contains { lane, busy in
             guard lane.platform == requester.platform, lane != requester,
