@@ -12,7 +12,7 @@ import Foundation
 
 public enum RemoteAlignPlan {
     /// 記録・不明を表す値(行数を固定するための印)
-    static let unknown = "-"
+    public static let unknown = "-"
 
     /// `fleetest` 以外の製品ごとの依存閉包のソースのディレクトリ(リポジトリ直下からの相対)。`buildScript` が
     /// 「前回の成功したビルドから閉包が無変更なら省く」に使う。**表に漏れがあると、変わった依存を見ずに古いバイナリを
@@ -203,37 +203,70 @@ public enum RemoteAlignPlan {
 
     /// 送ったコミットを checkout してビルドし、全部成功したら記録を書く。**全製品をこの中(= dispatch.lock の下)で
     /// ビルドする**(`swift build` も重い負荷で、ロックの外へ出すと直後の run と CPU を取り合い、SwiftPM が
-    /// `.build/debug` のリンクを作り直す瞬間に run の exec が ENOENT で落ちる)。
-    /// - `fleetest` は必ずビルドする(run に要る。閉包が大きく省いても得が小さい)
+    /// `.build/debug` のリンクを作り直す瞬間に run の exec が ENOENT で落ちる)。**手元のビルド済みの取り込み(`ft_install`)も
+    /// 同じ理由でこの中**(走っている dispatch が使うバイナリを差し替える点はビルドと同じ)。
+    /// - `fleetest` は必ず用意する(run に要る。閉包が大きく省いても得が小さい)
     /// - それ以外(`productSourceClosure`)は **記録があり・developerDir と Xcode の版が記録と同じ・前回のコミットから
     ///   閉包のディレクトリと Package.swift / Package.resolved が無変更・実行ファイルがある** ときだけ省く
     ///   (1つでも欠けたらビルド)。差分が引けない(前回のコミットがランナーに無い)ときも `git diff --quiet` は
     ///   非0 = ビルドに倒れる
+    /// - 省かない製品は、手元から送られていて(`prebuilt`)ランナー側の照合を全部通れば取り込み、1つでも欠ければ
+    ///   `swift build`。**照合はランナーでやる(ground truth)**: ①ランナーの Xcode の1行が手元と同じ ②`.build/debug` の実体の
+    ///   ディレクトリがある ③送られた `fleetest` が `api macho-check` でその製品の CPU と最低 OS を読む。
+    ///   取り込みは実体のディレクトリへ一時名でコピー → `mv`(同じファイルを開いたまま走る旧プロセスを壊さず、書きかけを見せない)。
+    ///   署名はリンカの ad-hoc でファイルごとに付くので、ファイルと一緒に移る
     public static func buildScript(layout: RemoteLayout, revision: String, digest: String,
-                                   developerDir: String?) -> String {
+                                   developerDir: String?, prebuilt: AlignPrebuilt.Plan) -> String {
         let record = RemoteShell.quote(builtRecordPath(layout: layout))
+        let build = prebuilt.isActive ? "ft_install \"$ft_p\" || swift build --product \"$ft_p\"" : "swift build --product \"$ft_p\""
         let skip = "[ -n \"$ft_prev_rev\" ] && [ \"$ft_prev_dev\" = \"$ft_dev\" ] && [ \"$ft_prev_xc\" = \"$ft_xc\" ] "
             + "&& [ -x \"$ft_root/.build/debug/$ft_p\" ] "
             + "&& git diff --quiet \"$ft_prev_rev\" \"$ft_rev\" -- \"$@\" Package.swift Package.resolved"
         let function = "ft_build() { ft_p=$1; shift; if \(skip); then "
-            + "echo \"skipping $ft_p (unchanged since the last successful build)\"; else swift build --product \"$ft_p\"; fi; }"
+            + "echo \"skipping $ft_p (unchanged since the last successful build)\"; else \(build); fi; }"
         // 閉包の表に無い製品は省かずビルドする(空のディレクトリ集合で「無変更」と読まない)
         let builds = buildOrder.map { product -> String in
             guard let closure = productSourceClosure[product], !closure.isEmpty else {
-                return "swift build --product \(RemoteShell.quote(product))"
+                return prebuilt.isActive
+                    ? "{ ft_install \(RemoteShell.quote(product)) || swift build --product \(RemoteShell.quote(product)); }"
+                    : "swift build --product \(RemoteShell.quote(product))"
             }
             return "ft_build \(RemoteShell.quote(product)) \(closure.map(RemoteShell.quote).joined(separator: " "))"
         }
+        let fleetestBuild = prebuilt.isActive
+            ? "{ ft_install fleetest || swift build --product fleetest; }" : "swift build --product fleetest"
         return "ft_root=\(RemoteShell.quote(layout.toolRoot)); ft_rec=\(record); "
             + "ft_dev=\(RemoteShell.quote(developerDir ?? unknown)); ft_rev=\(RemoteShell.quote(revision)); "
             + "ft_xc=$(\(xcodeVersionOneLine)); ft_xc=\"${ft_xc:--}\"; "
             + "ft_prev_dev=$(sed -n 2p \"$ft_rec\" 2>/dev/null); ft_prev_xc=$(sed -n 3p \"$ft_rec\" 2>/dev/null); "
             + "ft_prev_rev=$(sed -n 4p \"$ft_rec\" 2>/dev/null); "
             + "rm -f \"$ft_rec\" && "
-            + "cd \"$ft_root\" && git checkout -q --detach \"$ft_rev\" && \(function) && "
-            + "swift build --product fleetest && "
+            + "cd \"$ft_root\" && git checkout -q --detach \"$ft_rev\" && "
+            + (prebuilt.isActive ? installFunction(prebuilt) + " && " : "")
+            + "\(function) && "
+            + fleetestBuild + " && "
             + builds.joined(separator: " && ") + " && "
             + "mkdir -p \"$ft_root/.fleetest\" && "
             + "printf '%s\\n%s\\n%s\\n%s\\n' \(RemoteShell.quote(digest)) \"$ft_dev\" \"$ft_xc\" \"$ft_rev\" > \"$ft_rec\""
+    }
+
+    /// `ft_install <製品>`: 取り込めたら 0、取り込まずにビルドへ倒すなら理由を1行言って 1。変数の定義(`ft_stage` ほか)も含む
+    private static func installFunction(_ plan: AlignPrebuilt.Plan) -> String {
+        let reasons = plan.reasons.sorted { $0.key < $1.key }
+            .map { "\(RemoteShell.quote($0.key))) ft_why=\(RemoteShell.quote($0.value));;" }.joined(separator: " ")
+        return "ft_stage=\(RemoteShell.quote(plan.stagingDirectory)); ft_local_xc=\(RemoteShell.quote(plan.localToolchain)); "
+            + "ft_prod=$(cd .build/debug 2>/dev/null && pwd -P || true); "
+            + "ft_install() { ft_ip=$1; ft_is=\"$ft_stage/$ft_ip\"; "
+            + "if [ ! -f \"$ft_is\" ]; then ft_why=; case \"$ft_ip\" in \(reasons) *) ;; esac; "
+            + "echo \"building $ft_ip here (no prebuilt one was sent${ft_why:+: $ft_why})\"; return 1; fi; "
+            + "if [ \"$ft_xc\" != \"$ft_local_xc\" ]; then "
+            + "echo \"building $ft_ip here: the runner's Xcode ($ft_xc) differs from this Mac's ($ft_local_xc)\"; return 1; fi; "
+            + "if [ -z \"$ft_prod\" ]; then echo \"building $ft_ip here: the runner has no build directory (.build/debug) yet\"; return 1; fi; "
+            + "if ! ft_why=$(\"$ft_stage/fleetest\" api macho-check \"$ft_is\" 2>&1); then "
+            + "echo \"building $ft_ip here: the prebuilt binary cannot run on this runner ($ft_why)\"; return 1; fi; "
+            + "ft_tmp=\"$ft_prod/.$ft_ip.prebuilt.$$\"; "
+            + "if cp \"$ft_is\" \"$ft_tmp\" && chmod 755 \"$ft_tmp\" && mv -f \"$ft_tmp\" \"$ft_prod/$ft_ip\"; then "
+            + "echo \"installed the prebuilt $ft_ip sent from this Mac ($(( $(stat -f %z \"$ft_prod/$ft_ip\") / 1000000 )) MB)\"; "
+            + "else rm -f \"$ft_tmp\"; echo \"building $ft_ip here: could not install the prebuilt binary\"; return 1; fi; }"
     }
 }

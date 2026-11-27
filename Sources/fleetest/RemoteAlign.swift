@@ -50,6 +50,8 @@ struct AlignPrepared {
     /// 向きの判定の手元の基点(作業ツリーなら手元の HEAD・`--tool-rev` ならそのコミット)
     let base: String
     let developerDir: String?
+    /// 作業ツリー由来(`--tool-rev` ではない)。手元のビルド済みを送ってよい前提(`AlignPrebuilt.Conditions.fromWorkingTree`)
+    let fromWorkingTree: Bool
 }
 
 /// 送るコミットを決める。`toolRev` が nil なら手元の作業ツリーを1つのコミットにする(`AlignSnapshot`。未コミットの変更・
@@ -67,7 +69,8 @@ func prepareAlignment(hostSpec: RemoteHostSpec, repoRoot: URL, toolRev: String? 
         try RemoteSetupPlan.validateRevision(revision.commit)
         io.say(RemoteAlignPlan.sendLine(toolRev: toolRev, commit: revision.commit))
         return AlignPrepared(repoRoot: repoRoot, commit: revision.commit, digest: revision.digest,
-                             base: revision.commit, developerDir: alignmentDeveloperDir(hostSpec: hostSpec))
+                             base: revision.commit, developerDir: alignmentDeveloperDir(hostSpec: hostSpec),
+                             fromWorkingTree: false)
     }
     let issuer = try resolveLayoutIssuer()
     let local: AlignSnapshot.LocalTree
@@ -84,7 +87,7 @@ func prepareAlignment(hostSpec: RemoteHostSpec, repoRoot: URL, toolRev: String? 
     io.say(RemoteAlignPlan.sendLine(commit: commit, isSnapshot: !local.isClean,
                                     untrackedCount: untracked.count, untrackedBytes: untracked.bytes))
     return AlignPrepared(repoRoot: repoRoot, commit: commit, digest: local.digest, base: local.head,
-                         developerDir: alignmentDeveloperDir(hostSpec: hostSpec))
+                         developerDir: alignmentDeveloperDir(hostSpec: hostSpec), fromWorkingTree: true)
 }
 
 /// ランナーの状態を ssh 1往復で読む(`RemoteAlignPlan.probeCommand`)。読めなければ nil。ssh の警告を行に混ぜない(stdout だけ読む)
@@ -103,9 +106,10 @@ func alignmentAlreadyDone(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepar
                                             state: state)
 }
 
-/// 送って(`git push` の直送。origin も GitHub も通らない)ビルドする。戻り値はビルド(fm-align)の終了コード
-func sendAndBuildAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout,
-                           prepared: AlignPrepared, io: AlignIO = .stdout) throws -> Int32 {
+/// 送って(`git push` の直送。origin も GitHub も通らない)ビルドする。戻り値はビルド(fm-align)の終了コード。
+/// `probe` は送る前の照会(手元のビルド済みを送るかの予測に使う。nil = 照会が無い = ランナー側の照合に任せて送る)
+func sendAndBuildAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared,
+                           probe: RemoteAlignPlan.ProbeState?, io: AlignIO = .stdout) throws -> Int32 {
     let push = try runInheritedSSH(RemoteAlignPlan.pushArguments(
         repoRoot: prepared.repoRoot.path, sshTarget: hostSpec.sshTarget, toolRoot: layout.toolRoot,
         commit: prepared.commit), stdoutToStderr: io.toStderr)
@@ -114,11 +118,11 @@ func sendAndBuildAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout,
             "could not send \(prepared.commit.prefix(7)) to \(hostSpec.sshTarget):\(layout.toolRoot) (git push exited \(push);"
             + " is the runner set up? run `fleetest remote setup`)")
     }
-    return try runRemoteAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared, io: io)
+    return try runRemoteAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared, probe: probe, io: io)
 }
 
 private func runRemoteAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared,
-                                io: AlignIO) throws -> Int32 {
+                                probe: RemoteAlignPlan.ProbeState?, io: AlignIO) throws -> Int32 {
     guard let executable = ExecutablePath.current else {
         throw RemoteDispatchError.remoteSetupFailed("could not resolve the local alignment executable")
     }
@@ -136,19 +140,32 @@ private func runRemoteAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, 
         throw RemoteDispatchError.remoteSetupFailed("the remote alignment directory could not be verified")
     }
     let helper = directory + "/fleetest"
+    // 手元のビルド済みの製品も、ヘルパーと同じ scp で同じディレクトリへ送る(`fleetest` はヘルパー自身 = 二重に送らない)
+    let selection = selectPrebuiltProducts(prepared: prepared, probe: probe, executable: executable)
+    let stagedNames = selection.files.map { RemoteShell.quote(directory + "/" + $0.lastPathComponent) }.joined(separator: " ")
     // 転送失敗ではリモート側の EXIT trap へ到達しないため、こちらでも回収する。
     defer {
         _ = try? Shell.run(setupSSHBase + [hostSpec.sshTarget,
-            "rm -f -- \(RemoteShell.quote(helper)); rmdir -- \(RemoteShell.quote(directory)) 2>/dev/null || true"])
+            "rm -f -- \(RemoteShell.quote(helper)) \(stagedNames); rmdir -- \(RemoteShell.quote(directory)) 2>/dev/null || true"])
     }
-    let transfer = try runInheritedSSH(setupSCPBase + [executable.path, "\(hostSpec.sshTarget):\(helper)"],
-                                       stdoutToStderr: io.toStderr)
+    if !selection.files.isEmpty {
+        let megabytes = selection.files.reduce(into: Int64(0)) {
+            $0 += ((try? FileManager.default.attributesOfItem(atPath: $1.path)[.size] as? NSNumber)?.int64Value ?? 0)
+        } / 1_000_000
+        io.say("==> align: sending \(selection.files.count) prebuilt product(s) with the alignment executable"
+            + " (\(megabytes) MB): \(selection.files.map(\.lastPathComponent).joined(separator: ", "))")
+    }
+    let destination = selection.files.isEmpty ? helper : directory + "/"
+    let transfer = try runInheritedSSH(
+        setupSCPBase + [executable.path] + selection.files.map(\.path) + ["\(hostSpec.sshTarget):\(destination)"],
+        stdoutToStderr: io.toStderr)
     guard transfer == 0 else {
         throw RemoteDispatchError.remoteSetupFailed("could not copy the alignment executable (scp exited \(transfer))")
     }
     return try runInheritedSSH(setupSSHBase + [hostSpec.sshTarget,
         RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: prepared.commit, digest: prepared.digest,
-                                             helperPath: helper, developerDir: prepared.developerDir)],
+                                             helperPath: helper, developerDir: prepared.developerDir,
+                                             prebuilt: selection.plan.staged(in: directory))],
         stdoutToStderr: io.toStderr)
 }
 
@@ -306,7 +323,7 @@ enum RemoteAlign {
         defer { if lockHeld { releaseRemoteDispatchLock(hostSpec: hostSpec, layout: layout, io: io) } }
 
         io.say("==> align: sending \(toolRev == nil ? "the working tree" : "the revision"), building the remote clone, and safely retiring FM...")
-        let alignStatus = try sendAndBuildAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared, io: io)
+        let alignStatus = try sendAndBuildAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared, probe: state, io: io)
         guard alignStatus == 0 else {
             throw RemoteDispatchError.remoteSetupFailed(
                 "build or FM resident alignment failed (exit \(alignStatus); see output above)")

@@ -214,17 +214,24 @@ public enum RemoteSetupPlan {
     /// **「同じなら何もしない」の判定と同じ値**を渡す。**ビルドもその Xcode で行う**
     /// —— 渡さないとランナーの `xcode-select` の既定でビルドし、そこがコマンドラインツールだと FoundationModels のマクロが無くて
     /// 落ちる(M1mini で実測: Xcode を入れ替えた後の既定がコマンドラインツールだった)。既定値は置かない
+    ///
+    /// `prebuilt` は手元から一緒に送った製品(`helperPath` と同じディレクトリに製品名で置いてある。`fleetest` はヘルパー自身)。
+    /// 後始末はヘルパーと送った製品のファイル名を名指しで消してからディレクトリを `rmdir` する(再帰の削除は使わない)
     public static func alignRevisionCommand(layout: RemoteLayout, revision: String, digest: String,
-                                            helperPath: String, developerDir: String?) -> String {
+                                            helperPath: String, developerDir: String?,
+                                            prebuilt: AlignPrebuilt.Plan) -> String {
         let helperDirectory = URL(fileURLWithPath: helperPath).deletingLastPathComponent().path
         let target = layout.toolRoot + "/.build/debug/fleetest"
         let build = RemoteAlignPlan.buildScript(layout: layout, revision: revision, digest: digest,
-                                                developerDir: developerDir)
+                                                developerDir: developerDir, prebuilt: prebuilt)
+        let staged = prebuilt.shipped.filter { $0 != "fleetest" }
+            .filter { $0.utf8.allSatisfy { ($0 >= 97 && $0 <= 122) || $0 == 45 } }   // trap は単引用符の中 = 引用できないので製品名の綴りで守る
+            .map { " \"$ft_align_helper_dir\"/\($0)" }.joined()
         let devDirCmd = developerDir.map { "export DEVELOPER_DIR=\(RemoteShell.quote($0)); " } ?? ""
         return "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; " + devDirCmd
             + "ft_align_helper=\(RemoteShell.quote(helperPath)); "
             + "ft_align_helper_dir=\(RemoteShell.quote(helperDirectory)); "
-            + #"trap 'rm -f -- "$ft_align_helper"; rmdir -- "$ft_align_helper_dir"' EXIT; "#
+            + #"trap 'rm -f -- "$ft_align_helper"\#(staged); rmdir -- "$ft_align_helper_dir"' EXIT; "#
             + "chmod 700 \"$ft_align_helper\" && cd \(RemoteShell.quote(layout.toolRoot)) && "
             + "\"$ft_align_helper\" api fm-align "
             + "--target-executable \(RemoteShell.quote(target)) --build-command \(RemoteShell.quote(build))"

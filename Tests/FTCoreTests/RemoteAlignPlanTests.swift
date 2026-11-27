@@ -173,7 +173,7 @@ final class RemoteAlignPlanTests: XCTestCase {
     // MARK: - ビルドのスクリプト(文字列)
 
     func testBuildScriptBuildsEveryProductInsideTheScriptAndWritesTheRecordLast() throws {
-        let script = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: nil)
+        let script = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: nil, prebuilt: .none)
         XCTAssertFalse(script.contains("git fetch"))
         XCTAssertTrue(script.contains("git checkout -q --detach \"$ft_rev\""))
         XCTAssertTrue(script.contains("ft_rev='9655a21'"))
@@ -199,7 +199,7 @@ final class RemoteAlignPlanTests: XCTestCase {
     }
 
     func testBuildScriptSkipConditionNamesEveryRequirement() {
-        let script = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: nil)
+        let script = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: nil, prebuilt: .none)
         for requirement in ["[ -n \"$ft_prev_rev\" ]", "[ \"$ft_prev_dev\" = \"$ft_dev\" ]", "[ \"$ft_prev_xc\" = \"$ft_xc\" ]",
                             "[ -x \"$ft_root/.build/debug/$ft_p\" ]",
                             "git diff --quiet \"$ft_prev_rev\" \"$ft_rev\" -- \"$@\" Package.swift Package.resolved"] {
@@ -210,7 +210,7 @@ final class RemoteAlignPlanTests: XCTestCase {
 
     func testShellStringsAreValidSyntax() throws {
         for developerDir in [nil, "/Applications/Xcode 27.app/Contents/Developer"] {
-            let script = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: developerDir)
+            let script = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: developerDir, prebuilt: .none)
             let syntax = try Shell.run(["/bin/sh", "-n", "-c", script])
             XCTAssertEqual(syntax.status, 0, syntax.output + "\n" + script)
         }
@@ -262,6 +262,7 @@ final class RemoteAlignPlanTests: XCTestCase {
             XCTAssertEqual(Set(directories), closure(of: product), "closure of \(product)")
             XCTAssertEqual(directories.count, Set(directories).count, "no duplicates in \(product)")
         }
+        XCTAssertEqual(Set(AlignPrebuilt.fleetestSourceClosure), closure(of: "fleetest"), "closure of fleetest (AlignPrebuilt)")
     }
 
     // MARK: - 実走(偽の swift)
@@ -309,7 +310,7 @@ final class RemoteAlignPlanTests: XCTestCase {
         func run(revision: String, developerDir: String?, fail: Bool = false) throws -> (status: Int32, products: [String]) {
             try? FileManager.default.removeItem(at: log)
             let script = RemoteAlignPlan.buildScript(layout: layout, revision: revision, digest: "dg-\(revision.prefix(4))",
-                                                     developerDir: developerDir)
+                                                     developerDir: developerDir, prebuilt: .none)
             var argv = ["/usr/bin/env", "PATH=\(bin.path):/usr/bin:/bin:/usr/sbin:/sbin"]
             if fail { argv.append("FT_FAKE_FAIL=1") }
             let result = try Shell.run(argv + ["/bin/sh", "-c", script])

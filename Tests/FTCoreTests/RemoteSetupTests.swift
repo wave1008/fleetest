@@ -239,12 +239,12 @@ final class RemoteSetupTests: XCTestCase {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
         let command = RemoteSetupPlan.alignRevisionCommand(
             layout: layout, revision: "9655a21", digest: "d1", helperPath: "/tmp/fleetest-remote-align.12345678/fleetest",
-            developerDir: "/Applications/Xcode_27.2_Release_Candidate.app/Contents/Developer")
+            developerDir: "/Applications/Xcode_27.2_Release_Candidate.app/Contents/Developer", prebuilt: .none)
         XCTAssertTrue(command.hasPrefix("export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; "
             + "export DEVELOPER_DIR='/Applications/Xcode_27.2_Release_Candidate.app/Contents/Developer'; "), command)
         XCTAssertFalse(RemoteSetupPlan.alignRevisionCommand(
             layout: layout, revision: "9655a21", digest: "d1", helperPath: "/tmp/fleetest-remote-align.12345678/fleetest",
-            developerDir: nil).contains("DEVELOPER_DIR"), "ambient のときは何も足さない")
+            developerDir: nil, prebuilt: .none).contains("DEVELOPER_DIR"), "ambient のときは何も足さない")
     }
 
     /// 外側(ヘルパーの置き場・trap・fm-align の呼び方)は文字列で固定する。**`git fetch origin` は無い**
@@ -253,8 +253,8 @@ final class RemoteSetupTests: XCTestCase {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
         let command = RemoteSetupPlan.alignRevisionCommand(
             layout: layout, revision: "9655a21", digest: "d1",
-            helperPath: "/tmp/fleetest-remote-align.12345678/fleetest", developerDir: nil)
-        let build = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: nil)
+            helperPath: "/tmp/fleetest-remote-align.12345678/fleetest", developerDir: nil, prebuilt: .none)
+        let build = RemoteAlignPlan.buildScript(layout: layout, revision: "9655a21", digest: "d1", developerDir: nil, prebuilt: .none)
         XCTAssertEqual(
             command,
             "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; "
@@ -280,7 +280,7 @@ final class RemoteSetupTests: XCTestCase {
         let helper = helperDirectory.appendingPathComponent("fleetest")
         try Data("not invoked".utf8).write(to: helper)
         let command = RemoteSetupPlan.alignRevisionCommand(layout: layout, revision: "9655a21", digest: "d1",
-                                                           helperPath: helper.path, developerDir: nil)
+                                                           helperPath: helper.path, developerDir: nil, prebuilt: .none)
 
         let result = try Shell.run(["/bin/sh", "-c", command])
 
@@ -320,7 +320,7 @@ final class RemoteSetupTests: XCTestCase {
         let helper = helperDirectory.appendingPathComponent("fleetest")
         try Data("#!/bin/sh\nexit 73\n".utf8).write(to: helper)
         let command = RemoteSetupPlan.alignRevisionCommand(
-            layout: layout, revision: newRevision, digest: "d1", helperPath: helper.path, developerDir: nil)
+            layout: layout, revision: newRevision, digest: "d1", helperPath: helper.path, developerDir: nil, prebuilt: .none)
 
         let result = try Shell.run(["/bin/sh", "-c", command])
 

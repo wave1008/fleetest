@@ -39,7 +39,7 @@ final class StreamHelperNamingTests: XCTestCase {
     /// 狙い: `buildOrder` から1製品を外す変異・`swift build --product fleetest` を外す変異で落ちる
     func testAlignBuildsEveryProductTheRunnerNeeds() {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
-        let script = RemoteAlignPlan.buildScript(layout: layout, revision: "abc123", digest: "d1", developerDir: nil)
+        let script = RemoteAlignPlan.buildScript(layout: layout, revision: "abc123", digest: "d1", developerDir: nil, prebuilt: .none)
         XCTAssertTrue(script.contains("swift build --product fleetest && "), "fleetest is always built")
         let products = StreamHelpers.all + [ServiceGatewayWire.relayProductName, "fleetest-mcp"]
         for product in products {

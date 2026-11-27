@@ -243,7 +243,7 @@ extension RemoteCommand {
             } else {
                 let alignStatus: Int32
                 do {
-                    alignStatus = try sendAndBuildAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared)
+                    alignStatus = try sendAndBuildAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared, probe: nil)
                 } catch {
                     emit("align", .fail, error.localizedDescription)
                     try summarizeAndExit()
