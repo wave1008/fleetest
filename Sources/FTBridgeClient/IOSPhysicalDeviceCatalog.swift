@@ -26,6 +26,11 @@ public struct IOSPhysicalDeviceInfo: Sendable, Hashable, Identifiable {
     public let transport: String
     /// 機種名(marketingName。例 "iPhone 15 Pro")。取得できなければ空文字
     public let model: String
+    /// devicectl の生の観測値(読めなければ nil。空文字・`"iOS"` だけの値は入れない)。台の性質の観測
+    /// (`IOSPhysicalDeviceTraits`)だけが読む。`os` / `model` の「無ければ `"iOS"` / 空文字」は表示用の穴埋めで、観測には使わない
+    public let productType: String?
+    public let osVersionNumber: String?
+    public let marketingName: String?
     public var id: String { udid }
 
     /// 実問い合わせで到達を確かめた個体を「接続中」として作り直す。
@@ -33,11 +38,13 @@ public struct IOSPhysicalDeviceInfo: Sendable, Hashable, Identifiable {
     public func markingConnected() -> IOSPhysicalDeviceInfo {
         IOSPhysicalDeviceInfo(udid: udid, name: name, os: os, connected: true,
                               transport: transport, deviceCtlIdentifier: deviceCtlIdentifier,
-                              model: model)
+                              model: model, productType: productType,
+                              osVersionNumber: osVersionNumber, marketingName: marketingName)
     }
 
     public init(udid: String, name: String, os: String, connected: Bool, transport: String,
-                deviceCtlIdentifier: String? = nil, model: String = "") {
+                deviceCtlIdentifier: String? = nil, model: String = "",
+                productType: String? = nil, osVersionNumber: String? = nil, marketingName: String? = nil) {
         self.udid = udid
         self.name = name
         self.os = os
@@ -45,6 +52,9 @@ public struct IOSPhysicalDeviceInfo: Sendable, Hashable, Identifiable {
         self.transport = transport
         self.deviceCtlIdentifier = deviceCtlIdentifier ?? udid
         self.model = model
+        self.productType = productType
+        self.osVersionNumber = osVersionNumber
+        self.marketingName = marketingName
     }
 }
 
@@ -114,6 +124,11 @@ public enum IOSPhysicalDeviceCatalog {
         }
     }
 
+    private static func nonEmpty(_ s: String?) -> String? {
+        guard let t = s?.trimmingCharacters(in: .whitespaces), !t.isEmpty else { return nil }
+        return t
+    }
+
     /// 実機 1 台分のパース(シミュレータ・非 iOS・UDID 欠落は nil で捨てる)
     static func parse(_ entry: [String: Any]) -> IOSPhysicalDeviceInfo? {
         let properties = entry["properties"] as? [String: Any]
@@ -167,7 +182,10 @@ public enum IOSPhysicalDeviceCatalog {
                 || (connection["tunnelState"] as? String) == "connected",
             transport: transport,
             deviceCtlIdentifier: identifier,
-            model: (hardware["marketingName"] as? String) ?? "")
+            model: (hardware["marketingName"] as? String) ?? "",
+            productType: nonEmpty(hardware["productType"] as? String),
+            osVersionNumber: nonEmpty(version),
+            marketingName: nonEmpty(hardware["marketingName"] as? String))
     }
 
     /// **一覧の「未接続」を鵜呑みにしない**ための実問い合わせ。exit 0 = 到達できた。

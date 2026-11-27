@@ -122,7 +122,8 @@ final class SimctlDevicectlPolicySourceSyncTests: XCTestCase {
 
     /// 動詞は方針にあるが、親だけが呼ぶので方針が断ってよい定数の形(形 → 呼ぶファイル)
     private let parentOnlyCalls: [String: Set<String>] = [
-        "list -j devices": ["IOSDeviceKindResolver.swift", "SimulatorCatalog.swift"],
+        "list -j devices": ["SimulatorCatalog.swift"],
+        "list -j devicetypes devices": ["IOSDeviceKindResolver.swift"],
         "list -j devicetypes": ["ApiDeviceCatalogCommand.swift", "IOSRuntimeInstaller.swift", "VirtualDeviceFactory.swift"],
         "list -j runtimes": ["ApiDeviceCatalogCommand.swift", "IOSRuntimeInstaller.swift", "VirtualDeviceFactory.swift"],
         "list devices": ["ScreenRenderingRecoverer.swift"],

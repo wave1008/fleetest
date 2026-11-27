@@ -41,6 +41,8 @@ public struct TestClassMacro {
         let orderNode: ExprSyntax?
         /// 欠落の診断位置(メソッド名)
         let nameNode: Syntax
+        /// メソッドの @RequiresDevice / @ExcludesDevice(クラス側との和は展開時に取る)
+        let deviceDeclaration: DeviceDeclaration
     }
 
     /// 属性リストに @Deleted(FTDSL.Deleted も可)が含まれるか
@@ -173,7 +175,8 @@ public struct TestClassMacro {
                                          draft: hasDraft(fn.attributes),
                                          orderExpr: orderArgument?.trimmedDescription,
                                          orderNode: orderArgument,
-                                         nameNode: Syntax(fn.name)))
+                                         nameNode: Syntax(fn.name),
+                                         deviceDeclaration: parseDeviceDeclaration(fn.attributes, context: context)))
         }
         return result
     }
@@ -264,6 +267,8 @@ extension TestClassMacro: ExtensionMacro {
               + "FTDSL.ftRunAfterAll { ftInstance.afterAll() } }"
             : ""
         let placement = diagnoseClassPlacement(cls, methods: methods, classPlatformExpr: platform, context: context)
+        diagnoseDevicePlacement(placement: placement, methods: methods, context: context)
+        let classDevices = parseDeviceDeclaration(cls.attributes, context: context)
         let placementArg = placement.map { ",\n            placement: .\($0.rawValue)" } ?? ""
         let entries = methods.map { m in
             let deletedArg = (classDeleted || m.deleted) ? "\n                deleted: true," : ""
@@ -281,10 +286,11 @@ extension TestClassMacro: ExtensionMacro {
             let platformArg = m.platformExpr.map { "\n                platform: \($0)," } ?? ""
             let timeoutArg = m.scenarioTimeoutExpr.map { "\n                scenarioTimeout: \($0)," } ?? ""
             let orderArg = (placement == .inOrder ? m.orderExpr : nil).map { "\n                order: \($0)," } ?? ""
+            let deviceArg = deviceRequirementsArg(class: classDevices, method: m, context: context) ?? ""
             return """
                         FTDSL.FTScenarioDescriptor(
                             name: \(literalString(m.name)),
-                            title: \(m.titleExpr ?? "\"\""),\(deletedArg)\(draftArg)\(platformArg)\(timeoutArg)\(orderArg)
+                            title: \(m.titleExpr ?? "\"\""),\(deletedArg)\(draftArg)\(platformArg)\(timeoutArg)\(orderArg)\(deviceArg)
                             run: { \(body) }),
             """
         }.joined(separator: "\n")

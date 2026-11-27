@@ -241,7 +241,7 @@ final class TextInputPathTableTests: XCTestCase {
                             .matched, .matched, .notMatched, .notMatched, .notMatched],
              { TextNormalization.regexMatch(Self.screenText, pattern: $0, under: .text) != nil ? .matched : .notMatched }),
             ("alertPattern@declaration", plainGate,
-             { SystemAlertDismissal.patternError($0, argument: "alert") == nil ? .accepted : .refused }),
+             { ValuePattern.patternError($0, argument: "alert") == nil ? .accepted : .refused }),
             ("linkText@locator", Array(repeating: .notMatched, count: 5) + [.matched, .notMatched, .notMatched, .notMatched, .notMatched],
              { LinkTextLocator.range(of: $0, in: Self.screenText) != nil ? .matched : .notMatched }),
             ("transcript@normalize", Array(repeating: .notMatched, count: 5) + [.matched, .notMatched, .notMatched, .notMatched, .notMatched],

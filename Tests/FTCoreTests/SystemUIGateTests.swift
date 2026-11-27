@@ -81,7 +81,7 @@ final class SystemAlertRuleTests: XCTestCase {
         XCTAssertNil(SystemAlertDismissal.ruleToApply(
             in: tree, rules: [SystemAlertRule(alert: "*", button: "OK")]),
             "`*` 単体が「どのアラートでも」に化けてはいけない")
-        XCTAssertEqual(SystemAlertDismissal.alternatives("トラッキング || Tracking"),
+        XCTAssertEqual(ValuePattern.alternatives("トラッキング || Tracking"),
                        ["トラッキング", "Tracking"], "分岐の前後の空白は落とす")
     }
 

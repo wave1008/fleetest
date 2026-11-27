@@ -96,6 +96,20 @@ public macro RunInOrder(_ reason: String = "") =
 public macro Order(_ value: Int) =
     #externalMacro(module: "FTDSLMacros", type: "OrderMacro")
 
+/// このクラス(または @Test)を、**全部の条件を満たすデバイス**だけで走らせる。`@TestClass` のクラスと `@Test` に付ける。
+/// 条件: `.foldable` `.physical` `.virtual` `.homeButton` `.minOS(ios: "18")` `.minOS(android: "15")` `.model("iPhone 18*")`
+/// `.os("iOS 27*")`(`||` と `*` はセレクタと同じ)。条件はリテラルで直接書く(変数・補間は不可)。クラスとテストの宣言は和を取る。
+/// `@RunInOrder` / `@RunOnSingleDevice` / `@RunOnSingleMachine` のクラスでは、クラスにだけ付けられる(テストごとの条件は不可)。
+@attached(peer)
+public macro RequiresDevice(_ conditions: FTDeviceCondition...) =
+    #externalMacro(module: "FTDSLMacros", type: "RequiresDeviceMacro")
+
+/// このクラス(または @Test)を、**どれか1つでも条件に合うデバイスでは走らせない**(`@RequiresDevice` より優先)。
+/// 書き方と付け先は `@RequiresDevice` と同じ。
+@attached(peer)
+public macro ExcludesDevice(_ conditions: FTDeviceCondition...) =
+    #externalMacro(module: "FTDSLMacros", type: "ExcludesDeviceMacro")
+
 /// run 全体の準備と片付けのクラス(プロジェクトに1つだけ)。`func beforeRun()` / `func afterRun()`(片方だけでもよい・
 /// 引数なし・非async・非throws)を書く。**発行元のマシンで run に1回だけ**走り、デバイスを操作するコマンドは使えない
 /// (使えるのは run メモ・`httpRequest`・`data()` / `account()`・`wait` 等)。`@TestClass` と同じクラスには付けられない。

@@ -365,6 +365,8 @@ let package = Package(
             name: "FTDSLMacrosTests",
             dependencies: [
                 "FTDSLMacros",
+                // DeviceRequirementMacroPinTests が FTCore 側の宣言の検査と突き合わせる
+                "FTCore",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),

@@ -25,6 +25,8 @@ public struct FTScenarioDescriptor: Sendable {
     public let scenarioTimeout: Int?
     /// @Order(n)(@RunInOrder のクラスのテストだけ。マクロ生成)
     public let order: Int?
+    /// @RequiresDevice / @ExcludesDevice のクラスとテストの和(マクロ生成。無ければ nil)
+    public let deviceRequirements: DeviceRequirementSet?
     /// テストクラスの新規インスタンスを作ってメソッドを呼ぶクロージャ(マクロ生成)。
     /// @Sendable だが捕捉するのは常にクロージャ内で新規生成したインスタンスだけ
     /// (TestClassMacro.swift 参照)なので、テストクラス自体を Sendable にする必要は無い
@@ -33,6 +35,7 @@ public struct FTScenarioDescriptor: Sendable {
     public init(name: String, title: String, deleted: Bool = false, draft: Bool = false,
                 platform: String? = nil, scenarioTimeout: Int? = nil,
                 order: Int? = nil,
+                deviceRequirements: DeviceRequirementSet? = nil,
                 run: @escaping @Sendable () -> Void) {
         self.name = name
         self.title = title
@@ -41,6 +44,7 @@ public struct FTScenarioDescriptor: Sendable {
         self.platform = platform
         self.scenarioTimeout = scenarioTimeout
         self.order = order
+        self.deviceRequirements = deviceRequirements
         self.run = run
     }
 
@@ -92,7 +96,8 @@ public struct FTTestClassDescriptor {
                          platform: scenario.effectivePlatform(classPlatform: platform),
                          scenarioTimeout: scenario.scenarioTimeout,
                          deleted: scenario.deleted, draft: scenario.draft, beforeAll: hasBeforeAll,
-                         placement: placement, order: scenario.order)
+                         placement: placement, order: scenario.order,
+                         deviceRequirements: scenario.deviceRequirements)
         }
     }
 }

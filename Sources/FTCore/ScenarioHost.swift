@@ -47,10 +47,14 @@ public struct ScenarioInfo: Codable, Sendable, Hashable {
     public let placement: ClassPlacement?
     /// `@Order(n)` の値。`@RunInOrder` のクラスのテストだけ非 nil
     public let order: Int?
+    /// `@RequiresDevice` / `@ExcludesDevice` のクラスとテストの和(nil = 宣言なし)。
+    /// 子 → ホストの一覧(同一ビルド)だけを通り、`fleetest api` の契約には載せない
+    public let deviceRequirements: DeviceRequirementSet?
 
     public init(id: String, title: String, platform: String? = nil,
                 scenarioTimeout: Int? = nil, deleted: Bool = false, draft: Bool = false,
-                beforeAll: Bool = false, placement: ClassPlacement? = nil, order: Int? = nil) {
+                beforeAll: Bool = false, placement: ClassPlacement? = nil, order: Int? = nil,
+                deviceRequirements: DeviceRequirementSet? = nil) {
         self.id = id
         self.title = title
         self.platform = platform
@@ -60,6 +64,7 @@ public struct ScenarioInfo: Codable, Sendable, Hashable {
         self.beforeAll = beforeAll
         self.placement = placement
         self.order = order
+        self.deviceRequirements = deviceRequirements
     }
 }
 

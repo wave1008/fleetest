@@ -31,7 +31,8 @@ struct ApiCommand: AsyncParsableCommand {
                       ApiDslCommandsCommand.self,
                       ApiBridgeSourcesCommand.self, ApiRemoteHostsCommand.self,
                       ApiDeviceStreamCommand.self, ApiRemoteCompatCommand.self,
-                      ApiRetentionCommand.self, ApiDeviceSettingsCommand.self, ApiCleanCommand.self, ApiRecorderWatchCommand.self])
+                      ApiRetentionCommand.self, ApiDeviceSettingsCommand.self, ApiCleanCommand.self, ApiRecorderWatchCommand.self,
+                      ApiDeviceTraitsCommand.self])
 }
 
 struct ApiListScenarios: AsyncParsableCommand {

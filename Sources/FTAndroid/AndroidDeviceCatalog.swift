@@ -164,11 +164,7 @@ public enum AndroidDeviceCatalog {
     static func avdConfigValue(id: String, key: String) -> String? {
         let config = avdContentDirectory(id: id).appendingPathComponent("config.ini")
         guard let text = try? String(contentsOf: config, encoding: .utf8) else { return nil }
-        for line in text.split(whereSeparator: \.isNewline) where line.hasPrefix(key + "=") {
-            let value = line.dropFirst(key.count + 1).trimmingCharacters(in: .whitespaces)
-            return value.isEmpty ? nil : value
-        }
-        return nil
+        return AndroidDeviceTraits.configValue(key, in: text)
     }
 
     /// AVD の機種名(config.ini の hw.device.name。例 "pixel_9")と OS 表記

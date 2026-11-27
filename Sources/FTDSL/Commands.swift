@@ -148,8 +148,8 @@ func rejectDeclaration(_ core: FTDriveCore, command: String, description: String
 public func iosAlertHandler(alert: String, button: String,
                             file: StaticString = #filePath, line: UInt = #line) {
     let core = FTRuntime.requireCore(command: "iosAlertHandler")
-    if let error = SystemAlertDismissal.patternError(alert, argument: "alert")
-        ?? SystemAlertDismissal.patternError(button, argument: "button") {
+    if let error = ValuePattern.patternError(alert, argument: "alert")
+        ?? ValuePattern.patternError(button, argument: "button") {
         rejectDeclaration(core, command: "iosAlertHandler", description: "iosAlertHandler alert: \"\(alert)\" button: \"\(button)\"",
                           error: error, kind: .argumentRejected, file: file, line: line)
         return

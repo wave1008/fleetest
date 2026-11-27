@@ -21,13 +21,10 @@ enum IOSDeviceKindResolver {
         guard let data = simctlOutput?.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let devices = SimulatorCatalog.devices(simctlJSON: json) else { return nil }
-        let blueprints = SimulatorCatalog.blueprints(simctlJSON: json)
-        var result: Set<String> = []
-        for spec in specs {
-            guard let info = try? SimulatorCatalog.resolve(spec: spec, in: devices),
-                  let blueprint = blueprints[info.udid] else { return nil }
-            result.insert(SimulatorCatalog.kind(of: blueprint))
-        }
+        // 台の性質の観測(`DeviceTraitsObserver`)と同じ解決(`resolveSimulators`)。1台でも解決できなければ不明
+        let resolved = SimulatorCatalog.resolveSimulators(specs: specs, devices: devices, simctlJSON: json)
+        guard !resolved.contains(where: { $0 == nil }) else { return nil }
+        let result = Set(resolved.compactMap { $0.map { SimulatorCatalog.kind(of: $0.blueprint) } })
         return result
     }
 
@@ -53,7 +50,7 @@ enum IOSDeviceKindResolver {
         return results.value
     }
 
-    /// 機械 → `simctl list -j devices` の出力(nil = 読めなかった)。**プロセスで機械ごとに1回だけ撃つ** —— 複数対象の run は対象ごとに
+    /// 機械 → `simctl list -j devicetypes devices` の出力(nil = 読めなかった)。**プロセスで機械ごとに1回だけ撃つ** —— 複数対象の run は対象ごとに
     /// 配り手を作るので、引くたびに撃つと同じ機械へ ssh が対象の数だけ重なる。run の開始の時点の一覧 = 子の供給と同じ頃の観測
     private static let outputs = LockedValue<[String: String?]>([:])
     /// 機械ごとの撃つ順番(同じ機械を同時に2回撃たない。待った側は控えを読む)
@@ -75,10 +72,11 @@ enum IOSDeviceKindResolver {
         return output
     }
 
-    /// その機械の `simctl list -j devices`。**終了コードを見る**(失敗 = 不明。空として読まない)。
+    /// その機械の `simctl list -j devicetypes devices`。**終了コードを見る**(失敗 = 不明。空として読まない)。
     /// 中断で止まる(`abortable` = `BuildAbort` に載る。ssh は中断のリレーの例外にしない = process-lifecycle.md)
     static func simctlOutput(machine: String?) -> String? {
-        let words = ["xcrun", "simctl", "list", "-j", "devices"]
+        // devicetypes も読む = 台の性質の観測(`DeviceTraitsObserver`)が同じ出力を使う(simctl を2経路で読まない)
+        let words = ["xcrun", "simctl", "list", "-j", "devicetypes", "devices"]
         if MachineDispatch.isExplicitLocal(machine) || machine == nil {
             return (try? Shell.run(words, timeout: SimulatorCatalog.simctlTimeoutSeconds, abortable: true))?.outputIfSucceeded
         }
