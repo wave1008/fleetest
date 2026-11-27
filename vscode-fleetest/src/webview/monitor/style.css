@@ -1020,6 +1020,10 @@ body.vscode-dark .tacho-trend-line { filter: url(#tacho-trend-glow); }
 }
 .run-board-time {
   flex: 0 0 auto;
+  /* 行の左端(進捗バーの左)。幅を揃えてバーの左端を全 run 行で1本にする(0:20 も 12:34 も同じ幅) */
+  min-width: 5ch;
+  margin-right: 8px;
+  text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: var(--vscode-descriptionForeground);

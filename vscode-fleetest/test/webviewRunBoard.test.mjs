@@ -121,8 +121,8 @@ test("準備中の段階: 機械の行に「空き」の代わりに段階とプ
     stage("M1Max", "sendingScenarios"), stage("M1Ultra", "waitingForRunner"), stage("local", "from-the-future")] }] }));
   assert.deepEqual(machineRows(document), [
     "local空き",
-    "M1Max次の run を準備中: シナリオを送信中(E2E-RN / ios-inapp-boost)",
-    "M1Ultra次の run を準備中: ランナーの順番待ち(E2E-RN / ios-inapp-boost)",
+    "M1Maxシナリオを送信中(E2E-RN / ios-inapp-boost)",
+    "M1Ultraランナーの順番待ち(E2E-RN / ios-inapp-boost)",
   ], "未知の段階は空きへ倒す");
   const status = idleRows(document)[1].querySelector(".run-board-idle-machine-status");
   assert.equal(status.className.includes("run-board-machine-state-idle"), true, "警告色にしない(グレーの空きと同じクラス)");
@@ -304,7 +304,7 @@ test("Vision のコンパイル待ちの run は「Vision コンパイル中」�
   assert.equal(runRow.querySelector(".run-board-progress").style.display, "none");
 });
 
-test("動画の切り出し中は残りの代わりに「動画を編集中 n/m」を出し、本数と進捗バーはそのまま", (t) => {
+test("動画の切り出し中は本数の右に「動画を編集中 n/m」を出し、本数と進捗バーはそのまま", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
   post(window, { type: "monitorRuns", jobs: [], observed: true, services: [], runs: [{
@@ -315,7 +315,12 @@ test("動画の切り出し中は残りの代わりに「動画を編集中 n/m�
   const [runRow] = runRows(document);
   assert.equal(runRow.querySelector(".run-board-counts").textContent, "48/48");
   assert.notEqual(runRow.querySelector(".run-board-progress").style.display, "none");
-  assert.match(runRow.querySelector(".run-board-time").textContent, /^2:5\d \/ 動画を編集中 12\/48$/);
+  // 経過は進捗バーの左・切り出しの進みは本数の右(経過の幅を変えない)
+  assert.match(runRow.querySelector(".run-board-time").textContent, /^2:5\d$/);
+  const right = runRow.querySelector(".run-board-col-right");
+  assert.ok(right.firstElementChild.classList.contains("run-board-time"), "経過は右の欄の先頭(進捗バーの左)");
+  assert.equal(runRow.querySelector(".run-board-remaining").textContent, "動画を編集中 12/48");
+  assert.notEqual(runRow.querySelector(".run-board-remaining").style.display, "none");
 });
 
 test("再実行 ⟳n とレーン離脱には説明のツールチップが付き、0 に戻れば外れる", (t) => {

@@ -17,10 +17,10 @@ export const runBoardStrings = {
   "runBoard.collapseLanes": { ja: "デバイスごとの内訳を閉じる", en: "Hide per-device lanes" },
   "runBoard.machineIdle": { ja: "空き", en: "Free" },
   "runBoard.machinePreparing": {
-    ja: "次の run を準備中: {stage}({project} / {profile})",
-    en: "Preparing the next run: {stage} ({project} / {profile})",
+    ja: "{stage}({project} / {profile})",
+    en: "{stage} ({project} / {profile})",
   },
-  "runBoard.preparingStage.collectingResults": { ja: "前の結果を回収中", en: "Collecting the previous results" },
+  "runBoard.preparingStage.collectingResults": { ja: "結果を回収中", en: "Collecting the results" },
   "runBoard.preparingStage.waitingForRunner": { ja: "ランナーの順番待ち", en: "Waiting for the runner" },
   "runBoard.preparingStage.checkingRunner": { ja: "ランナーを確認中", en: "Checking the runner" },
   "runBoard.preparingStage.transferringProject": { ja: "プロジェクトを転送中", en: "Transferring the project" },

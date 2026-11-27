@@ -435,6 +435,7 @@ function updateIdleRow(row, entry) {
   row.notesEl.style.display = 'none';
   row.issuerEl.style.display = 'none';
   row.timeEl.style.display = 'none';
+  row.remainingEl.style.display = 'none';
   // 空きは語、**不明は「—」**(ユーザー決定)。どちらもグレーで警告色は使わない ——
   // 観測できていないのは異常ではない。**何のダッシュかは title で言う**
   row.statusEl.style.display = '';
@@ -604,21 +605,23 @@ function ensureRow(key) {
   // 経過の右は動画の切り出しの進みだけ(残り時間の見積もりは出さない = 動的な割り振りで当たらない。DR-238)
   const remainingEl = document.createElement('span');
   remainingEl.className = 'run-board-remaining';
-  timeEl.append(elapsedEl, remainingEl);
+  // 経過は行の左端(進捗バーの左。ユーザー決定)。動画の切り出しの進みは本数の右(経過の幅を変えてバーの位置をずらさない)
+  timeEl.append(elapsedEl);
+  remainingEl.style.display = 'none';
 
   // 2カラム(ユーザー決定): 左 = ツリー・右 = ステータス。**箱の幅は全行で同じ**
   // ので、境目(--rb-left)が行の種類によらず1本に見える
   const leftEl = document.createElement('span');
   leftEl.className = 'run-board-col-left';
   leftEl.append(chevronEl, machineCellEl, scopeEl, runningDevicesEl);
-  // 時刻より前(進捗バー・本数または準備中の一言・注記)を1つにまとめ、幅を全 run 行で揃える
-  // (--rb-lead = renderLeadWidth が最大を測る)= 経過 / 残りの左端が行の種類によらず1本に揃う(ユーザー決定)
+  // 進捗バー・本数または準備中の一言・注記を1つにまとめ、幅を全 run 行で揃える
+  // (--rb-lead = renderLeadWidth が最大を測る)= 右に続く状態の左端が行の種類によらず1本に揃う(ユーザー決定)
   const leadEl = document.createElement('span');
   leadEl.className = 'run-board-lead';
   leadEl.append(progressEl, countsEl, notesEl);
   const rightEl = document.createElement('span');
   rightEl.className = 'run-board-col-right';
-  rightEl.append(leadEl, statusEl, timeEl, servicesEl);
+  rightEl.append(timeEl, leadEl, statusEl, remainingEl, servicesEl);
   summaryEl.append(leftEl, rightEl);
 
   const issuerEl = document.createElement('div');
@@ -663,8 +666,9 @@ function renderRowTime(row) {
   const now = Date.now();
   row.elapsedEl.textContent = formatMinSec(liveElapsedSeconds(run.elapsedSeconds, run.receivedAtMs, now));
   row.remainingEl.textContent = run.videoClips
-    ? ' / ' + t('runBoard.encodingVideo', { done: String(run.videoClips.done), total: String(run.videoClips.total) })
+    ? t('runBoard.encodingVideo', { done: String(run.videoClips.done), total: String(run.videoClips.total) })
     : '';
+  row.remainingEl.style.display = run.videoClips ? '' : 'none';
 }
 
 function renderLaneTimes(row) {
