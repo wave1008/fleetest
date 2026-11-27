@@ -1018,11 +1018,13 @@ body.vscode-dark .tacho-trend-line { filter: url(#tacho-trend-glow); }
   white-space: nowrap;
   color: var(--vscode-descriptionForeground);
 }
-.run-board-time {
+.run-board-col-time {
+  /* 左右の列の間の、経過だけの列(ユーザー決定)。幅は全行で揃える(--rb-time = runBoard.js の renderLeadWidth)。
+     空きの行・デバイスの行も箱を持つ(右の列の左端を揃えるため)。左の 8px は境目から離すぶん(右の列は自分の padding-left で離れる) */
   flex: 0 0 auto;
-  /* 行の左端(進捗バーの左)。幅を揃えてバーの左端を全 run 行で1本にする(0:20 も 12:34 も同じ幅) */
-  min-width: 5ch;
-  margin-right: 8px;
+  box-sizing: content-box;
+  min-width: max(5ch, var(--rb-time, 0px) - 8px);
+  padding: 0 0 0 8px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

@@ -315,10 +315,12 @@ test("動画の切り出し中は本数の右に「動画を編集中 n/m」を�
   const [runRow] = runRows(document);
   assert.equal(runRow.querySelector(".run-board-counts").textContent, "48/48");
   assert.notEqual(runRow.querySelector(".run-board-progress").style.display, "none");
-  // 経過は進捗バーの左・切り出しの進みは本数の右(経過の幅を変えない)
+  // 経過は左右の列の間の独立した列・切り出しの進みは本数の右(経過の幅を変えない)
   assert.match(runRow.querySelector(".run-board-time").textContent, /^2:5\d$/);
-  const right = runRow.querySelector(".run-board-col-right");
-  assert.ok(right.firstElementChild.classList.contains("run-board-time"), "経過は右の欄の先頭(進捗バーの左)");
+  const time = runRow.querySelector(".run-board-col-time");
+  assert.ok(time.previousElementSibling.classList.contains("run-board-col-left"), "経過の列はツリーの列の右");
+  assert.ok(time.nextElementSibling.classList.contains("run-board-col-right"), "経過の列はステータスの列の左");
+  assert.equal(runRow.querySelector(".run-board-col-right .run-board-time"), null, "経過はステータスの列に入れない");
   assert.equal(runRow.querySelector(".run-board-remaining").textContent, "動画を編集中 12/48");
   assert.notEqual(runRow.querySelector(".run-board-remaining").style.display, "none");
 });
@@ -880,9 +882,11 @@ test("ステータスは右カラム・名前は左カラムに入る", (t) => {
   const summary = runRows(document)[0].querySelector(".run-board-row-summary");
   assert.match(colText(summary, "left"), /^▶local ?ec-mobile \/ ios-smoke ?\(1\)$/, "左 = 機械と run の範囲と実行中のデバイス数");
   assert.match(colText(summary, "right"), /7\/12/, "右 = 進捗");
-  assert.match(colText(summary, "right"), /4:21/, "右 = 経過");
+  assert.equal(colText(summary, "time"), "4:21", "経過は左右の間の独立した列");
+  assert.doesNotMatch(colText(summary, "right"), /4:21/, "経過はステータスの列に入れない");
   const lane = document.querySelector(".run-board-lane");
   assert.equal(colText(lane, "left"), "iPhone 17-01", "左 = 台の名前だけ");
+  assert.equal(colText(lane, "time"), "", "デバイスの行も経過の列の箱を持つ(右の列の左端を揃える)");
   assert.match(colText(lane, "right"), /05_検索/, "右 = 実行中のシナリオ");
 });
 
@@ -895,6 +899,10 @@ test("run の無い機械の行も同じ2カラム(名前は左・状態は右)"
   const status = header.querySelector(".run-board-idle-machine-status");
   assert.equal(status.textContent, "空き");
   assert.ok(status.closest(".run-board-col-right"), "状態は右カラムに居る");
+  // 経過の列は畳まずに隠す(畳むと「空き」の左端が run の行の右の列とずれる)
+  const time = header.querySelector(".run-board-col-time");
+  assert.notEqual(time.style.display, "none");
+  assert.equal(time.style.visibility, "hidden");
   // 「空き」は右カラムの左端(空の進捗数の箱を残すと gap と margin ぶん右へずれる)
   assert.equal(header.querySelector(".run-board-counts").style.display, "none");
   assert.equal(header.querySelector(".run-board-progress").style.display, "none");

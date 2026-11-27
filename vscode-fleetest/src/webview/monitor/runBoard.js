@@ -434,7 +434,8 @@ function updateIdleRow(row, entry) {
   row.countsEl.style.display = 'none';
   row.notesEl.style.display = 'none';
   row.issuerEl.style.display = 'none';
-  row.timeEl.style.display = 'none';
+  // 経過の列は箱を残す(畳むと右の列の左端が行ごとにずれる)
+  row.timeEl.style.visibility = 'hidden';
   row.remainingEl.style.display = 'none';
   // 空きは語、**不明は「—」**(ユーザー決定)。どちらもグレーで警告色は使わない ——
   // 観測できていないのは異常ではない。**何のダッシュかは title で言う**
@@ -594,8 +595,9 @@ function ensureRow(key) {
   statusEl.className = 'run-board-idle-machine-status';
   statusEl.style.display = 'none';
 
+  // 経過は左右の列の間の独立した列(ユーザー決定)。幅は全行で揃える(--rb-time = renderLeadWidth が測る)
   const timeEl = document.createElement('span');
-  timeEl.className = 'run-board-time';
+  timeEl.className = 'run-board-col-time run-board-time';
   // その機械のサーバー(常駐・持ち主なし・停止中。DS-18.10)。マシンの最初の行だけが出す(renderServices)
   const servicesEl = document.createElement('span');
   servicesEl.className = 'run-board-services';
@@ -605,7 +607,7 @@ function ensureRow(key) {
   // 経過の右は動画の切り出しの進みだけ(残り時間の見積もりは出さない = 動的な割り振りで当たらない。DR-238)
   const remainingEl = document.createElement('span');
   remainingEl.className = 'run-board-remaining';
-  // 経過は行の左端(進捗バーの左。ユーザー決定)。動画の切り出しの進みは本数の右(経過の幅を変えてバーの位置をずらさない)
+  // 動画の切り出しの進みは本数の右(経過の幅を変えてバーの位置をずらさない)
   timeEl.append(elapsedEl);
   remainingEl.style.display = 'none';
 
@@ -621,8 +623,8 @@ function ensureRow(key) {
   leadEl.append(progressEl, countsEl, notesEl);
   const rightEl = document.createElement('span');
   rightEl.className = 'run-board-col-right';
-  rightEl.append(timeEl, leadEl, statusEl, remainingEl, servicesEl);
-  summaryEl.append(leftEl, rightEl);
+  rightEl.append(leadEl, statusEl, remainingEl, servicesEl);
+  summaryEl.append(leftEl, timeEl, rightEl);
 
   const issuerEl = document.createElement('div');
   issuerEl.className = 'run-board-issuer';
@@ -734,7 +736,10 @@ function appendDeviceLane(row, machine, name, lane, receivedAtMs, platform) {
   const rightEl = document.createElement('span');
   rightEl.className = 'run-board-col-right';
   rightEl.append(scenarioEl, elapsedEl);
-  laneEl.append(leftEl, rightEl);
+  // 経過の列は空のまま幅だけ取る(右の列の左端を run の行と揃える)
+  const timeColEl = document.createElement('span');
+  timeColEl.className = 'run-board-col-time';
+  laneEl.append(leftEl, timeColEl, rightEl);
   // **デバイスの行は押しても何も起きない**(ユーザー決定)—— ここは実行状況を読む場所で、
   // ラインビューの選択を動かす口ではない(選択は機械の行が持つ)
   row.lanesEl.appendChild(laneEl);
@@ -771,7 +776,7 @@ function updateRow(row, run) {
   row.statusEl.style.display = 'none';
   row.leadEl.style.display = '';
   row.countsEl.style.display = '';
-  row.timeEl.style.display = '';
+  row.timeEl.style.visibility = '';
   row.rowEl.classList.toggle('run-board-row-hasFailed', run.failed > 0);
   showMachineBadge(row, run.machine);
 
@@ -1134,11 +1139,17 @@ function render() {
  *  自然な幅を測るため一度 0 に戻してから読む(要素は作り直さない)。空きの行は時刻を持たないので対象外 */
 function renderLeadWidth() {
   runBoard.style.setProperty('--rb-lead', '0px');
+  runBoard.style.setProperty('--rb-time', '0px');
   let widest = 0;
+  let widestTime = 0;
   for (const row of rows.values()) {
-    if (row.run) { widest = Math.max(widest, row.leadEl.offsetWidth); }
+    if (row.run) {
+      widest = Math.max(widest, row.leadEl.offsetWidth);
+      widestTime = Math.max(widestTime, row.timeEl.offsetWidth);
+    }
   }
   runBoard.style.setProperty('--rb-lead', widest + 'px');
+  runBoard.style.setProperty('--rb-time', widestTime + 'px');
 }
 
 // ---- アクション/秒メーター(見出しの「実行状況」の右。純粋ロジックは actionTachometerModel.ts) ----
