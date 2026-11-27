@@ -433,9 +433,12 @@ extension StepExecutor {
         }
         // 逆走査を撃った失敗だけ(数に入らない遅いドラッグが走り、画面が戻されていることを見せる)。
         // **「reached its end」「not reaching a scrolling area」を含めない**: 順方向の事実を言う別の分岐の語
+        // 逆走査は探索を始めた位置で止める(DR-189)= その手前は探していない。何も動かなかった分岐と同じく逆向きを名指す
         let sweepNote = result?.reverseSweepRan == true
             ? " (then a reverse sweep of \(result?.reverseSweepDrags ?? 0) slow drag(s) the opposite way"
-              + " (not counted in the \(swipes) above) also found nothing, so the screen is left at the swept-back position)"
+              + " (not counted in the \(swipes) above) also found nothing back to where the search started, so the screen is"
+              + " left at the swept-back position; what lies before that starting position was not searched — if the element is"
+              + " on that side, search with \(step.action == "scrollTo" ? "direction" : "scroll"): .\(direction.rawValue))"
             : ""
         // 入れ子で外側の一覧が動いた失敗(動かなかった形は上の stopped が言う)。払いが届いたのは scrollFrame ではない
         let otherAxisNote = result?.scrollFrameOtherAxis == true && result?.stoppedUnmoving != true

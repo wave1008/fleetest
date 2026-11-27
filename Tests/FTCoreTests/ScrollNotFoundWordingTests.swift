@@ -34,6 +34,9 @@ final class ScrollNotFoundWordingTests: XCTestCase {
                                                    defaultMaxSwipes: 8)
         XCTAssertTrue(m.contains("reverse sweep of 2 slow drag(s)"), m)
         XCTAssertTrue(m.contains("not counted in the 3 above"), m)
+        // 逆走査は開始位置で止める = その手前は探していないことと、逆向きの書き方を言う(探索 11/27 iultra F1)
+        XCTAssertTrue(m.contains("was not searched"), m)
+        XCTAssertTrue(m.contains("search with direction: .up"), m)  // step の direction は指の向き(up = 下へ送る)= 逆は .up
     }
 
     /// 撃っていなければ言わない
