@@ -41,7 +41,7 @@ final class DisplaySettingsTests: XCTestCase {
         XCTAssertEqual(DisplayCommandBudget.interrupted, DisplayCommandBudget(timeoutSeconds: 5, retries: 0))
     }
 
-    /// devicectl は `--timeout` が 5 未満だと撃たずに exit 64 で断る(2026-11-28 の中断の戻しが毎回失敗した)。どの上限も下限を下回らない
+    /// devicectl は `--timeout` が 5 未満だと撃たずに exit 64 で断る(中断の戻しが毎回失敗した)。どの上限も下限を下回らない
     func testEveryBudgetMeetsTheDevicectlMinimum() {
         for budget in [DisplayCommandBudget.normal, .interrupted] {
             XCTAssertGreaterThanOrEqual(budget.timeoutSeconds, DisplaySettingsLimits.devicectlMinimumTimeoutSeconds, "\(budget)")

@@ -280,7 +280,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         XCTAssertEqual(d.unhandedUnits, [])
     }
 
-    // MARK: - Android Emulator の種類(DR-214・2026-11-28)
+    // MARK: - Android Emulator の種類(DR-214)
 
     private let androidFold = Scenario(id: "AFold.S1", variant: nil, platform: "android")
     private static let pixelKind = "android|pixel_10_pro|system-images/android-37/google_apis/arm64-v8a|hinge=no"
