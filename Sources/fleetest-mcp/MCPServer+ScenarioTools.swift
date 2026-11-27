@@ -285,7 +285,11 @@ extension MCPServer {
             throw MCPError(error.localizedDescription)
         }
         // クラスの寄せ方(RR-8.3): 選び方の検査と並べ替え。ft_dry_run には掛けない
-        let infos = try Self.placementPlan(selected: resolved, all: all)
+        var infos = try Self.placementPlan(selected: resolved, all: all)
+        let selectedCount = infos.count
+        // 台の条件(DR-237)で対象外にしたテストと、条件で選んだプロファイルの台(宣言が無ければどちらも空 = 従来どおり)
+        var selectionSkipped: [(id: String, reason: String)] = []
+        var chosenDeviceName: String?
         var placementGate = InOrderGate()
 
         var exec = ScenarioExecutionSettings(heal: args["heal"] as? Bool ?? false)
@@ -300,12 +304,25 @@ extension MCPServer {
         var appBundleID: String?
 
         if let profileName = args["profile"] as? String {
+            if ScenarioDeviceSelection.isDeclared(infos),
+               let profileForSelection = try? ProfileResolver.resolve(project: project, runName: profileName) {
+                let selectionPlatform = infos.first?.platform ?? profileForSelection.undeclaredScenarioPlatform
+                let devices = profileForSelection.devices.filter { $0.platform == selectionPlatform }
+                if let result = ScenarioDeviceSelection.select(
+                    infos: infos, candidates: { ScenarioDeviceSelection.profileCandidates(devices: devices) }),
+                   let early = try deviceSelectionOutcome(
+                    result, names: devices.map(\.name), args: args, project: project, infos: &infos,
+                    skipped: &selectionSkipped, chosenName: &chosenDeviceName, prologue: &prologue) {
+                    return early
+                }
+            }
             // 接続先はシナリオ(クラス展開時は先頭本)の platform に合う先頭デバイス(未宣言なら run と同じ規則)。
             // プロファイル自身の machine 指定が最優先。クラスが複数 platform に跨る束は
             // 想定していない(1回の ft_run_scenario 呼び出し = 1接続)
             let (platform, resolved, target) = try await resolveProfileTarget(
                 project: project, profileName: profileName,
-                platformArg: infos.first?.platform, fallback: .undeclaredScenario, prologue: &prologue)
+                platformArg: infos.first?.platform, fallback: .undeclaredScenario,
+                deviceName: chosenDeviceName, prologue: &prologue)
             // **プロファイルの実行設定は丸ごと通す**(欄ごとに拾うと、足した欄が黙って落ちる)
             exec = ScenarioExecutionSettings(resolved)
             // heal 引数は override(未指定は resolved のまま)。FM を使わないので fm.enabled は見ない
@@ -366,6 +383,16 @@ extension MCPServer {
                     platform: platform,
                     serial: try Self.resolveAndroidSerial(explicit: args["serial"] as? String))
             }
+            // 直指定の台も観測して同じ判定にかける(宣言が無ければ観測しない)
+            let directConnection = connection
+            if let result = ScenarioDeviceSelection.select(
+                infos: infos, candidates: { [ScenarioDeviceSelection.directCandidate(directConnection)] }),
+               let early = try deviceSelectionOutcome(
+                result, names: [directConnection.udid ?? directConnection.serial ?? "device"], args: args,
+                project: project, infos: &infos, skipped: &selectionSkipped, chosenName: &chosenDeviceName,
+                prologue: &prologue, announceChoice: false) {
+                return early
+            }
         }
 
         // **実デバイスへ触る手前で MCP のデバイスの印を書く**(MCPServer+Dispatch.swift の
@@ -405,6 +432,9 @@ extension MCPServer {
         // 最初に落ちたシナリオのレポート(証跡の読み先)。scenarioFinished が運ぶ
         var firstFailedReport: String?
         var outcomes: [(id: String, passed: Bool, reportPath: String?, skipped: Bool)] = []
+        lines.append(contentsOf: ScenarioDeviceSelection.skippedLines(selectionSkipped))
+        outcomes.append(contentsOf: selectionSkipped.map { ($0.id, true, nil, true) })
+        skippedCount += selectionSkipped.count
         // 1回の呼び出し = 1デバイス(connection は1つ)= 1セッション。ロックは**MCP サーバーのプロセスで1つのホスト**を共有する
         // (別々の呼び出しが別のデバイスで同時に走りうるので、その場で渡さない)。設定は呼び出しごとに足し込む
         RunLockHost.mcpShared(project: project.name).configure(project: project, scenarioTimeouts: infos.map(\.scenarioTimeout),
@@ -493,7 +523,7 @@ extension MCPServer {
            let holder = RunLease.holderPID(stateDir: stateDir, key: deviceKey), holder != runHolderAtStart {
             lines.append(Self.runTookDeviceDuringCallNote(holderPID: holder))
         }
-        if infos.count > 1 {
+        if selectedCount > 1 {
             lines.append("\(passedCount) passed / \(failedCount) failed"
                 + (skippedCount > 0 ? " / \(skippedCount) skipped" : ""))
         }
@@ -513,6 +543,38 @@ extension MCPServer {
             throw MCPToolFailure(content: body + evidence)
         }
         return body
+    }
+
+    /// 台の条件の判定(`ScenarioDeviceSelection.select`)の結果を呼び出しへ反映する。nil = そのまま走らせる
+    /// (走らせるテストを絞り、プロファイルなら台を決める)。返す値があれば走らせずにそれを返す(全部対象外 = 非エラー)。
+    /// 台の性質が読めなければ投げる(エラー。読めなかった台を「合わない」に丸めない)
+    func deviceSelectionOutcome(
+        _ result: ScenarioDeviceSelection.Result, names: [String], args: [String: Any], project: TestProject,
+        infos: inout [ScenarioInfo], skipped: inout [(id: String, reason: String)], chosenName: inout String?,
+        prologue: inout [String], announceChoice: Bool = true) throws -> [[String: Any]]? {
+        switch result {
+        case .unreadable(let message):
+            throw MCPError("not run: " + message)
+        case .nothingApplicable(let skippedAll):
+            var lines = prologue
+            if let note = skipBuildStaleNote(args, project: project) { lines.insert(note, at: 0) }
+            lines += ScenarioDeviceSelection.skippedLines(skippedAll)
+            lines.append("not applicable: no test of this call can run on the device(s) considered — nothing was run")
+            let outcomes = skippedAll.map { (id: $0.id, passed: true, reportPath: String?.none, skipped: true) }
+            return text(MCPMessageText.forMCP(lines.joined(separator: "\n")))
+                + [Self.structuredMarker(Self.scenarioRunSummary(outcomes))]
+        case .run(let chosen, let runnable, let skippedSome):
+            infos = runnable
+            skipped = skippedSome
+            if announceChoice {
+                chosenName = names[chosen]
+                // 条件で選んだと言うのは、走るテストに条件の宣言があるときだけ(宣言したテストが全部対象外なら条件で選んだのではない)
+                if runnable.contains(where: { !($0.deviceRequirements?.isEmpty ?? true) }) {
+                    prologue.append("ℹ️ chose device \(names[chosen]) by the declared device conditions")
+                }
+            }
+            return nil
+        }
     }
 
     /// 呼び出しの間に別の `fleetest run` がこのデバイスを使い始めた。run はアプリを入れ直して起動し直すので、

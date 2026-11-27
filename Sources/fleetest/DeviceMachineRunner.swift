@@ -212,7 +212,7 @@ enum DeviceMachineRunner {
                     let (platformRunnable, notApplicable) = splitApplicable(selected: selected, groups: groups, plan: plan)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
                     let (runnable, unmet) = candidacy.split(platformRunnable)
-                    for line in DeviceRequirementFanout.unmetLines(unmet) { FleetRunner.log(line) }
+                    for line in DeviceRequirementFanout.unmetLines(unmet, facts: candidacy.unmetFacts) { FleetRunner.log(line) }
                     let resolved = DynamicDispatcher.resolve(
                         runnable, plan: plan, defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
                     active = groups.indices.compactMap { index -> (Int, Group, [ScenarioUnitKey])? in
@@ -233,7 +233,7 @@ enum DeviceMachineRunner {
                         project: project, groups: groups, selected: selected, plan: plan, lptHistoryRuns: lptHistoryRuns,
                         candidacy: candidacy)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
-                    for line in DeviceRequirementFanout.unmetLines(unmet) { FleetRunner.log(line) }
+                    for line in DeviceRequirementFanout.unmetLines(unmet, facts: candidacy.unmetFacts) { FleetRunner.log(line) }
                     active = groups.indices.compactMap { index -> (Int, Group, [ScenarioUnitKey])? in
                         let ids = buckets[index].units
                         return ids.isEmpty ? nil : (index, groups[index], ids)

@@ -292,7 +292,7 @@ enum MultiTargetRunner {
                     for line in DeviceMachineRunner.notApplicableLines(notApplicable, groups: target.groups) {
                         FleetRunner.log(line)
                     }
-                    for line in DeviceRequirementFanout.unmetLines(unmet) { FleetRunner.log(line) }
+                    for line in DeviceRequirementFanout.unmetLines(unmet, facts: candidacy.unmetFacts) { FleetRunner.log(line) }
                     if ProfileResolver.declaresResponseMeasurement(
                         project: target.project, runName: target.profile, overrides: setOverrides),
                        let message = ClassPlacementRules.measurementError(runnable) {

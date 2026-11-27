@@ -158,7 +158,10 @@ final class DeviceRequirementFanoutTests: XCTestCase {
         let (kept, unmet) = c.split(selected)
         XCTAssertEqual(kept.map(\.id), ["A.any"])
         XCTAssertEqual(unmet.map(\.id), ["A.fold"])
-        XCTAssertTrue(DeviceRequirementFanout.unmetLines(unmet)[0].contains("1 scenario(s)"))
+        let lines = DeviceRequirementFanout.unmetLines(unmet, facts: c.unmetFacts)
+        XCTAssertTrue(lines[0].contains("1 scenario(s)"))
+        // 1機械の中の結論と同じく、合わなかった台(機械つき)と理由を言う
+        XCTAssertTrue(lines[1].contains("local/sim: unfit (.foldable is required)"), lines[1])
     }
 
     func testUndeclaredRunIsUnconstrainedAndObservesNothing() {

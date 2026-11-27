@@ -97,8 +97,11 @@ enum DeviceRequirementFanout {
         let entries: [ScenarioUnitKey: Set<Int>]
         /// 候補が1つも無い単位(全台が読めて合う台が無い = 対象外。読めない台があれば候補になるのでここには来ない)
         let unmet: Set<ScenarioUnitKey>
+        /// 配れない単位のシナリオ ID → 合わなかった台と理由(`DeviceRequirementMatch.noMatchFacts`。台は `<機械>/<名前>`)。
+        /// 1機械の中の結論と同じ事実をログに出す(機械をまたぐ run はこの単位を子へ渡さない = 子の結論の文が出ない)
+        let unmetFacts: [String: [String]]
 
-        static let unconstrained = Candidacy(entries: [:], unmet: [])
+        static let unconstrained = Candidacy(entries: [:], unmet: [], unmetFacts: [:])
 
         func isCandidate(_ unit: ScenarioUnitKey, entry: Int) -> Bool { entries[unit]?.contains(entry) ?? true }
 
@@ -109,21 +112,27 @@ enum DeviceRequirementFanout {
         }
     }
 
-    /// `entryDevices[i]` = エントリ i の台の性質。単位の OS は `platformOf`(解決済み。nil = どちらでも)
+    /// `entryDevices[i]` = エントリ i の台(識別子 `<機械>/<名前>` と性質)。単位の OS は `platformOf`(解決済み。nil = どちらでも)
     static func candidacy(units: [ScenarioUnitKey], requirements: [String: DeviceRequirementSet],
-                          platformOf: (ScenarioUnitKey) -> String?, entryDevices: [[DeviceTraits]]) -> Candidacy {
+                          platformOf: (ScenarioUnitKey) -> String?,
+                          entryDevices: [[DeviceRequirementMatch.Device]]) -> Candidacy {
         var entries: [ScenarioUnitKey: Set<Int>] = [:]
         var unmet = Set<ScenarioUnitKey>()
+        var facts: [String: [String]] = [:]
         for unit in units {
             guard let set = requirements[unit.id], !set.isEmpty else { continue }
             let platform = platformOf(unit)
             let ok = Set(entryDevices.indices.filter {
-                DeviceRequirementCandidacy.isCandidate(set, platform: platform, devices: entryDevices[$0])
+                DeviceRequirementCandidacy.isCandidate(set, platform: platform, devices: entryDevices[$0].map(\.traits))
             })
             entries[unit] = ok
-            if ok.isEmpty { unmet.insert(unit) }
+            if ok.isEmpty {
+                unmet.insert(unit)
+                let sameOS = entryDevices.flatMap { $0 }.filter { platform == nil || $0.traits.platform == platform }
+                facts[unit.id] = DeviceRequirementMatch.noMatchFacts(set, devices: sameOS)
+            }
         }
-        return Candidacy(entries: entries, unmet: unmet)
+        return Candidacy(entries: entries, unmet: unmet, unmetFacts: facts)
     }
 
     /// 機械分担: グループ = エントリ。宣言が無い(観測していない)ときは `.unconstrained`
@@ -138,19 +147,21 @@ enum DeviceRequirementFanout {
         }
         let entryDevices = groups.map { group in
             DeviceRequirementCandidacy.childTraits(observed, machine: group.machine, deviceNames: group.deviceNames)
-                .values.map { $0 }
+                .sorted { $0.key < $1.key }
+                .map { (id: "\(DeviceRequirementTrim.machineKey(group.machine))/\($0.key)", traits: $0.value) }
         }
         return candidacy(units: plan.units(of: selected), requirements: requirements,
                          platformOf: { platforms[$0.id] }, entryDevices: entryDevices)
     }
 
     /// 親が仕分けた「配れない単位」の1行(英語)。件数つき。呼び手が notApplicable として数える
-    static func unmetLines(_ unmet: [ScenarioInfo]) -> [String] {
+    static func unmetLines(_ unmet: [ScenarioInfo], facts: [String: [String]]) -> [String] {
         guard !unmet.isEmpty else { return [] }
         var lines = ["→ Skipped \(unmet.count) scenario(s): no device of this run matches their declared device conditions"]
         for info in unmet {
             let conditions = info.deviceRequirements.map(DeviceRequirementGate.describe) ?? ""
-            lines.append("    \(info.id): not applicable — \(conditions)")
+            let detail = (facts[info.id] ?? []).joined(separator: "; ")
+            lines.append("    \(info.id): not applicable — \(conditions)" + (detail.isEmpty ? "" : " — \(detail)"))
         }
         return lines
     }

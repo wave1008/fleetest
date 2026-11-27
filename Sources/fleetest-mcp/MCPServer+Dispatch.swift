@@ -224,7 +224,7 @@ extension MCPServer {
     /// BridgeProvisioner.provision を伴うため、初回コールドスタートは分単位かかりうる
     func resolveProfileTarget(
         project: TestProject, profileName: String, platformArg: String?, fallback: PlatformFallback,
-        prologue: inout [String]
+        deviceName: String? = nil, prologue: inout [String]
     ) async throws -> (platform: String, resolved: ResolvedProfile, target: ResolvedDriverTarget) {
         let resolved = try ProfileResolver.resolve(project: project, runName: profileName)
         prologue.append(contentsOf: resolved.warnings.map { "⚠️ \($0)" })
@@ -240,12 +240,12 @@ extension MCPServer {
             prologue.append("→ Staged app package(s) into the workspace: " + staged.joined(separator: ", "))
         }
         let platform = platformArg ?? Self.fallbackPlatform(fallback, resolved: resolved)
-        guard let device = resolved.devices.first(where: { $0.platform == platform }) else {
+        guard let device = resolved.devices.first(where: { $0.platform == platform && (deviceName == nil || $0.name == deviceName) }) else {
             throw MCPError("profile \(profileName) has no \(platform) device")
         }
         // 2台以上あるのに先頭を使うことを黙らない(回帰の使っている1台目へ黙って向く)。他の台は serial / udid で指せる
         let sameOS = resolved.devices.filter { $0.platform == platform }
-        if sameOS.count > 1 {
+        if sameOS.count > 1, deviceName == nil {
             prologue.append("⚠️ profile \(profileName) has \(sameOS.count) \(platform) devices; using the first (\(device.name))."
                 + " To drive another one, drop profile and pass \(platform == "ios" ? "udid" : "serial")"
                 + " (ft_list_devices lists them; profile cannot be combined with it): "

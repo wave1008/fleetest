@@ -2,6 +2,7 @@
 // (`--device-traits`)・`--port` の run の台の観測。`fleetest run` と `api run` は同じ関数を呼ぶ(判定を2か所に置かない)。
 
 import ArgumentParser
+import FTAndroid
 import FTBridgeClient
 import FTCore
 import Foundation
@@ -64,16 +65,8 @@ enum DeviceRequirementEntry {
     /// **udid が無い・一覧に無い台は読めなかった**(種別だけ確定。他の性質は nil)。`simctlJSON` は `simctl list -j devicetypes devices` の出力
     static func portTraits(udid: String?, physical: Bool, simctlJSON: [String: Any]?,
                            physicalDevices: [IOSPhysicalDeviceInfo]?) -> DeviceTraits {
-        if physical {
-            guard let udid, let device = physicalDevices?.first(where: { $0.udid == udid || $0.deviceCtlIdentifier == udid })
-            else { return IOSPhysicalDeviceTraits.unreadable }
-            return IOSPhysicalDeviceTraits.traits(of: device)
-        }
-        guard let udid, let simctlJSON,
-              let sim = SimulatorCatalog.resolveSimulator(udid: udid, simctlJSON: simctlJSON) else {
-            return SimulatorCatalog.unresolvedTraits
-        }
-        return SimulatorCatalog.traits(of: sim, capabilitiesPlist: SimulatorCatalog.capabilitiesPlistData(bundlePath: sim.bundlePath))
+        DeviceTraitsObservation.portTraits(udid: udid, physical: physical, simctlJSON: simctlJSON,
+                                           physicalDevices: physicalDevices)
     }
 
     /// 実機の観測(`physical` のときだけ devicectl を撃つ)・simctl の JSON は機械で1回

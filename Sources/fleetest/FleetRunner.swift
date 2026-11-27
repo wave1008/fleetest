@@ -251,10 +251,12 @@ enum FleetRunner {
             let candidacy = DeviceRequirementFanout.candidacy(
                 units: runnable.map { ScenarioUnitKey(id: $0.id, variant: $0.variant) }, requirements: requirements,
                 platformOf: { platforms[$0.id] ?? nil },
-                entryDevices: fleet.runs.indices.map { Array((observed[String($0)] ?? [:]).values) })
+                entryDevices: fleet.runs.indices.map { index in
+                    (observed[String(index)] ?? [:]).sorted { $0.key < $1.key }.map { (id: "\(index)/\($0.key)", traits: $0.value) }
+                })
             let unmetIDs = Set(candidacy.unmet.map(\.id))
             let unmet = selected.filter { unmetIDs.contains($0.id) }
-            for line in DeviceRequirementFanout.unmetLines(unmet) { log(line) }
+            for line in DeviceRequirementFanout.unmetLines(unmet, facts: candidacy.unmetFacts) { log(line) }
             runnable = runnable.filter { !unmetIDs.contains($0.id) }
             candidates = candidacy.entries
         }

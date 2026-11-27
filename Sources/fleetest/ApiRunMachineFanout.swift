@@ -164,7 +164,7 @@ enum ApiRunMachineFanout {
                     }
                 }
                 for line in DeviceMachineRunner.notApplicableLines(notApplicable, groups: groups) { logStderr(line) }
-                for line in DeviceRequirementFanout.unmetLines(unmet) { logStderr(line) }
+                for line in DeviceRequirementFanout.unmetLines(unmet, facts: candidacy.unmetFacts) { logStderr(line) }
                 // 全部が宣言 platform の対象外なら単機の run と同じく 0/0 で終える(正しく緑)。
                 // それ以外で全滅(= 対象外でもないのに割り当て 0)は FleetSplit.partition が設定ミスとして
                 // throw 済みなので、ここへは来ない

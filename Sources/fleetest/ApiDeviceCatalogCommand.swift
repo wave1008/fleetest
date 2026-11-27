@@ -228,13 +228,7 @@ struct ApiDeviceCatalogCommand: AsyncParsableCommand {
 
     /// `    id: 26 or "pixel_9_pro"` から id_string("pixel_9_pro")を取り出す
     static func extractDeviceID(from line: String) -> String? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("id:") else { return nil }
-        guard let firstQuote = trimmed.firstIndex(of: "\""),
-              let lastQuote = trimmed.lastIndex(of: "\""), firstQuote != lastQuote else {
-            return nil
-        }
-        return String(trimmed[trimmed.index(after: firstQuote)..<lastQuote])
+        DeviceTraitsObservation.extractDeviceID(from: line)
     }
 
     /// models の並び順: Pixel系(id が "pixel" で始まる)を先頭に、id 中の数値の降順
