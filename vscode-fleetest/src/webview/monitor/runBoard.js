@@ -35,7 +35,6 @@ import {
   jobKey,
   machinesWithoutRuns,
   liveElapsedSeconds,
-  liveRemaining,
   currentSupplyStep,
   machineServicesNotes,
 } from '../../runBoardModel';
@@ -585,9 +584,10 @@ function ensureRow(key) {
   servicesEl.style.display = 'none';
   const elapsedEl = document.createElement('span');
   elapsedEl.className = 'run-board-elapsed';
+  // 経過の右は動画の切り出しの進みだけ(残り時間の見積もりは出さない = 動的な割り振りで当たらない。DR-238)
   const remainingEl = document.createElement('span');
   remainingEl.className = 'run-board-remaining';
-  timeEl.append(elapsedEl, document.createTextNode(' / '), remainingEl);
+  timeEl.append(elapsedEl, remainingEl);
 
   // 2カラム(ユーザー決定): 左 = ツリー・右 = ステータス。**箱の幅は全行で同じ**
   // ので、境目(--rb-left)が行の種類によらず1本に見える
@@ -645,20 +645,9 @@ function renderRowTime(row) {
   }
   const now = Date.now();
   row.elapsedEl.textContent = formatMinSec(liveElapsedSeconds(run.elapsedSeconds, run.receivedAtMs, now));
-  if (run.videoClips) {
-    row.remainingEl.textContent = t('runBoard.encodingVideo', {
-      done: String(run.videoClips.done), total: String(run.videoClips.total),
-    });
-    return;
-  }
-  const remaining = liveRemaining(run.etaSeconds, run.receivedAtMs, now);
-  if (!remaining) {
-    row.remainingEl.textContent = t('runBoard.remainingUnknown');
-  } else if (remaining.overageSeconds !== undefined) {
-    row.remainingEl.textContent = t('runBoard.remainingOverage', { time: formatMinSec(remaining.overageSeconds) });
-  } else {
-    row.remainingEl.textContent = t('runBoard.remainingTime', { time: formatMinSec(remaining.remainingSeconds) });
-  }
+  row.remainingEl.textContent = run.videoClips
+    ? ' / ' + t('runBoard.encodingVideo', { done: String(run.videoClips.done), total: String(run.videoClips.total) })
+    : '';
 }
 
 function renderLaneTimes(row) {

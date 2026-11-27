@@ -70,12 +70,12 @@ polling (screenshots at a fixed interval); the choice is remembered per workspac
   values arrive). Turning off **"Show memory size and core counts"** (Device Monitor section of the Settings tab,
   on by default) shows the bare `CPU` / `GPU` / `MEM`.
 - The **run board** under the toolbar (headed "Run status") shows one row per machine — this Mac and every registered
-  runner machine. A run going on right now appears on its machine's row with "N of M done" and an
-  estimated time left — not just runs you started, but CLI runs and other people's runs too. Before the
+  runner machine. A run going on right now appears on its machine's row with "N of M done" and the
+  elapsed time (no time left is shown, because scenarios are handed out dynamically) — not just runs you started, but CLI runs and other people's runs too. Before the
   run starts, the row says what it is doing instead of the counts ("Building scenarios…", "Starting device
   preparation…", "Starting the servers…", "Building the runner…", "Booting devices…", "Starting the bridge…", "Configuring devices…", "Installing the app…",
   "Starting tests…").
-  When the run records video, the time left is replaced by "Encoding videos 12/48" (clips done / all clips)
+  When the run records video, "Encoding videos 12/48" follows the elapsed time (clips done / all clips)
   while the clips are cut after the last scenario.
   The "(3)" right of the run's name is the number of devices running a scenario right now.
   Expanding a row lists that machine's devices; clicking a row selects them in the Line View.

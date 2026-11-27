@@ -11,7 +11,6 @@ import {
   buildRunGroups,
   machinesWithoutRuns,
   liveElapsedSeconds,
-  liveRemaining,
   LOCAL_MACHINE_KEY,
   machineRunStatus,
   currentSupplyStep,
@@ -175,24 +174,6 @@ test("observed:false の機械の run は数えない・出さない(不明を�
   assert.deepEqual(buildRunGroups(state), []);
 });
 
-test("全 run が見積もりを持つときだけ etaSeconds を出す(1本でも欠けたら省く)", () => {
-  let state = applyMonitorRunsEvent(new Map(), {
-    machine: "A", observed: true, runs: [run({ runID: "a", runGroup: "g", etaSeconds: 100 })],
-  });
-  state = applyMonitorRunsEvent(state, {
-    machine: "B", observed: true, runs: [run({ runID: "b", runGroup: "g", etaSeconds: undefined })],
-  });
-  assert.equal(buildRunGroups(state)[0].etaSeconds, undefined);
-
-  const complete = applyMonitorRunsEvent(new Map(), {
-    machine: "A", observed: true, runs: [run({ runID: "a", runGroup: "g2", etaSeconds: 100 })],
-  });
-  const both = applyMonitorRunsEvent(complete, {
-    machine: "B", observed: true, runs: [run({ runID: "b", runGroup: "g2", etaSeconds: 200 })],
-  });
-  assert.equal(buildRunGroups(both)[0].etaSeconds, 200, "最大値(直列化された下限)");
-});
-
 test("全 run が動画の切り出し中のときだけ videoClips を合計する(1本でもシナリオを回していれば省く)", () => {
   let state = applyMonitorRunsEvent(new Map(), {
     machine: "A", observed: true, runs: [run({ runID: "a", runGroup: "g", videoClips: { done: 3, total: 10 } })],
@@ -230,17 +211,6 @@ test("liveElapsedSeconds は受信からの経過を足す(負にはならない
   const receivedAtMs = 1_000_000;
   assert.equal(liveElapsedSeconds(10, receivedAtMs, receivedAtMs + 5_000), 15);
   assert.equal(liveElapsedSeconds(10, receivedAtMs, receivedAtMs - 5_000), 10, "巻き戻った時計では減らさない");
-});
-
-test("liveRemaining: 見積もり無しは undefined、残っている間は remainingSeconds、超過したら overageSeconds", () => {
-  const receivedAtMs = 1_000_000;
-  assert.equal(liveRemaining(undefined, receivedAtMs, receivedAtMs), undefined);
-  const counting = liveRemaining(100, receivedAtMs, receivedAtMs + 40_000);
-  assert.equal(counting.remainingSeconds, 60);
-  assert.equal(counting.overageSeconds, undefined);
-  const overdue = liveRemaining(100, receivedAtMs, receivedAtMs + 130_000);
-  assert.equal(overdue.remainingSeconds, 0);
-  assert.equal(overdue.overageSeconds, 30);
 });
 
 // ---- 供給の段階(supply)-----------------------------------------------------------------------

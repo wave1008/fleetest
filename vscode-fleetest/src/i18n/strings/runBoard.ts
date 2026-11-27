@@ -59,11 +59,6 @@ export const runBoardStrings = {
   "runBoard.compiling": { ja: "Vision コンパイル中", en: "Compiling Vision…" },
   "runBoard.laneIdle": { ja: "⏹ 待機", en: "⏹ Waiting" },
   "runBoard.remainingUnknown": { ja: "—", en: "—" },
-  "runBoard.remainingTime": { ja: "残 ~{time}", en: "~{time} left" },
-  "runBoard.remainingOverage": {
-    ja: "残 ~0:00(+{time} 超過)",
-    en: "~0:00 left (+{time} over)",
-  },
   "runBoard.encodingVideo": { ja: "動画を編集中 {done}/{total}", en: "Encoding videos {done}/{total}" },
   // アクション/秒メーター(見出し「実行状況」の右)。ja の「マシン」は利用者向け表記
   "runBoard.tachometerUnit": { ja: "アクション/秒", en: "actions/s" },

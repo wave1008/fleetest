@@ -68,7 +68,7 @@ export interface RunBoardRawRun {
   readonly textlessDevices: number;
   readonly etaSeconds?: number;
   readonly lanes: readonly RunBoardLane[];
-  /** 全シナリオの後の動画の切り出しの進み(切り出しの間だけ。その間 etaSeconds は省かれる)。 */
+  /** 全シナリオの後の動画の切り出しの進み(切り出しの間だけ)。 */
   readonly videoClips?: RunBoardVideoClips;
 }
 
@@ -256,13 +256,10 @@ export interface RunBoardGroup {
   /** 経過は最も長く走っている run(= 束ねた中の最大)。receivedAtMs 時点の値 —— 秒読みは
    * liveElapsedSeconds(elapsedSeconds, receivedAtMs, now) で進める。 */
   readonly elapsedSeconds: number;
-  /** 全 run が見積もりを持つときだけ最大値(直列化された下限)。1本でも欠けたら省く = 「—」。
-   * receivedAtMs 時点の値(liveRemaining と組で使う)。 */
-  readonly etaSeconds?: number;
-  /** 全 run が動画の切り出し中のときだけ合計(1本でもシナリオを回していれば省く = 残りの表示のまま)。 */
+  /** 全 run が動画の切り出し中のときだけ合計(1本でもシナリオを回していれば省く = 経過だけを出す)。 */
   readonly videoClips?: RunBoardVideoClips;
   /** 束ねた run のうち最も古い受信時刻(ms)。機械分担の run は各機械が別々に届くため、
-   * elapsedSeconds/etaSeconds の基準時刻として最も保守的な(= 遅れていない側の)値を使う。 */
+   * elapsedSeconds の基準時刻として最も保守的な(= 遅れていない側の)値を使う。 */
   readonly receivedAtMs: number;
   /** 束ねた run(machine 昇順。"" が手元で必ず先頭に来る = 空文字は他のどの機械名よりも辞書順で先)。 */
   readonly runs: readonly RunBoardRun[];
@@ -295,8 +292,6 @@ export function buildRunGroups(state: ReadonlyMap<string, MachineRunsEntry>): re
     const runs = [...members].sort((a, b) => (a.machine ?? "").localeCompare(b.machine ?? ""));
     // members は byGroupKey.set が要素ありで初期化するので必ず1件以上(noUncheckedIndexedAccess 対策の非null)。
     const first = runs[0]!;
-    const etaValues = runs.map((r) => r.etaSeconds);
-    const allHaveEta = etaValues.every((v) => v !== undefined);
     groups.push({
       groupKey,
       mine: first.mine,
@@ -314,7 +309,6 @@ export function buildRunGroups(state: ReadonlyMap<string, MachineRunsEntry>): re
       blankDevices: sum(runs.map((r) => r.blankDevices)),
       textlessDevices: sum(runs.map((r) => r.textlessDevices)),
       elapsedSeconds: Math.max(...runs.map((r) => r.elapsedSeconds)),
-      etaSeconds: allHaveEta ? Math.max(...(etaValues as number[])) : undefined,
       videoClips: runs.every((r) => r.videoClips !== undefined)
         ? {
             done: sum(runs.map((r) => r.videoClips!.done)),
@@ -502,28 +496,3 @@ export function liveElapsedSeconds(baseSeconds: number, receivedAtMs: number, no
   return baseSeconds + Math.max(0, (nowMs - receivedAtMs) / 1000);
 }
 
-export interface LiveRemaining {
-  /** 残り秒(0 未満にはならない)。超過中は 0。 */
-  readonly remainingSeconds: number;
-  /** 残り 0 を過ぎてなお経過した秒数(超過。超過していなければ undefined)。 */
-  readonly overageSeconds?: number;
-}
-
-/** 残り見積もりの秒読み。etaSeconds は受信時点の値なので、経過した分だけ差し引く
- * (DS-18.4 の「残り ~0:00(+M:SS 超過)」を作るための値)。undefined(見積もり無し)
- * は undefined のまま返す = 呼び手は「—」を出す。 */
-export function liveRemaining(
-  etaSeconds: number | undefined,
-  receivedAtMs: number,
-  nowMs: number,
-): LiveRemaining | undefined {
-  if (etaSeconds === undefined) {
-    return undefined;
-  }
-  const elapsedSinceReceipt = Math.max(0, (nowMs - receivedAtMs) / 1000);
-  const remaining = etaSeconds - elapsedSinceReceipt;
-  if (remaining >= 0) {
-    return { remainingSeconds: remaining };
-  }
-  return { remainingSeconds: 0, overageSeconds: -remaining };
-}
