@@ -1092,6 +1092,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 出典: `_work/explore-20261106g/findings-*.md`(23周目・11/6)。①iPhone SE3(375x667)でタブバーの下に潜った `#btn_under_footer` を、容器を送って外さずに「#tab_controls が上にある・自分でスクロールしろ」と断る(phys F2・3/3。inapp-boost・xcuitest とも。iPhone 13 では緑)。原因(11/7): iOS の木に z が無いので覆いを外す送りは入らない(塗り順の無い木では手前を推測しない決定 = OI-170)。SE3 は対象が全部タブの下で `/hittable` が false なので断る・iPhone 13 は 10pt がタブの外にある
 
 - 測った(2026-11-25・SE3 の実機・inapp-boost・E2E-iOS の覆い画面・3/3): in-app の当たり判定(`/touchlands`)は `#btn_under_footer` の中心への本物のタッチが**対象と `#tab_controls` の両方に届く**と答えた(タッチを受ける view は両者に共通の SwiftUI の入れ物)。半分のシートの裏の行(OI-170)と違い「対象に届かず覆いに届く」と言い切れないので、当たり判定を送りの根拠にできない(試した直しは取り下げた)= 据え置きのまま
+- 別の形(2026-11-27・探索 phys F1・SE3 の実機・xcuitest モード・3/3): `setTextSize(.extraLarge)` で行が下がり、中心だけがタブバーにかかった `#nav_lifecycle` を `tap(…, scroll: .down)` が送らずに押して ✅(説明文に「the target's centre is covered by staticText "コントロール", so this may have hit …」・notes 無し)。実際にタブ「コントロール」が押され、次のステップで赤。断る形(対象が全部タブの下)と違い一部が外に出ているので押す。送らずに押した理由(`/hittable` が真だった等)は材料不足 = 据え置きのまま(覆いの警告は文言だけで判定を変えない = 新しい検知は警告から)
 
 ### OI-186 iOS の `back()` が自前の「戻る」を押さず、戻らないまま緑になる
 - 状態: 再現済み
