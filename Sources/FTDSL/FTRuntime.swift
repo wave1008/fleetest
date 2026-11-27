@@ -1779,12 +1779,12 @@ public final class FTDriveCore {
         stepCounter += 1
         _stepBeforeLastWasBackLeftApp = _lastStepWasBackLeftApp
         _lastStepWasBackLeftApp = command == "back" && notes.contains(.backLeftApp)
-        if case .failed = status {} else if let command {
-            if Self.stoppingCommands.contains(command) {
-                if case .passed = status { _appStoppedByScenario = true; _appStoppedCommand = command }
-            } else if wakesStoppedApp(command: command) {
-                _appStoppedByScenario = false
-            }
+        if let command, Self.stoppingCommands.contains(command) {
+            // 失敗しても止める段は先に走る(clearAppData は止めてから消す)= 立てないと失敗の診断が「落ちたかも」と言う
+            switch status { case .passed, .failed: _appStoppedByScenario = true; _appStoppedCommand = command
+            case .passedViaFallback, .healed, .skipped, .inconclusive: break }
+        } else if case .failed = status {} else if let command, wakesStoppedApp(command: command) {
+            _appStoppedByScenario = false
         }
         // group の名前はここでだけ前置する(修正提案の description は素のまま = ソース行との照合に使うため)
         let displayed = groupStack.isEmpty
@@ -1983,11 +1983,10 @@ public final class FTDriveCore {
             return true
         }
         if recorded {
-            // 直前のステップが、アプリを抜けた back()(注記 back-left-app)なら、その事実を添える
-            let afterBack = precedingStepWasBackLeftApp
-                ? " — the preceding back() left the app (a back on its first screen exits to the launcher)" : ""
-            // このシナリオが止めたアプリなら、前面の窓は止めた後に出ているだけ(断ったステップは何も送っていない)= 「吸われた」と言わない
-            let swallowed = stoppedByScenario ? "" : " (interactions may have been swallowed by it)"
+            // 直前がアプリを抜けた back()(注記 back-left-app)なら事実だけ添える(最初の画面とは限らないので理由は言わない)
+            let afterBack = precedingStepWasBackLeftApp ? " — the preceding back() left the app" : ""
+            // 「吸われた」と言わない: 止めたアプリ(窓は止めた後に出ただけ)・直前が抜けた back()(その後に送った操作が無い)
+            let swallowed = stoppedByScenario || precedingStepWasBackLeftApp ? "" : " (interactions may have been swallowed by it)"
             emit(.log("⚠️ Another window is in front of the app: \(overlays.joined(separator: ", "))"
                       + swallowed + afterBack))
         }

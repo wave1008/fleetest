@@ -495,10 +495,14 @@ public final class BridgeClient: AppDriver, Sendable {
                     + " Library/Preferences of the app's data container by hand or erase the Simulator): "
                     + unflushed.prefix(3).map { "\(($0.path as NSString).lastPathComponent) (\($0.detail))" }.joined(separator: ", "))
         }
+        // 文は呼び手(DSL の失敗文・MCP)がそのまま出すので、何が起きたか・この後どうなるか・どうすればよいかを1つの文章で言う
         let preferencesProblem = listing.refusals.isEmpty ? nil
-            : "did not clear the cached preferences of \(bundleID) behind "
-                + listing.refusals.prefix(3).joined(separator: ", ")
-                + " — the data container was emptied, but those UserDefaults values may survive the clear"
+            : "clearAppData did not clear the cached preferences of \(bundleID) behind "
+                + "\(listing.refusals.count) item(s) (" + listing.refusals.prefix(3).joined(separator: "; ") + "):"
+                + " they were not cleared through cfprefsd (a symbolic link can point outside the app's data container, and an"
+                + " unreadable location cannot be listed)."
+                + " The data container was emptied, but cfprefsd may keep those UserDefaults values until the Simulator restarts."
+                + " Keep the app's Library/Preferences free of symbolic links, or restart the Simulator to drop the cached values"
         let entries = (try? fm.contentsOfDirectory(atPath: path)) ?? []
         var failed: [String] = []
         for entry in entries {

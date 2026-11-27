@@ -25,6 +25,25 @@ public enum OCROnlyVisibility {
     public static let fmFallbackCaveat =
         " (text that OCR cannot judge passes unchecked; with ocrTextVisibilityCheck off the guard passes through)"
 
+    /// FM の判定が無い run の occlusion-guard が何で判定するかの句(「the occlusion-guard … 」の述語)。**OCR が使えない機械では
+    /// OCR でも読めない**(macOS 26 = OCRSupport)ので、「OCR だけで判定する」と言わない(M4Max で doctor と食い違った)
+    public enum Tense { case present, past, gerund }
+
+    public static func fmFallbackGuardPhrase(ocrSupported: Bool, tense: Tense = .present) -> String {
+        let unsupportedTail = " (note visual-text-check-unsupported; only geometry and a blank region fail)"
+        switch (ocrSupported, tense) {
+        case (true, .present): return "judges from on-device OCR alone" + fmFallbackCaveat
+        case (true, .past): return "judged from on-device OCR alone" + fmFallbackCaveat
+        case (true, .gerund): return "judging from on-device OCR alone" + fmFallbackCaveat
+        case (false, .present):
+            return "cannot read the drawn text either (\(OCRSupport.requirement)), so text it cannot read passes unchecked" + unsupportedTail
+        case (false, .past):
+            return "could not read the drawn text either (\(OCRSupport.requirement)), so text it could not read passed unchecked" + unsupportedTail
+        case (false, .gerund):
+            return "unable to read the drawn text either (\(OCRSupport.requirement)), so text it could not read passed unchecked" + unsupportedTail
+        }
+    }
+
     /// FM の判定と OCR の読みの判定の突き合わせ。**見えていると読めた側を採る**(赤は両方が見えないと
     /// 言った回か、OCR が判定不能で FM が見えないと言った回だけ)。どちらも期待文字列を知らずに読んだ文字を
     /// 同じ `TranscriptMatch` で照合するので「読めた」は描かれている直接の証拠で、「読めなかった」は読み手の

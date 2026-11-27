@@ -91,20 +91,21 @@ public enum FMDoctor {
             ? Report(available: true, detail: "FM visual verification (image input): available")
             : Report(available: false,
                      detail: "FM visual verification (image input): unavailable (\(FMVisionSupport.requirement))"
-                         + ". screenLooksLike is disabled, and the occlusion-guard (text visibility check)"
-                         + " judges from on-device OCR alone" + OCROnlyVisibility.fmFallbackCaveat
+                         + ". screenLooksLike is disabled, and the occlusion-guard (text visibility check) "
+                         + OCROnlyVisibility.fmFallbackGuardPhrase(ocrSupported: OCRSupport.isSupported)
                          + " (scenario drafting and naming keep working — they are text-only)")
     }
 
     /// FM 本体が使えないときに**何が止まり、代わりに何を書くか**。
     /// 「unavailable」だけでは、シナリオの書き方をどう変えればよいか分からない
     /// (外部フィードバック)。visionReport が視覚系について同じことをしている。
-    public static let unavailableImpact =
+    public static var unavailableImpact: String {
         "Disabled: screenLooksLike and FM-based scenario drafting and naming. The occlusion-guard"
-        + " (the requireVisible check of exist) judges from on-device OCR alone" + OCROnlyVisibility.fmFallbackCaveat
+        + " (the requireVisible check of exist) " + OCROnlyVisibility.fmFallbackGuardPhrase(ocrSupported: OCRSupport.isSupported)
         + ". Everything deterministic keeps working (self-healing"
         + " by locator fingerprint does not use FM) — write textIs / valueIs / exist assertions instead"
         + " of screenLooksLike."
+    }
 
     static func describe(_ reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
         switch reason {

@@ -700,12 +700,12 @@ enum ProfileRunner {
 
     /// vision 経路が使えない run で**この run が有効にした機能だけ**を挙げる(使っていない機能を
     /// 「無効」と言わない)。occlusion-guard は無効ではなく OCR だけの判定へ落ちる
-    static func visionLossDescription(_ fm: FMConfig) -> String {
+    static func visionLossDescription(_ fm: FMConfig, ocrSupported: Bool = OCRSupport.isSupported) -> String {
         var parts: [String] = []
         if fm.screenLooksLike { parts.append("screenLooksLike is skipped") }
         if fm.fmTextVisibilityCheck {
-            parts.append("the occlusion-guard (the default requireVisible of exist) judges from on-device OCR alone"
-                         + OCROnlyVisibility.fmFallbackCaveat)
+            parts.append("the occlusion-guard (the default requireVisible of exist) "
+                         + OCROnlyVisibility.fmFallbackGuardPhrase(ocrSupported: ocrSupported))
         }
         return parts.joined(separator: ", and ")
     }

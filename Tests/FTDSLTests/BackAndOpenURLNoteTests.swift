@@ -81,6 +81,9 @@ final class BackAndOpenURLNoteTests: XCTestCase {
         let logs = events.filter { $0.kind == "log" }.compactMap(\.message)
         XCTAssertTrue(logs.contains { $0.contains("Another window is in front") && $0.contains("the preceding back() left the app") },
                       "\(logs)")
+        // 理由を付けない(最初の画面とは限らない)・back の後に何も送っていないので「吸われた」と言わない
+        XCTAssertFalse(logs.contains { $0.contains("first screen") }, "\(logs)")
+        XCTAssertFalse(logs.contains { $0.contains("may have been swallowed") }, "\(logs)")
     }
 
     /// back() と失敗の間に別のステップが挟まれば名指さない
@@ -95,5 +98,7 @@ final class BackAndOpenURLNoteTests: XCTestCase {
         let logs = events.filter { $0.kind == "log" }.compactMap(\.message)
         XCTAssertTrue(logs.contains { $0.contains("Another window is in front") }, "\(logs)")
         XCTAssertFalse(logs.contains { $0.contains("the preceding back() left the app") }, "\(logs)")
+        // back の後に tap を送っている = その tap が前面の窓に吸われた可能性は言う
+        XCTAssertTrue(logs.contains { $0.contains("may have been swallowed") }, "\(logs)")
     }
 }

@@ -22,7 +22,11 @@ final class StopAttributionAndFailureFactsTests: XCTestCase {
         }
         func install(packagePath: String) async throws -> String? { nil }
         func uninstall(bundleID: String) async throws {}
-        func clearAppData(bundleID: String) async throws {}
+        /// clearAppData が止めた後に失敗する形(設定を消させられなかった等)
+        var clearFails = false
+        func clearAppData(bundleID: String) async throws {
+            if clearFails { throw DriverError.badResponse(status: 500, body: "could not clear the cached preferences") }
+        }
         func isAppForeground(bundleID: String) async throws -> Bool { foreground }
         func launch(bundleID: String) async throws {}
         func snapshot() async throws -> SnapshotResponse {
@@ -82,6 +86,19 @@ final class StopAttributionAndFailureFactsTests: XCTestCase {
             XCTAssertTrue(lines.contains { $0.contains("this scenario stopped it with \(name)()") }, "\(name): \(lines)")
             XCTAssertFalse(lines.contains { $0.contains("may have crashed") }, "\(name): \(lines)")
         }
+    }
+
+    /// 止めるコマンドが止めた後で失敗した(clearAppData は止めてから消す)= アプリが居ないのはこのシナリオが止めたため。
+    /// 「落ちたかもしれない」と言わない
+    func testFailedStoppingCommandStillSaysTheScenarioStoppedIt() {
+        let driver = ScriptedDriver()
+        driver.clearFails = true
+        let events = run(driver: driver, evidence: ["process not running"]) {
+            launchApp(); clearAppData()
+        }
+        let lines = logs(events)
+        XCTAssertTrue(lines.contains { $0.contains("this scenario stopped it with clearAppData()") }, "\(lines)")
+        XCTAssertFalse(lines.contains { $0.contains("may have crashed") }, "\(lines)")
     }
 
     /// 陽性対照: 止めていない失敗ではクラッシュの容疑を従来どおり記録する

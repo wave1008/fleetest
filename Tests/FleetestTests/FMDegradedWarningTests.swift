@@ -74,6 +74,16 @@ final class FMDegradedWarningTests: XCTestCase {
         XCTAssertTrue(line.contains("vision boom"), "理由まで出す。\(line)")
     }
 
+    /// OCR が使えない機械(macOS 26)では「OCR だけで判定する」と言わず、読めない文字が検証されずに通ることを言う(M4Max)
+    func testVisionLossOnAMachineWithoutOCRDoesNotClaimOCR() {
+        let fm = FMConfig(enabled: true, fmTextVisibilityCheck: true, screenLooksLike: true)
+        let withoutOCR = ProfileRunner.visionLossDescription(fm, ocrSupported: false)
+        XCTAssertFalse(withoutOCR.contains("judges from on-device OCR alone"), withoutOCR)
+        XCTAssertTrue(withoutOCR.contains("macOS 27"), withoutOCR)
+        XCTAssertTrue(withoutOCR.contains("visual-text-check-unsupported"), withoutOCR)
+        XCTAssertTrue(ProfileRunner.visionLossDescription(fm, ocrSupported: true).contains("judges from on-device OCR alone"))
+    }
+
     /// 有効にした機能だけを挙げる(使っていない機能を「無効」と言わない)
     func testVisionLossNamesOnlyTheEnabledFeatures() {
         let guardOnly = ProfileRunner.visionLossDescription(
