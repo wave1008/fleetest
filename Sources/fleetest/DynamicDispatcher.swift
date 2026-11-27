@@ -31,6 +31,8 @@ final class DynamicDispatcher: Sendable {
     /// 単位(ID × バリアント)ごとの対象外の記帳(DR-214)。`tried` = 試して対象外と宣言したエントリ(回し直しの除外)・
     /// `departedInChild` = 子の中で試していない台が落ちている(その子の申告)
     private struct NotApplicableRecord {
+        /// 単位の platform。種類の覆いはこの platform の観測だけで見る(iOS の種類で Android の台を覆わない)
+        let platform: String
         var tried: Set<Int> = []
         var departedInChild = false
     }
@@ -46,8 +48,8 @@ final class DynamicDispatcher: Sendable {
         /// レーンの印(`lanes`)はそのレーンの次の要求で消えるので、回し直し中の単位はこちらでしか見えない
         var kept: [Int: Set<ScenarioUnitKey>] = [:]
         var exited: Set<Int> = []
-        /// エントリ番号 → 観測した iOS の種類(`entryKinds` の答え。不明のエントリは載せない)。対象外が初めて来るまで空
-        var entryKinds: [Int: Set<String>] = [:]
+        /// platform → エントリ番号 → 観測した種類(`entryKinds` の答え。不明のエントリは載せない)。その platform の対象外が初めて来るまで空
+        var entryKinds: [String: [Int: Set<String>]] = [:]
         var interrupted = false
         var cancelTimer: Cancel?
         /// 束ねた先(RR-8.3)。渡した直後に record する
@@ -130,7 +132,8 @@ final class DynamicDispatcher: Sendable {
     /// 回し直す(`.handOn`)ときは pending へ戻し、その子の割り当てから外す(子は結果を捨てる = 結果の照合に残さない)
     func handleNotApplicable(_ na: WorkQueueProtocol.NotApplicable, fromEntry entry: Int) -> WorkQueueProtocol.Reply {
         var verdict: NotApplicableHandoff.Verdict = .skipped
-        resolveKindsIfNeeded(platform: na.platform)
+        // 割り当てていない単位の問い合わせ(下で無視する)のために、全マシンへの観測を撃たない
+        if state.withLock({ $0.assigned[entry]?.contains(na.unit) == true }) { resolveKindsIfNeeded(platform: na.platform) }
         let answers: [(Held, WorkQueueProtocol.Reply)] = withState { s in
             // 親が割り当てたシナリオだけ(子は機械の中で別のレーンへ回すので、宣言したレーンは親の割り当てのレーンと限らない)
             let unit = na.unit
@@ -138,7 +141,7 @@ final class DynamicDispatcher: Sendable {
                   scenario.group == nil else { return [] }
             // 子の中の回し直しは尽きた(親へ聞いてきた)。保留している他のエントリの要求は、どの判定でも見直す
             s.kept[entry]?.remove(unit)
-            var record = s.notApplicable[unit] ?? NotApplicableRecord()
+            var record = s.notApplicable[unit] ?? NotApplicableRecord(platform: na.platform)
             record.tried.insert(entry)
             record.departedInChild = record.departedInChild || na.dep
             s.notApplicable[unit] = record
@@ -150,7 +153,7 @@ final class DynamicDispatcher: Sendable {
                 tried: Set(record.tried.map(String.init)),
                 live: Set(known.subtracting(left).map(String.init)),
                 departed: Set(left.map(String.init)).union(record.departedInChild ? ["child-local"] : []),
-                kinds: Dictionary(uniqueKeysWithValues: s.entryKinds.map { (String($0.key), $0.value) }))
+                kinds: Self.kinds(of: record.platform, s))
             guard verdict == .handOn else { return drainLocked(&s) }
             s.pending.append(scenario)
             if let index = s.assigned[entry]?.lastIndex(of: unit) { s.assigned[entry]?.remove(at: index) }
@@ -169,17 +172,28 @@ final class DynamicDispatcher: Sendable {
         defer { kindsResolveGate.unlock() }
         guard kindsResolved.withLock({ $0.insert(platform).inserted }) else { return }
         let kinds = entryKindsResolver(platform)
-        state.withLock { $0.entryKinds = kinds }
+        state.withLock { $0.entryKinds[platform] = kinds }
+        // 観測できなかったエントリは台ごとの回し直しに戻る(誤りではないが遅い)。黙らずに1行言う
+        let unknown = entryPlatforms.filter { $0.value.contains(platform) && kinds[$0.key] == nil }.keys.sorted()
+        if !unknown.isEmpty {
+            log("→ could not observe the \(platform) device kinds on \(unknown.map(entryLabel).joined(separator: ", "));"
+                + " not-applicable scenarios are handed to every device there")
+        }
+    }
+
+    /// 鍵(エントリ番号の文字列)→ その platform で観測した種類。`NotApplicableHandoff` へ渡す形
+    private static func kinds(of platform: String, _ s: State) -> [String: Set<String>] {
+        Dictionary(uniqueKeysWithValues: (s.entryKinds[platform] ?? [:]).map { (String($0.key), $0.value) })
     }
 
     /// そのエントリが単位を受け取れないか = 試した、または試したエントリと同じ観測の種類(DR-214)。
     /// **配る側(`reachable`・`triedBy`・`mayReceiveHandBack`)は全部ここを通す** —— 判定が割れると、覆ったエントリへ単位を渡して
     /// 子を起こすだけの空振りになる
     private static func isExcluded(entry: Int, unit: ScenarioUnitKey, _ s: State) -> Bool {
-        guard let tried = s.notApplicable[unit]?.tried else { return false }
-        return tried.contains(entry)
-            || NotApplicableHandoff.covered(String(entry), tried: Set(tried.map(String.init)),
-                                            kinds: Dictionary(uniqueKeysWithValues: s.entryKinds.map { (String($0.key), $0.value) }))
+        guard let record = s.notApplicable[unit] else { return false }
+        return record.tried.contains(entry)
+            || NotApplicableHandoff.covered(String(entry), tried: Set(record.tried.map(String.init)),
+                                            kinds: kinds(of: record.platform, s))
     }
 
     /// 子が、配った単位を機械の中で回し直し始めた / 終えた(`kept`。返事なし)。割り当てていない単位は無視する(偽の知らせで待たせない)
@@ -304,8 +318,8 @@ final class DynamicDispatcher: Sendable {
         }
 
         // 対象外の記帳は見直しの中で変わらない(1回の drain で1回だけ作る)
-        let entries = Set(s.entryKinds.keys)
         let triedBy = s.notApplicable.reduce(into: [ScenarioUnitKey: Set<Int>]()) { result, element in
+            let entries = Set((s.entryKinds[element.value.platform] ?? [:]).keys)
             result[element.key] = element.value.tried.union(entries.filter { Self.isExcluded(entry: $0, unit: element.key, s) })
         }
         var progressed = true

@@ -76,6 +76,27 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         XCTAssertEqual(d.handle(want(1, lane: "fold"), fromEntry: 2), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
     }
 
+    /// iOS の対象外で引いた種類で、Android の対象外を覆わない(両 OS の台を持つマシンが2台の run。先に iOS の対象外が来た形)
+    func testIOSKindsNeverCoverAnAndroidUnit() {
+        let iosFold = Scenario(id: "Fold.S1", variant: nil, platform: "ios")
+        let androidFold = Scenario(id: "AFold.S1", variant: nil, platform: "android")
+        let d = DynamicDispatcher(
+            scenarios: [iosFold, androidFold], estimateMs: { _, _ in 1000 }, lpt: true,
+            entryPlatforms: [0: ["ios", "android"], 1: ["ios", "android"]],
+            entryKinds: { _ in [0: ["pro"], 1: ["pro"]] }, send: { _, _ in })
+        XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
+        XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro"), fromEntry: 0), .init(req: 2, verdict: .skipped),
+                       "同じ iOS の種類のエントリ 1 は覆われる")
+        let androidWant = WorkQueueProtocol.Want(req: 3, lane: "pixel", platform: "android")
+        XCTAssertEqual(d.handle(androidWant, fromEntry: 0), .init(req: 3, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil)))
+        let androidNA = WorkQueueProtocol.NotApplicable(
+            req: 4, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil), lane: "pixel", platform: "android", dep: false)
+        XCTAssertEqual(d.handleNotApplicable(androidNA, fromEntry: 0), .init(req: 4, verdict: .handOn),
+                       "Android の台は iOS の種類で覆わない = エントリ 1 の Android の台で試す")
+        XCTAssertEqual(d.handle(WorkQueueProtocol.Want(req: 5, lane: "pixel", platform: "android"), fromEntry: 1),
+                       .init(req: 5, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil)))
+    }
+
     /// 種類が違う・不明なエントリは覆わない。resolver は platform ごとに1回だけ引く
     func testDifferentOrUnknownKindStillHandsOn() {
         for kinds: [Int: Set<String>] in [[0: ["pro"], 1: ["fold"]], [0: ["pro"]], [:], [0: ["pro"], 1: []]] {

@@ -8,6 +8,9 @@ import FTRemote
 import Foundation
 
 enum IOSDeviceKindResolver {
+    /// 秒。ssh 越しの1回の上限 = 接続の上限(`SSHOptions.connectTimeoutSeconds`)+ 向こうの simctl の上限(`SimulatorCatalog.simctlTimeoutSeconds`)。
+    /// 尽きたらその機械は不明 = 台ごとの回し直しに戻り、配り手が1行言う(遅くなるだけで誤らない)
+    static let remoteTimeoutSeconds = Double(SSHOptions.connectTimeoutSeconds) + SimulatorCatalog.simctlTimeoutSeconds
 
     /// 純粋部。nil = 不明(iOS の指定が無い・実機を含む・simctl の出力が読めない・1台でも解決できない)。
     /// 解決は `BridgeProvisioner` と同じ `SimulatorCatalog.resolve`
@@ -60,6 +63,6 @@ enum IOSDeviceKindResolver {
         return (try? Shell.run(
             ["ssh"] + SSHOptions.batchConnectArgs + SSHOptions.keepAliveArgs
                 + [resolved.hostSpec.sshTarget, words.joined(separator: " ")],
-            timeout: SimulatorCatalog.simctlTimeoutSeconds))?.outputIfSucceeded
+            timeout: remoteTimeoutSeconds))?.outputIfSucceeded
     }
 }

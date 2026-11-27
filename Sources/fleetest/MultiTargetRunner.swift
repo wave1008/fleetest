@@ -202,8 +202,7 @@ enum MultiTargetRunner {
                         ScenarioHost.prebuildTogether(projects: projects, log: { FleetRunner.log($0) })
                     }
                 }
-                // ビルドは順に(SwiftPM のロックを取り合う)、一覧はプロジェクトごとに独立なので並列に取る
-                // (1本約2秒 × 15 プロジェクトを順に払っていた)。失敗は対象の順で最初のものを投げる = 順に取っていたときと同じ
+                // ビルドは順に(SwiftPM のロックを取り合う)、一覧はプロジェクトごとに独立なので並列に取る。失敗は対象の順で最初のものを投げる
                 let projectsInOrder = resolvedTargets.map(\.project).filter { builtProjects.insert($0.name).inserted }
                 if !skipBuild {
                     for project in projectsInOrder {
@@ -212,7 +211,7 @@ enum MultiTargetRunner {
                         }
                     }
                 }
-                let listings = try parentInterrupt.stage("the scenario build", log: { FleetRunner.log($0) }) {
+                let listings = try parentInterrupt.stage("the scenario listing", log: { FleetRunner.log($0) }) {
                     let results = LockedValue<[Int: Result<ScenarioListing, Error>]>([:])
                     DispatchQueue.concurrentPerform(iterations: projectsInOrder.count) { index in
                         let result = Result { try ScenarioHost.listForRun(project: projectsInOrder[index], dryRun: false, compilesOCR: false) }

@@ -223,14 +223,19 @@ def run_logged(cmd, log_path, env):
 def prebuild_all(fleet, suites, suts, run_dir, env):
     """全マシンで SUT の鮮度確認とビルド(マシン間もマシンの中のスイートも並列)。失敗したマシンの名前を返す。
     スイートの SUT は別のフォルダで成果物もその中。機械で共有するもの(クラッシュダイアログ = 保持者を数える・Flutter の SDK・
-    Gradle / CocoaPods のキャッシュ = 各自のロック)は同時に撃っても壊れない。順に撃つと変更なしでも 3 × 約 20 秒払っていた"""
+    Gradle / CocoaPods のキャッシュ = 各自のロック)は同時に撃っても壊れない"""
     failed = {}
 
     def prebuild_suite(machine, host, suite, codes):
         script = SUITES[suite][0]
         # 成果物は iOS のモードに依らない(同じ .app)ので、モードは渡さない
         args = [f"Scripts/{script}", "--build-only"] + [f"--{s}" for s in suts] + (["--local"] if suite == "e2e" else [])
-        codes[suite] = run_logged(command(host, args), os.path.join(run_dir, f"build-{suite}@{machine}.log"), env)
+        try:
+            codes[suite] = run_logged(command(host, args), os.path.join(run_dir, f"build-{suite}@{machine}.log"), env)
+        except OSError as e:
+            # 起こせなかった(ログを開けない等)も失敗として数える。数えないと KeyError でスレッドだけ死に、そのマシンが成功とも失敗とも言われない
+            print(f"   ⚠️ {machine}: {suite} の SUT のビルドを起こせませんでした: {e}")
+            codes[suite] = 1
 
     def prebuild(machine, host):
         codes = {}
@@ -241,7 +246,7 @@ def prebuild_all(fleet, suites, suts, run_dir, env):
             t.join()
         # 名指すのはスイート順で最初に落ちたもの(並列でも報告が揺れない)
         for suite in suites:
-            code = codes[suite]
+            code = codes.get(suite, 1)
             if code != 0:
                 why = "届きません" if host is not None and code == SSH_UNREACHABLE else f"{suite} の SUT のビルドに失敗しました"
                 failed[machine] = f"{why}({os.path.relpath(os.path.join(run_dir, f'build-{suite}@{machine}.log'), ROOT)})"

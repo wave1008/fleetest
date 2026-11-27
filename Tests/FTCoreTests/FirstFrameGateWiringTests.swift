@@ -31,6 +31,10 @@ final class FirstFrameGateWiringTests: XCTestCase {
         let launched = try XCTUnwrap(body(of: "funcnoteAppLaunched(", in: text), "noteAppLaunched が見つからない")
         XCTAssertTrue(launched.contains("firstFrameGatePending=true"),
                       "noteAppLaunched() が firstFrameGatePending を arm していない")
+        XCTAssertTrue(launched.contains("armUnregisteredSystemAlertProbe()"),
+                      "noteAppLaunched() が起動直後のシステムアラートの確認を arm していない")
+        XCTAssertTrue(launched.contains("pendingLaunchSettle=true"),
+                      "noteAppLaunched() が起動直後の整定待ちを arm していない")
         let probe = try XCTUnwrap(body(of: "funcarmUnregisteredSystemAlertProbe(", in: text),
                                   "armUnregisteredSystemAlertProbe が見つからない")
         XCTAssertFalse(probe.contains("firstFrameGatePending=true"),
