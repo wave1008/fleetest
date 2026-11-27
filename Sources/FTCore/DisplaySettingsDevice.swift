@@ -13,9 +13,12 @@ public enum DisplaySettingsLimits {
     /// 時間切れの後に、このプロセスの中で `devicectl` の表示設定を呼ばない秒数(プロセス全体で共有。別の run・シナリオの子(DSL)のプロセスとは共有しない)。
     /// ライブ操作の `DevicectlBackoff` と同じ 30 秒。尽きたら次の呼び出しから通常どおり撃つ
     public static let backoffSeconds: TimeInterval = 30
+    /// `devicectl --timeout` が受け付ける下限[秒]。下回ると devicectl は撃たずに exit 64(「Please specify a 'timeout' value between 5 and …」
+    /// = 2026-11-28 の回帰の中断で観測。中断の戻しが毎回失敗していた)。上の上限はどれもこれ以上にする(テストが固定)
+    public static let devicectlMinimumTimeoutSeconds = 5
     /// 中断(SIGINT/SIGTERM)の最中の終わりの処理の1回の上限[秒]。中断の応答を遅らせない短さで、負荷の高い状態の最大 2.08 秒を
-    /// 超える。撃ち直さない。尽きたら実行ログに戻せなかったと出す(次の開始時の読み取りが直す)
-    public static let interruptedTimeoutSeconds = 3
+    /// 超え、`devicectlMinimumTimeoutSeconds` を下回らない。撃ち直さない。尽きたら実行ログに戻せなかったと出す(次の開始時の読み取りが直す)
+    public static let interruptedTimeoutSeconds = 5
     /// `devicectl` 自身の `--timeout` が効かずに居座ったときの外側の打ち切りの上乗せ[秒]。尽きたら時間切れとして数える
     public static let outerGraceSeconds: TimeInterval = 5
 }

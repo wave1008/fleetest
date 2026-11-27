@@ -35,9 +35,20 @@ final class DisplaySettingsTests: XCTestCase {
         XCTAssertEqual(DisplaySettingsLimits.commandTimeoutSeconds, 10)
         XCTAssertEqual(DisplaySettingsLimits.retryCount, 1)
         XCTAssertEqual(DisplaySettingsLimits.backoffSeconds, 30)
-        XCTAssertEqual(DisplaySettingsLimits.interruptedTimeoutSeconds, 3)
+        XCTAssertEqual(DisplaySettingsLimits.interruptedTimeoutSeconds, 5)
+        XCTAssertEqual(DisplaySettingsLimits.devicectlMinimumTimeoutSeconds, 5)
         XCTAssertEqual(DisplayCommandBudget.normal, DisplayCommandBudget(timeoutSeconds: 10, retries: 1))
-        XCTAssertEqual(DisplayCommandBudget.interrupted, DisplayCommandBudget(timeoutSeconds: 3, retries: 0))
+        XCTAssertEqual(DisplayCommandBudget.interrupted, DisplayCommandBudget(timeoutSeconds: 5, retries: 0))
+    }
+
+    /// devicectl は `--timeout` が 5 未満だと撃たずに exit 64 で断る(2026-11-28 の中断の戻しが毎回失敗した)。どの上限も下限を下回らない
+    func testEveryBudgetMeetsTheDevicectlMinimum() {
+        for budget in [DisplayCommandBudget.normal, .interrupted] {
+            XCTAssertGreaterThanOrEqual(budget.timeoutSeconds, DisplaySettingsLimits.devicectlMinimumTimeoutSeconds, "\(budget)")
+            let args = DisplaySettingsCommands.iosRead(udid: "U", timeoutSeconds: budget.timeoutSeconds)
+            let value = args.firstIndex(of: "--timeout").map { Int(args[$0 + 1]) ?? 0 } ?? 0
+            XCTAssertGreaterThanOrEqual(value, DisplaySettingsLimits.devicectlMinimumTimeoutSeconds, "\(args)")
+        }
     }
 
     // MARK: 純粋な判定
@@ -225,7 +236,9 @@ final class DisplaySettingsTests: XCTestCase {
             return Shell.Result(status: 0, output: #"{"result":{"textSize":"Large","userInterfaceStyle":"light"}}"#)
         }
         XCTAssertNil(transport.read(budget: .interrupted).failure)
-        XCTAssertTrue(seen.value[0].contains("3"), "中断の最中は短い上限(3 秒)を --timeout へ渡す")
+        let args = seen.value[0]
+        XCTAssertEqual(args.firstIndex(of: "--timeout").map { args[$0 + 1] }, "5",
+                       "中断の最中は短い上限(devicectl の下限の 5 秒)を --timeout へ渡す")
     }
 
     func testAndroidTransportReadsAndSetsPerKey() {
