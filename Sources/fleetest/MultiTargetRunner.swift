@@ -328,9 +328,9 @@ enum MultiTargetRunner {
                         entryCandidate: { targetCandidacy.isCandidate($0, entry: $1) },
                         entryLabel: { targetGroups[$0].machineLabel },
                         log: { FleetRunner.log("[\(targetID)] " + $0) },
-                        entryKinds: { [project = target.project, profile = target.profile] _ in
-                            IOSDeviceKindResolver.entryKinds(
-                                project: project, profileName: profile, groups: targetGroups, overrides: setOverrides)
+                        entryKinds: { [project = target.project, profile = target.profile] platform in
+                            DeviceKindResolver.entryKinds(
+                                platform: platform, project: project, profileName: profile, groups: targetGroups, overrides: setOverrides)
                         },
                         send: { entry, reply in
                             writers.withLock { $0[MultiTargetRunner.writerKey(targetID, entry)] }?.write(line: WorkQueueProtocol.encode(reply))

@@ -305,8 +305,8 @@ enum DeviceMachineRunner {
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
                               entryCandidate: { candidacyBox.value.isCandidate($0, entry: $1) },
                               entryLabel: { groups[$0].machineLabel }, log: { FleetRunner.log($0) },
-                              entryKinds: { _ in IOSDeviceKindResolver.entryKinds(
-                                  project: project, profileName: profileName, groups: groups, overrides: setOverrides) },
+                              entryKinds: { DeviceKindResolver.entryKinds(
+                                  platform: $0, project: project, profileName: profileName, groups: groups, overrides: setOverrides) },
                               send: { entry, reply in writers[entry]?.write(line: WorkQueueProtocol.encode(reply)) })
         }
         let interruptRelay = dispatcher.map { dispatcher in InterruptRelay.observing(catchUp: true) { dispatcher.interrupt() } }

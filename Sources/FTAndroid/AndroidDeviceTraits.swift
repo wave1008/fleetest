@@ -35,6 +35,27 @@ public enum AndroidDeviceTraits {
                             model: model)
     }
 
+    /// 対象外の回し直し(DR-214)で「同じ種類の台」を見分ける Android Emulator の種類。**子(`RunWorker.deviceKind`)と親(`AndroidDeviceKindResolver`)が
+    /// 同じこの関数だけを通る**(2か所で組むと文字列が割れて覆わない = 遅くなる)。
+    /// `android|<hw.device.name>|<image.sysdir.1(末尾の / を除く)>|hinge=<hw.sensor.hinge。無ければ no>`。
+    /// 機種・システムイメージのどちらかが読めなければ nil(不明 = 覆わない)。**プロファイルの `model` は使わない**(表示専用)
+    public static func emulatorKind(configText: String?) -> String? {
+        guard let text = configText,
+              let device = configValue("hw.device.name", in: text),
+              var image = configValue("image.sysdir.1", in: text) else { return nil }
+        while image.hasSuffix("/") { image.removeLast() }
+        let hinge = configValue("hw.sensor.hinge", in: text) ?? "no"
+        return "android|\(device)|\(image)|hinge=\(hinge)"
+    }
+
+    /// AVD 名 → 種類。AVD 名が無い・config.ini が読めなければ nil
+    public static func emulatorKind(avd: String?) -> String? {
+        guard let avd, !avd.isEmpty else { return nil }
+        let config = AndroidDeviceCatalog.avdContentDirectory(id: AndroidDeviceCatalog.canonicalAVDID(avd))
+            .appendingPathComponent("config.ini")
+        return emulatorKind(configText: try? String(contentsOf: config, encoding: .utf8))
+    }
+
     /// 実機(`ro.build.version.release` / `ro.product.model`。取れなければ nil)。折りたたみの実機は foldable false(fold が 501 の赤になる現状)
     public static func physicalTraits(release: String?, model: String?) -> DeviceTraits {
         let version = release.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

@@ -77,7 +77,7 @@ final class DynamicDispatcher: Sendable {
     /// エントリ番号 → 束ねたときのログに出す名前(マシン名)
     private let entryLabel: @Sendable (Int) -> String
     private let log: @Sendable (String) -> Void
-    /// platform → エントリ番号 → 観測した種類(iOS だけ引く。空集合 = 観測の対象外 = 実機を含む)。**I/O なので臨界区間の外で呼ぶ**。
+    /// platform → エントリ番号 → 観測した種類(iOS・Android Emulator だけ引く。空集合 = 観測の対象外 = 実機を含む)。**I/O なので臨界区間の外で呼ぶ**。
     /// 答えは platform ごとに1回だけ使う
     private let entryKindsResolver: @Sendable (_ platform: String) -> [Int: Set<String>]
     /// `entryKindsResolver` を引いた platform。引く間は他の対象外の問い合わせも待つ(2回引かない)
@@ -110,9 +110,10 @@ final class DynamicDispatcher: Sendable {
         self.timer = timer
         self.send = send
         // 種類は配り手を作った時点で裏で引く(子の出力を読むスレッドの上で ssh を待たない。対象外が来るころには引き終えている)。
-        // 引いている最中に対象外が来たら `kindsResolveGate` で待つ。iOS の台を持つエントリが2つ未満なら覆う相手が無いので引かない
-        if entryPlatforms.values.filter({ $0.contains("ios") }).count >= 2, scenarios.contains(where: { $0.platform == "ios" }) {
-            DispatchQueue.global(qos: .utility).async { [self] in resolveKindsIfNeeded(platform: "ios") }
+        // 引いている最中に対象外が来たら `kindsResolveGate` で待つ。その platform の台を持つエントリが2つ未満なら覆う相手が無いので引かない
+        for platform in ["ios", "android"]
+        where entryPlatforms.values.filter({ $0.contains(platform) }).count >= 2 && scenarios.contains(where: { $0.platform == platform }) {
+            DispatchQueue.global(qos: .utility).async { [self] in resolveKindsIfNeeded(platform: platform) }
         }
     }
 
@@ -180,9 +181,8 @@ final class DynamicDispatcher: Sendable {
         return .init(req: na.req, verdict: verdict)
     }
 
-    /// 種類の観測は iOS だけ(Android のプロファイルは機種を持たない = 台ごと。DR-214)。platform ごとに1回
+    /// 種類の観測(iOS = simctl の機種 + runtime・Android Emulator = AVD の機種 + イメージ + ヒンジ。DR-214)。platform ごとに1回
     private func resolveKindsIfNeeded(platform: String) {
-        guard platform == "ios" else { return }
         kindsResolveGate.lock()
         defer { kindsResolveGate.unlock() }
         guard kindsResolved.withLock({ $0.insert(platform).inserted }) else { return }

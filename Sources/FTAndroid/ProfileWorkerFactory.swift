@@ -1139,6 +1139,11 @@ public enum ProfileWorkerFactory {
         return aggregated.devices
     }
 
+    /// Emulator の種類(`AndroidDeviceTraits.emulatorKind`)。実機・AVD 名の無い台は nil(不明 = 覆わない)
+    static func androidKind(of device: ResolvedDevice) -> String? {
+        device.spec.isPhysical ? nil : AndroidDeviceTraits.emulatorKind(avd: device.spec.avd)
+    }
+
     /// buildAndroidWorkers の既定解決経路(1台分)。serial 照合(`AndroidDeviceCatalog.resolveSerial`)と
     /// ドライバ生成(`AndroidDriver.init`)の両方の失敗を同じ扱いにする(片方だけ許容しない)。
     public static func makeAndroidWorker(device: ResolvedDevice) throws -> RunWorker {
@@ -1151,7 +1156,7 @@ public enum ProfileWorkerFactory {
             connection: DriverConnection(platform: "android", serial: serial,
                                          deviceName: device.name,
                                          physical: device.spec.isPhysical),
-            logicalName: device.name, deviceKind: nil)
+            logicalName: device.name, deviceKind: androidKind(of: device))
     }
 
     /// inapp-boost モードのときサブプロセスは InAppDriver(+ XCUITest ブリッジへの回し先)を
@@ -1275,7 +1280,7 @@ public enum ProfileWorkerFactory {
                     connection: DriverConnection(platform: "android", serial: serial,
                                                  deviceName: device.name,
                                                  physical: device.spec.isPhysical),
-                    logicalName: device.name, deviceKind: nil)
+                    logicalName: device.name, deviceKind: androidKind(of: device))
             } catch {
                 return nil
             }

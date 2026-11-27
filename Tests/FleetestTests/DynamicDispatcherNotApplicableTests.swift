@@ -50,7 +50,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
                        "試したエントリ 1 には戻さず、エントリ 0 が走らせているぶんを待つ理由も無い")
     }
 
-    /// 同じ観測の種類のエントリは試した扱い(DR-214・iOS だけ): 回し直さず対象外で確定し、覆ったエントリへ単位を渡さない
+    /// 同じ観測の種類のエントリは試した扱い(DR-214): 回し直さず対象外で確定し、覆ったエントリへ単位を渡さない
     func testSameKindEntryCountsAsTriedAndIsNeverHandedTheUnit() {
         let sent = LockedValue<[String]>([])
         let resolved = LockedValue<[String]>([])
@@ -78,7 +78,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         XCTAssertEqual(d.handle(want(1, lane: "fold"), fromEntry: 2), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
     }
 
-    /// iOS の対象外で引いた種類で、Android の対象外を覆わない(両 OS の台を持つマシンが2台の run。先に iOS の対象外が来た形)
+    /// iOS の対象外で引いた種類で、Android の対象外を覆わない(Android の種類が不明なら Android は台ごと。種類の文字列は platform ごと)(両 OS の台を持つマシンが2台の run。先に iOS の対象外が来た形)
     func testIOSKindsNeverCoverAnAndroidUnit() {
         let iosFold = Scenario(id: "Fold.S1", variant: nil, platform: "ios")
         let androidFold = Scenario(id: "AFold.S1", variant: nil, platform: "android")
@@ -86,7 +86,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
             scenarios: [iosFold, androidFold], estimateMs: { _, _ in 1000 }, lpt: true,
             entryPlatforms: [0: ["ios", "android"], 1: ["ios", "android"]],
             entryCandidate: { _, _ in true },
-            entryKinds: { _ in [0: ["pro"], 1: ["pro"]] }, send: { _, _ in })
+            entryKinds: { $0 == "ios" ? [0: ["pro"], 1: ["pro"]] : [:] }, send: { _, _ in })
         XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro", kinds: ["pro"]), fromEntry: 0), .init(req: 2, verdict: .skipped),
                        "同じ iOS の種類のエントリ 1 は覆われる")
@@ -278,5 +278,54 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         XCTAssertTrue(handed.contains("1:" + WorkQueueProtocol.encode(.init(req: 3, unit: keyA))),
                       "A を試していないエントリ 1 が A を取る: \(handed)")
         XCTAssertEqual(d.unhandedUnits, [])
+    }
+
+    // MARK: - Android Emulator の種類(DR-214・2026-11-28)
+
+    private let androidFold = Scenario(id: "AFold.S1", variant: nil, platform: "android")
+    private static let pixelKind = "android|pixel_10_pro|system-images/android-37/google_apis/arm64-v8a|hinge=no"
+
+    private func makeAndroid(kinds: @escaping @Sendable (String) -> [Int: Set<String>]) -> DynamicDispatcher {
+        DynamicDispatcher(
+            scenarios: [androidFold], estimateMs: { _, _ in 1000 }, lpt: true,
+            entryPlatforms: [0: ["android"], 1: ["android"]], entryCandidate: { _, _ in true },
+            entryKinds: kinds, send: { _, _ in })
+    }
+
+    private func androidNA(_ req: Int, kinds: Set<String>) -> WorkQueueProtocol.NotApplicable {
+        WorkQueueProtocol.NotApplicable(req: req, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil), lane: "pixel",
+                                        platform: "android", dep: false, kinds: kinds)
+    }
+
+    private func androidWant(_ req: Int) -> WorkQueueProtocol.Want { WorkQueueProtocol.Want(req: req, lane: "pixel", platform: "android") }
+
+    /// 同じ Android Emulator の種類のエントリは試した扱い: 回し直さず対象外で確定する
+    func testIdenticalAndroidEmulatorKindCountsAsTried() {
+        let d = makeAndroid(kinds: { $0 == "android" ? [0: [Self.pixelKind], 1: [Self.pixelKind]] : [:] })
+        XCTAssertEqual(d.handle(androidWant(1), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil)))
+        XCTAssertEqual(d.handleNotApplicable(androidNA(2, kinds: [Self.pixelKind]), fromEntry: 0), .init(req: 2, verdict: .skipped))
+        XCTAssertEqual(d.assignedUnits(entry: 1), [])
+    }
+
+    /// ヒンジが違えば別の種類(折りたたみ機を取りこぼさない)・不明なエントリは覆わない(Android は台ごとのまま)
+    func testDifferentHingeOrUnknownAndroidKindStillHandsOn() {
+        let fold = "android|pixel_10_pro|system-images/android-37/google_apis/arm64-v8a|hinge=yes"
+        for kinds: [Int: Set<String>] in [[0: [Self.pixelKind], 1: [fold]], [0: [Self.pixelKind]], [:], [0: [Self.pixelKind], 1: []]] {
+            let d = makeAndroid(kinds: { _ in kinds })
+            _ = d.handle(androidWant(1), fromEntry: 0)
+            XCTAssertEqual(d.handleNotApplicable(androidNA(2, kinds: [Self.pixelKind]), fromEntry: 0), .init(req: 2, verdict: .handOn), "\(kinds)")
+            XCTAssertEqual(d.handle(WorkQueueProtocol.Want(req: 1, lane: "pixel", platform: "android"), fromEntry: 1),
+                           .init(req: 1, unit: ScenarioUnitKey(id: "AFold.S1", variant: nil)))
+        }
+    }
+
+    /// 種類の観測は platform ごとに1回・Android だけの run は Android だけ引く(iOS を引かない)
+    func testAndroidKindsAreResolvedOnceForAndroidOnly() {
+        let platforms = LockedValue<[String]>([])
+        let d = makeAndroid(kinds: { platform in platforms.withLock { $0.append(platform) }; return [0: [Self.pixelKind], 1: [Self.pixelKind]] })
+        _ = d.handle(androidWant(1), fromEntry: 0)
+        _ = d.handleNotApplicable(androidNA(2, kinds: [Self.pixelKind]), fromEntry: 0)
+        _ = d.handleNotApplicable(androidNA(3, kinds: [Self.pixelKind]), fromEntry: 0)
+        XCTAssertEqual(platforms.value, ["android"])
     }
 }

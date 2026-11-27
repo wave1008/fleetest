@@ -70,4 +70,35 @@ final class AndroidDeviceTraitsTests: XCTestCase {
         XCTAssertNil(bad.model)
         XCTAssertNil(AndroidDeviceTraits.physicalTraits(release: "error: device offline", model: nil).osVersion)
     }
+
+    // MARK: - 台の種類(DR-214。対象外の回し直しで同じ種類の台を試した扱いにする)
+
+    func testEmulatorKindIsDeviceImageAndHinge() {
+        XCTAssertEqual(AndroidDeviceTraits.emulatorKind(configText: flat),
+                       "android|pixel_10_pro|system-images/android-37.1/google_apis_ps16k/arm64-v8a|hinge=no")
+        XCTAssertEqual(AndroidDeviceTraits.emulatorKind(configText: fold),
+                       "android|pixel_9_pro_fold|system-images/android-36/google_apis/arm64-v8a|hinge=yes")
+    }
+
+    /// ヒンジだけ違う2台は別の種類(折りたたみ機を取りこぼして誤った緑にしない)・機種やイメージが違っても別
+    func testEmulatorKindDiffersByHingeDeviceAndImage() {
+        let yes = flat.replacingOccurrences(of: "hw.sensor.hinge=no", with: "hw.sensor.hinge=yes")
+        XCTAssertNotEqual(AndroidDeviceTraits.emulatorKind(configText: flat), AndroidDeviceTraits.emulatorKind(configText: yes))
+        XCTAssertNotEqual(AndroidDeviceTraits.emulatorKind(configText: flat),
+                          AndroidDeviceTraits.emulatorKind(configText: flat.replacingOccurrences(of: "pixel_10_pro", with: "pixel_9")))
+        XCTAssertNotEqual(AndroidDeviceTraits.emulatorKind(configText: flat),
+                          AndroidDeviceTraits.emulatorKind(configText: flat.replacingOccurrences(of: "android-37.1", with: "android-36")))
+    }
+
+    /// 末尾の / の有無で割れない・ヒンジのキーが無い AVD は no・機種かイメージが読めなければ不明
+    func testEmulatorKindNormalisationAndUnknown() {
+        let a = "hw.device.name=p\nimage.sysdir.1=system-images/android-36/x/arm64-v8a/\n"
+        let b = "hw.device.name=p\nimage.sysdir.1=system-images/android-36/x/arm64-v8a\nhw.sensor.hinge=no\n"
+        XCTAssertEqual(AndroidDeviceTraits.emulatorKind(configText: a), AndroidDeviceTraits.emulatorKind(configText: b))
+        XCTAssertNil(AndroidDeviceTraits.emulatorKind(configText: "hw.device.name=p\n"), "イメージが読めない")
+        XCTAssertNil(AndroidDeviceTraits.emulatorKind(configText: "image.sysdir.1=system-images/android-36/x/arm64-v8a/\n"), "機種が読めない")
+        XCTAssertNil(AndroidDeviceTraits.emulatorKind(configText: nil))
+        XCTAssertNil(AndroidDeviceTraits.emulatorKind(avd: nil))
+        XCTAssertNil(AndroidDeviceTraits.emulatorKind(avd: ""))
+    }
 }

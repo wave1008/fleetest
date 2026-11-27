@@ -248,8 +248,8 @@ enum ApiRunMachineFanout {
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
                               entryCandidate: { candidacyBox.value.isCandidate($0, entry: $1) },
                               entryLabel: { groups[$0].machineLabel }, log: { logStderr($0) },
-                              entryKinds: { _ in IOSDeviceKindResolver.entryKinds(
-                                  project: project, profileName: profileName, groups: groups, overrides: options.setOverrides) },
+                              entryKinds: { DeviceKindResolver.entryKinds(
+                                  platform: $0, project: project, profileName: profileName, groups: groups, overrides: options.setOverrides) },
                               send: { entry, reply in writers[entry]?.write(line: WorkQueueProtocol.encode(reply)) })
         }
 

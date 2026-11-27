@@ -32,7 +32,7 @@ public enum NotApplicableHandoff {
         }
     }
 
-    /// 試した台と同じ種類(観測した機種 × runtime)の台は試した扱いにするか(iOS だけ。DR-214)。
+    /// 試した台と同じ種類(観測した機種 × OS / イメージ)の台は試した扱いにするか(iOS Simulator・Android Emulator。DR-214)。
     /// - kinds: 鍵 → その鍵の台で観測した種類(まだ試していない側の見込み)。**不明(欄無し・空)は覆わない**
     /// - evidence: 試して対象外と答えた台で**実際に観測した**種類。証拠はこれだけ —— 鍵の種類から作らない
     ///   (親の鍵 = エントリは台の集まりで、子は一部の台しか使わないことがある = `ResolvedProfile.limitingDevices`)。
