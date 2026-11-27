@@ -226,6 +226,22 @@ def record_machine_states(fleet, run_dir, stage):
             [f"起動 {row['uptimeSeconds'] / 3600:.1f}h" if "uptimeSeconds" in row else "", f"load {row.get('load1', '?')}"]
             + [f"{k}={row[k]['state']}" for k in ("fmText", "fmVision", "videoEncoder") if k in row])
         print(f"   {stage} {row['machine']}: {facts}")
+    if stage == "start":
+        for line in fm_dead_warnings(rows):
+            print(line)
+
+
+def fm_dead_warnings(rows):
+    """開始時に FM が dead と記録されたマシンの警告(止めない = 新しい検知は警告から)。FM 無しのテキストの可視性検証は OCR だけで判定し、
+    読み誤り(C00→COO 等)で赤になりうる。ANE の no memory(MN-81)は空きメモリがあっても起きる"""
+    lines = []
+    for row in rows:
+        dead = [f"{k}({row[k].get('source') or '?'}, {row[k].get('ageSeconds', '?')}s 前)"
+                for k in ("fmText", "fmVision") if isinstance(row.get(k), dict) and row[k].get("state") == "dead"]
+        if dead:
+            lines.append(f"⚠️  {row['machine']}: FM が止まっている = {' '.join(dead)}。テキストの可視性検証は OCR だけで判定する"
+                         " —— このマシンの赤はまず FM の停止を疑う(~/.fleetest/fm-history.ndjson)")
+    return lines
 
 
 def prebuild_args(targets):
