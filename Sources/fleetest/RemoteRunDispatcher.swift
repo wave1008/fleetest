@@ -298,14 +298,14 @@ struct RemoteRunDispatcher {
 
         // 結果の回収も準備の一部(消すのは関数冒頭の defer)
         preparing?.enter(.collectingResults)
-        collectReports(project: project, remoteReportDir: remoteReportDir,
-                      interrupted: interruptFlag.interrupted, exitCode: exitCode)
-        relinkCollectedReportTexts(project: project, stamp: stamp)
+        let transferredReports = collectReports(project: project, remoteReportDir: remoteReportDir,
+                                                interrupted: interruptFlag.interrupted, exitCode: exitCode)
+        relinkCollectedReportTexts(project: project, stamp: stamp, transferred: transferredReports)
         if let localJUnitPath, let remoteJUnitPath {
             collectJUnit(remotePath: remoteJUnitPath, localPath: localJUnitPath, layout: layout,
                         stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path)
         }
-        let transferredScenarioPaths = collectArtifacts(project: project, layout: layout)
+        let transferredScenarioPaths = collectArtifacts(project: project, layout: layout, stamp: stamp)
         // 今回の回収で転送された scenario JSON だけを読む。**読んだ結果は1回だけ作り**、
         // saveHostFacts/relinkCollectedReports/writeLastResults の3箇所へ共有する
         // (同じ全件走査(過去2か月分)を毎ディスパッチ2回行うと重い)
@@ -1189,6 +1189,7 @@ struct RemoteRunDispatcher {
                                                    issuer: LocalConfig.resolveIssuerId(),
                                                    fmConcurrency: registeredFMConcurrency,
                                                    occlusionDumpDir: layout.dispatchReportDir(stamp: stamp) + "/occlusion",
+                                                   runMarker: layout.dispatchRunMarker(stamp: stamp),
                                                    developerDir: developerDir)
         // ssh を「このプロセスが死んだら止まる」包みに入れる(孤児の ssh がリモートの run を出力の write で
         // 止めたままにする。理由は ParentBoundCommand の冒頭)
@@ -1230,25 +1231,29 @@ struct RemoteRunDispatcher {
     /// **interrupted**: このディスパッチが自分から中断した(SIGINT/SIGTERM)かどうか。
     /// 中断は正常に閉じて0件なだけで「失敗」ではない(実測: 4機ファンアウトへの
     /// SIGTERM 中断でも「the run failed」と出ていた。reportsMissingNote の宣言参照)
+    /// 戻り値 = 今回転送されたファイルの reports/ からの相対パス(`--out-format=%n`。一部だけ転送できた回もその分)
     private func collectReports(project: TestProject, remoteReportDir: String, interrupted: Bool,
-                                exitCode: Int32) {
+                                exitCode: Int32) -> [String] {
         log("==> collecting reports")
         let localReports = project.reportsDir
         try? FileManager.default.createDirectory(at: localReports, withIntermediateDirectories: true)
         let remoteReports = "\(host.sshTarget):\(remoteReportDir)/"
         // --safe-links の理由は RemoteArtifactCollection.rsyncArgs のコメント(回収は共有ディレクトリからの入力)
-        collectRsync(["rsync", "-az", "--safe-links"] + SSHOptions.rsyncRemoteShellArgs
-                        + [remoteReports, localReports.path + "/"],
-                     what: "reports", missingNote: Self.reportsMissingNote(interrupted: interrupted, exitCode: exitCode))
+        // `-8` が無いと日本語のファイル名が `\#203…` で出て、転送の一覧が実在のファイルに一致しない(resultsRsyncArgs と同じ)
+        let (_, output) = collectRsyncCapturingOutput(
+            ["rsync", "-az", "--safe-links", "-8", "--out-format=%n"] + SSHOptions.rsyncRemoteShellArgs
+                + [remoteReports, localReports.path + "/"],
+            what: "reports", missingNote: Self.reportsMissingNote(interrupted: interrupted, exitCode: exitCode))
+        return output.split(whereSeparator: \.isNewline).map(String.init)
     }
 
     /// 回収した reports/ 直下の .md / .failure.json に残るリモートの隔離先パス(可視性検証の `[crop: …]` 等)を
-    /// 回収先へ直す。stamp を含むファイルだけ書き換える。失敗は黙って飛ばす(run の成否は変えない)
-    private func relinkCollectedReportTexts(project: TestProject, stamp: String) {
+    /// 回収先へ直す。stamp を含むファイルだけ書き換える。失敗は黙って飛ばす(run の成否は変えない)。
+    /// **読むのは今回転送されたファイルだけ**(`transferred`。reports/ 全体を読み直すと手元に溜まった 1 万件超を回収のたびに読む)
+    private func relinkCollectedReportTexts(project: TestProject, stamp: String, transferred: [String]) {
         let dir = project.reportsDir
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
         var relinked = 0
-        for name in names where name.hasSuffix(".md") || name.hasSuffix(".failure.json") {
+        for name in transferred where !name.contains("/") && (name.hasSuffix(".md") || name.hasSuffix(".failure.json")) {
             let url = dir.appendingPathComponent(name)
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             let rewritten = RemoteReportLink.rewriteCollectedReportText(text, stamp: stamp, localReportsDir: dir.path)
@@ -1263,22 +1268,45 @@ struct RemoteRunDispatcher {
     /// `--out-format=%n` の出力から拾う。一部だけ転送できた回もその分は返す。何も転送されなかったときは空配列 ——
     /// `collectedScenarioTexts` はこの一覧しか読まないので、そのときは何も読めない)
     @discardableResult
-    private func collectArtifacts(project: TestProject, layout: RemoteLayout) -> [String] {
+    private func collectArtifacts(project: TestProject, layout: RemoteLayout, stamp: String) -> [String] {
         let localResults = project.rootURL.appendingPathComponent("results")
         try? FileManager.default.createDirectory(at: localResults, withIntermediateDirectories: true)
         let localProjectsDir = project.rootURL.deletingLastPathComponent().path
 
         log("==> collecting recordings and run logs")
+        // 引くのはこのディスパッチの run のフォルダだけ(印より新しいもの。理由は resultsRsyncArgs)
+        let runDirs: [String]
+        do {
+            runDirs = RemoteArtifactCollection.parseRunDirs(try sshCapture(RemoteArtifactCollection.runDirsCommand(
+                project: project.name, layout: layout, marker: layout.dispatchRunMarker(stamp: stamp))))
+        } catch {
+            log("warning: could not list the run directories on \(host.sshTarget) (\(describe(error)))"
+                + " — recordings and run logs are left there (`fleetest remote clean` removes them later)")
+            return []
+        }
+        guard !runDirs.isEmpty else {
+            log("note: the remote produced no recordings or run logs")
+            return []
+        }
+        let listFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fleetest-collect-\(stamp)-\(UUID().uuidString).txt")
+        defer { try? FileManager.default.removeItem(at: listFile) }
+        do {
+            try (runDirs.joined(separator: "\n") + "\n").write(to: listFile, atomically: true, encoding: .utf8)
+        } catch {
+            log("warning: could not write the list of run directories to collect (\(describe(error)))")
+            return []
+        }
         let args = ["rsync"] + RemoteArtifactCollection.resultsRsyncArgs(
             project: project.name, layout: layout, sshTarget: host.sshTarget,
-            localProjectsDir: localProjectsDir)
+            localProjectsDir: localProjectsDir, runDirsListFile: listFile.path)
         let (collected, output) = collectRsyncCapturingOutput(
             args, what: "recordings and run logs",
             missingNote: "note: the remote produced no recordings or run logs")
         // **回収できたときだけ**リモートの録画を消す(RR-15.4:
         // 録画にはテスト資格情報の入力画面が写り込み、共有ランナーでは同じ UNIX アカウントの
         // 全員が読める)。回収に失敗したまま消すと唯一の証拠を失うので、失敗時は残す
-        if collected { deleteRemoteRecordings(project: project, layout: layout) }
+        if collected { deleteRemoteRecordings(project: project, layout: layout, runDirs: runDirs) }
         // 一部だけ転送できた回も、転送できた分は読む(collectRsyncCapturingOutput が出力を返す)
         return RemoteArtifactCollection.transferredScenarioJSONPaths(rsyncOutput: output)
     }
@@ -1504,16 +1532,9 @@ struct RemoteRunDispatcher {
     /// 回収の rsync。**転送元不在(= run が成果物を作る前に落ちた)は警告にしない** ——
     /// 本当の失敗理由の下にノイズを積まないため(RemoteArtifactCollection.isMissingSourceFailure)。
     /// stderr を見る必要があるので継承ではなく捕捉する(回収は少量で進行表示が要らない)
-    /// 戻り値 = 転送が成功したか(**回収できていない物を消さない**ための判定に使う。
-    /// 転送元不在は「消す物も無い」なので成功と同じ扱いでよいが、区別できるよう false を返す)
-    @discardableResult
-    private func collectRsync(_ args: [String], what: String, missingNote: String) -> Bool {
-        collectRsyncCapturingOutput(args, what: what, missingNote: missingNote).ok
-    }
-
-    /// collectRsync と同じ規律だが、**成功時の stdout(rsync の出力)も返す**(
-    /// `--out-format=%n` を付けた呼び出しから転送済みファイル一覧を得るため)。output を使わない
-    /// 呼び出し元は collectRsync を使う
+    /// 戻り値の ok = 転送が成功したか(**回収できていない物を消さない**ための判定に使う。
+    /// 転送元不在は「消す物も無い」なので成功と同じ扱いでよいが、区別できるよう false を返す)。
+    /// output = rsync の出力(`--out-format=%n` を付けた呼び出しから転送済みファイル一覧を得るため)
     private func collectRsyncCapturingOutput(
         _ args: [String], what: String, missingNote: String
     ) -> (ok: Bool, output: String) {
@@ -1536,10 +1557,10 @@ struct RemoteRunDispatcher {
     /// LPT がリモートの実績を見るのはランナー側のファイルではなく回収した手元のものだが、
     /// 向こうの results をまるごと消すと `remote clean` の保持ポリシーと二重管理になる。
     /// 失敗は warn のみ(run の成否を変えない)
-    private func deleteRemoteRecordings(project: TestProject, layout: RemoteLayout) {
+    private func deleteRemoteRecordings(project: TestProject, layout: RemoteLayout, runDirs: [String]) {
         do {
             _ = try sshCapture(RemoteArtifactCollection.deleteRecordingsCommand(
-                project: project.name, layout: layout))
+                project: project.name, layout: layout, runDirs: runDirs))
         } catch {
             log("warning: failed to delete the collected recordings on \(host.sshTarget)"
                 + " (\(error.localizedDescription)) — `fleetest remote clean` removes them later")

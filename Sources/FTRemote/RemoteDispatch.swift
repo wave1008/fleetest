@@ -377,6 +377,12 @@ public struct RemoteLayout: Equatable, Sendable {
         workDir + "/.fleetest/dispatch/" + stamp + "/reports"
     }
 
+    /// run の開始の直前に向こうで作る印(`remoteRunCommand` の runMarker)。回収はこれより新しい run のフォルダだけを引く
+    /// (`RemoteArtifactCollection.runDirsCommand`)。中身は空で、作った後に書き換えない(mtime が基準)
+    public func dispatchRunMarker(stamp: String) -> String {
+        workDir + "/.fleetest/dispatch/" + stamp + "/run-started"
+    }
+
     /// `--remote-dir` として受け付ける文字種。**`$` とバッククォートを弾くのが要点** —
     /// remote status はリモート側で `$HOME` を展開させるため二重引用符でパスを囲んでおり
     /// (RemoteStatusProbe.dquote)、`$(…)` や `` ` `` を通すとリモートでコマンド置換が起きる。
@@ -503,11 +509,33 @@ public enum RemoteArtifactCollection {
 
     /// results/ 回収(録画+RunRecorder の run.json/scenario json/host-metrics.ndjson)の rsync 引数。
     /// **--delete は付けない**(RemoteTransferPlan.rsyncArgs と違い、ローカルで別に走った run の
-    /// results を巻き添えで消してはいけない)。差分のみ転送するので繰り返し呼んでも安い
+    /// results を巻き添えで消してはいけない)。
+    /// **引くのは `runDirsListFile` に並べた run のフォルダだけ**(`runs/<月>/<runID>` を1行ずつ。results/ からの相対)。
+    /// results/ 丸ごとだと、手元の掃除で消した古い run を回収のたびに送り直す(実測: M1Max の E2E-RN で 2,300 ファイル・40MB・2.8 秒)。
+    /// `--files-from` は `-a` の再帰を外すので `-r` を明示する
     public static func resultsRsyncArgs(project: String, layout: RemoteLayout,
-                                        sshTarget: String, localProjectsDir: String) -> [String] {
+                                        sshTarget: String, localProjectsDir: String,
+                                        runDirsListFile: String) -> [String] {
         rsyncArgs(project: project, layout: layout,
-                 sshTarget: sshTarget, localProjectsDir: localProjectsDir)
+                 sshTarget: sshTarget, localProjectsDir: localProjectsDir, runDirsListFile: runDirsListFile)
+    }
+
+    /// このディスパッチの run のフォルダ(`runs/<月>/<runID>`)を1行ずつ出す向こうのコマンド。印(`dispatchRunMarker`)より新しいものだけ。
+    /// 印・results・runs が無い(run が始まる前に止まった)ときは何も出さずに 0 で抜ける = 失敗と区別する。グロブは使わない
+    public static func runDirsCommand(project: String, layout: RemoteLayout, marker: String) -> String {
+        let results = RemoteShell.quote(layout.projectDir(project) + "/results")
+        let quotedMarker = RemoteShell.quote(marker)
+        return "if [ -e \(quotedMarker) ] && [ -d \(results)/runs ]; then cd \(results)"
+            + " && find runs -mindepth 2 -maxdepth 2 -type d -newer \(quotedMarker); fi"
+    }
+
+    /// `runDirsCommand` の出力から run のフォルダだけを拾う(シェル初期化ファイルの echo 等の混入を落とす)
+    public static func parseRunDirs(_ output: String) -> [String] {
+        output.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { line in
+            let parts = line.split(separator: "/", omittingEmptySubsequences: false)
+            return parts.count == 3 && parts[0] == "runs" && !parts[1].isEmpty && !parts[2].isEmpty
+                && !parts.contains("..") && !parts.contains(".")
+        }
     }
 
     /// **`--safe-links` は回収(リモート → 手元)にだけ付ける**。ランナーが作ったシンボリックリンクを
@@ -525,8 +553,9 @@ public enum RemoteArtifactCollection {
     /// ファイル名を `\#203\#206…` にエスケープして出すので、日本語のシナリオ名の JSON が1件も
     /// 実在のパスに一致せず、回収後の3処理(relink・facts・`--failed` の記録)が黙って空振りする(実測)
     private static func rsyncArgs(project: String, layout: RemoteLayout,
-                                  sshTarget: String, localProjectsDir: String) -> [String] {
-        var args = ["-az", "--safe-links", "-8", "--out-format=%n"] + SSHOptions.rsyncRemoteShellArgs
+                                  sshTarget: String, localProjectsDir: String, runDirsListFile: String) -> [String] {
+        var args = ["-az", "-r", "--safe-links", "-8", "--out-format=%n", "--files-from=\(runDirsListFile)"]
+            + SSHOptions.rsyncRemoteShellArgs
         args += [
             "\(sshTarget):\(layout.projectDir(project))/results/",
             "\(localProjectsDir)/\(project)/results/",
@@ -539,17 +568,14 @@ extension RemoteArtifactCollection {
 
     /// 回収済みの録画をランナーから消す1本のコマンド(RR-15.4)。
     /// **消すのは録画だけ**(実績 JSON は残す = `remote clean` の保持ポリシーが面倒を見る)。
-    ///
-    /// **グロブを使わない**。①置き場は `results/runs/<YYYY-MM>/<runID>/recordings`
-    /// (RunResultsStore.runDir。月の階層がある)ので `runs/*/recordings` では1件も当たらない
-    /// ②ssh の相手はログインシェル(macOS 既定は zsh)で、**マッチしないグロブはそのコマンドを
-    /// 失敗させる**(`no matches found`)ため、録画が無い run のたびに警告が出る。
-    /// find の `-mindepth/-maxdepth 3` が階層の契約(runs から数えて 月 / runID / recordings)。
-    /// runs が無いときは何もしない(`test -d`)= 失敗と区別できる
-    public static func deleteRecordingsCommand(project: String, layout: RemoteLayout) -> String {
-        let runs = RemoteShell.quote(layout.projectDir(project) + "/results/runs")
-        return "if [ -d \(runs) ]; then find \(runs) -mindepth 3 -maxdepth 3 -type d"
-            + " -name recordings -exec rm -rf {} +; fi"
+    /// **消すのは今回回収した run のフォルダ(`runDirs` = `parseRunDirs` の結果)の録画だけ** —— 回収していない run の録画は
+    /// 唯一の証拠なので残す。置き場は `results/runs/<YYYY-MM>/<runID>/recordings`(RunResultsStore.runDir)。
+    /// グロブを使わない(ログインシェルの zsh はマッチしないグロブでコマンドごと失敗する)。`rm -rf` は無いパスで失敗しない。
+    /// 呼び手は runDirs が空なら呼ばない
+    public static func deleteRecordingsCommand(project: String, layout: RemoteLayout, runDirs: [String]) -> String {
+        let results = RemoteShell.quote(layout.projectDir(project) + "/results")
+        let targets = runDirs.map { RemoteShell.quote($0 + "/recordings") }.joined(separator: " ")
+        return "cd \(results) && rm -rf \(targets)"
     }
 
     /// rsync の失敗が「**転送元がそもそも無い**」だけかを判定する。run がシナリオ実行の前に
@@ -1341,10 +1367,16 @@ public enum RemoteShell {
                                         issuer: String? = nil,
                                         fmConcurrency: Int? = nil,
                                         occlusionDumpDir: String? = nil,
+                                        runMarker: String? = nil,
                                         developerDir: String? = nil,
                                         streamOwner: String? = StreamOwner.current(),
                                         jobID: String? = JobMembership.jobIDFromEnvironment()) -> String {
         let binary = quote(layout.binary)
+        // 回収の基準の印(`RemoteLayout.dispatchRunMarker`)。run のフォルダより必ず先に作る = 起動の前
+        let markerCmd = runMarker.map { marker in
+            let dir = (marker as NSString).deletingLastPathComponent
+            return "mkdir -p \(quote(dir)) && : > \(quote(marker)) && "
+        } ?? ""
         let guardCmd = "test -x \(binary) || { echo \"fleetest binary not found on remote"
             + " — run: swift build --product fleetest\" >&2; exit 90; }"
         // ジョブの ID(台帳は発行側にある)。**`FT_JOB_MARKED=1` を必ず一緒に運ぶ** —— 向こうの run は行を受け持たない
@@ -1375,7 +1407,7 @@ public enum RemoteShell {
             + "{ echo \"no runner workspace at \(layout.workDir) — run: fleetest remote setup"
             + " <this host> once for this issuer (RR-18)\" >&2; exit 91; } && "
             + "\(pathCmd) && \(issuerCmd)\(streamOwnerCmd(streamOwner))\(jobCmd)"
-            + "\(devDirCmd)\(dumpCmd)\(fmCmd)\(lockHeldCmd)\(dispatchedRunCmd)\(guardCmd) && \(syncCmd) && \(launch)"
+            + "\(devDirCmd)\(dumpCmd)\(fmCmd)\(lockHeldCmd)\(dispatchedRunCmd)\(markerCmd)\(guardCmd) && \(syncCmd) && \(launch)"
     }
 
     /// **ディスパッチが向こうで起こす run に「このロックは親が握っている」印を運ぶ**。

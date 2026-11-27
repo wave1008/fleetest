@@ -300,9 +300,9 @@ final class RemoteDispatchTests: XCTestCase {
         XCTAssertEqual(
             RemoteArtifactCollection.resultsRsyncArgs(
                 project: "E2E", layout: layout, sshTarget: "user@host",
-                localProjectsDir: "/local/Projects"),
+                localProjectsDir: "/local/Projects", runDirsListFile: "/tmp/list.txt"),
             [
-                "-az", "--safe-links", "-8", "--out-format=%n",
+                "-az", "-r", "--safe-links", "-8", "--out-format=%n", "--files-from=/tmp/list.txt",
                 "-e", "ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4",
                 "user@host:/Users/ci/fleetest-runner/users/alice/work/TestProjects/E2E/results/",
                 "/local/Projects/E2E/results/",
@@ -315,7 +315,7 @@ final class RemoteDispatchTests: XCTestCase {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
         XCTAssertTrue(RemoteArtifactCollection.resultsRsyncArgs(
             project: "E2E", layout: layout, sshTarget: "user@host",
-            localProjectsDir: "/local/Projects").contains("--out-format=%n"))
+            localProjectsDir: "/local/Projects", runDirsListFile: "/tmp/list.txt").contains("--out-format=%n"))
     }
 
     /// **本物の rsync に同じフラグで日本語名のファイルを運ばせ**、出力から拾ったパスが実在の
@@ -335,8 +335,11 @@ final class RemoteDispatchTests: XCTestCase {
         try Data("{}".utf8).write(to: scenarios.appendingPathComponent(name))
 
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
+        let list = root.appendingPathComponent("list.txt")
+        try Data("runs/2026-09/r1\n".utf8).write(to: list)
         var args = RemoteArtifactCollection.resultsRsyncArgs(
-            project: "E2E", layout: layout, sshTarget: "user@host", localProjectsDir: "/unused")
+            project: "E2E", layout: layout, sshTarget: "user@host", localProjectsDir: "/unused",
+            runDirsListFile: list.path)
         args.removeLast(2)
         args += [root.appendingPathComponent("src").path + "/", root.appendingPathComponent("dst").path + "/"]
         let rsync = Process()
@@ -377,8 +380,11 @@ final class RemoteDispatchTests: XCTestCase {
                                               ofItemAtPath: scenarios.appendingPathComponent("B.s1.json").path)
 
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
+        let list = root.appendingPathComponent("list.txt")
+        try Data("runs/r1\n".utf8).write(to: list)
         var args = RemoteArtifactCollection.resultsRsyncArgs(
-            project: "E2E", layout: layout, sshTarget: "user@host", localProjectsDir: "/unused")
+            project: "E2E", layout: layout, sshTarget: "user@host", localProjectsDir: "/unused",
+            runDirsListFile: list.path)
         args.removeLast(2)
         args += [root.appendingPathComponent("src").path + "/", root.appendingPathComponent("dst").path + "/"]
         let rsync = Process()
@@ -402,7 +408,7 @@ final class RemoteDispatchTests: XCTestCase {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
         let args = RemoteArtifactCollection.resultsRsyncArgs(
             project: "E2E", layout: layout, sshTarget: "user@host",
-            localProjectsDir: "/local/Projects")
+            localProjectsDir: "/local/Projects", runDirsListFile: "/tmp/list.txt")
         XCTAssertFalse(args.contains("--delete"), "\(args)")
         let paths = Array(args.suffix(2))
         XCTAssertTrue(paths[0].hasSuffix("/"), paths[0])
@@ -415,7 +421,7 @@ final class RemoteDispatchTests: XCTestCase {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
         XCTAssertTrue(RemoteArtifactCollection.resultsRsyncArgs(
             project: "E2E", layout: layout, sshTarget: "user@host",
-            localProjectsDir: "/local/Projects").contains("--safe-links"))
+            localProjectsDir: "/local/Projects", runDirsListFile: "/tmp/list.txt").contains("--safe-links"))
     }
 
     /// 送信(手元 → リモート)には付けない —— 受け手側の正当なシンボリックリンクを落とすため
@@ -955,19 +961,106 @@ final class RemoteDispatchTests: XCTestCase {
         XCTAssertEqual(rows.map(\.issuer), ["carol"])
     }
 
-    /// 回収した録画はランナーに残さない(RR-15.4)。**消すのは録画だけ**
-    func testDeleteRecordingsCommandTargetsOnlyRecordings() {
+    /// 回収した録画はランナーに残さない(RR-15.4)。**消すのは今回回収した run の録画だけ**
+    func testDeleteRecordingsCommandTargetsOnlyTheCollectedRunsRecordings() {
         let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
-        let command = RemoteArtifactCollection.deleteRecordingsCommand(project: "E2E", layout: layout)
-        // 置き場は `results/runs/<YYYY-MM>/<runID>/recordings`(RunResultsStore.runDir)。
-        // **月の階層を数え間違えると1件も消えない**(黙って効かない = 気付けない失敗)
-        let runs = "'/Users/ci/fleetest-runner/users/alice/work/TestProjects/E2E/results/runs'"
+        let command = RemoteArtifactCollection.deleteRecordingsCommand(
+            project: "E2E", layout: layout, runDirs: ["runs/2026-11/r1", "runs/2026-11/r2"])
         XCTAssertEqual(
             command,
-            "if [ -d \(runs) ]; then find \(runs) -mindepth 3 -maxdepth 3 -type d"
-            + " -name recordings -exec rm -rf {} +; fi")
-        // グロブは使わない(zsh のマッチ無しでコマンドが失敗し、録画の無い run のたびに警告が出る)
+            "cd '/Users/ci/fleetest-runner/users/alice/work/TestProjects/E2E/results'"
+            + " && rm -rf 'runs/2026-11/r1/recordings' 'runs/2026-11/r2/recordings'")
+        // グロブは使わない(zsh のマッチ無しでコマンドが失敗する)
         XCTAssertFalse(command.contains("*"), command)
+    }
+
+    /// 向こうの出力から run のフォルダだけを拾う(シェル初期化の echo・階層違い・`..` は落とす)
+    func testParseRunDirsKeepsOnlyRunFolders() {
+        let output = "hello from zshenv\nruns/2026-11/r1\nruns/2026-11\nruns/2026-11/r2/recordings\n"
+            + "runs/../r3\n  runs/2026-10/r4  \n"
+        XCTAssertEqual(RemoteArtifactCollection.parseRunDirs(output), ["runs/2026-11/r1", "runs/2026-10/r4"])
+    }
+
+    /// 回収の基準の印は run の起動より前に作る(run のフォルダより古い = `-newer` で今回の run が拾える)
+    func testRemoteRunCommandCreatesTheRunMarkerBeforeLaunching() throws {
+        let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
+        let marker = layout.dispatchRunMarker(stamp: "s1")
+        let command = RemoteShell.remoteRunCommand(layout: layout, fleetestArgs: ["run"], runMarker: marker,
+                                                   streamOwner: nil, jobID: nil)
+        let make = try XCTUnwrap(command.range(of: "mkdir -p '/Users/ci/fleetest-runner/users/alice/work/.fleetest/dispatch/s1'"
+                                               + " && : > '\(marker)' && "), command)
+        let launch = try XCTUnwrap(command.range(of: "'\(layout.binary)' 'run'"), command)
+        XCTAssertLessThan(make.lowerBound, launch.lowerBound)
+        XCTAssertFalse(RemoteShell.remoteRunCommand(layout: layout, fleetestArgs: ["run"], streamOwner: nil, jobID: nil)
+            .contains("run-started"))
+    }
+
+    /// **本物の sh と find で**、印より新しい run のフォルダだけが出ること。印が無い(run が始まる前に止まった)ときは
+    /// 何も出さずに 0 で抜けること。古い run(手元の掃除で消えた分)を回収のたびに送り直していた退行を止める砦
+    func testRunDirsCommandListsOnlyRunsNewerThanTheMarker() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("ft-rundirs-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: base) }
+        let layout = RemoteLayout(base: base.path, issuer: "alice", home: base.path)
+        let results = URL(fileURLWithPath: layout.projectDir("E2E")).appendingPathComponent("results")
+        let fm = FileManager.default
+        let old = results.appendingPathComponent("runs/2026-10/old")
+        try fm.createDirectory(at: old, withIntermediateDirectories: true)
+        try fm.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -3600)], ofItemAtPath: old.path)
+        let marker = URL(fileURLWithPath: layout.dispatchRunMarker(stamp: "s1"))
+        func run(_ command: String) throws -> (Int32, String) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = ["-c", command]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            try process.run()
+            process.waitUntilExit()
+            return (process.terminationStatus, String(decoding: pipe.fileHandleForReading.availableData, as: UTF8.self))
+        }
+        let command = RemoteArtifactCollection.runDirsCommand(project: "E2E", layout: layout, marker: marker.path)
+        let (noMarkerStatus, noMarkerOutput) = try run(command)
+        XCTAssertEqual(noMarkerStatus, 0)
+        XCTAssertEqual(noMarkerOutput, "")
+
+        try fm.createDirectory(at: marker.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: marker)
+        try fm.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -60)], ofItemAtPath: marker.path)
+        try fm.createDirectory(at: results.appendingPathComponent("runs/2026-11/new"), withIntermediateDirectories: true)
+        let (status, output) = try run(command)
+        XCTAssertEqual(status, 0)
+        XCTAssertEqual(RemoteArtifactCollection.parseRunDirs(output), ["runs/2026-11/new"], output)
+    }
+
+    /// **本物の rsync で**、一覧に載せた run のフォルダだけが届き、載せていない古い run は届かないこと
+    func testResultsRsyncCollectsOnlyTheListedRunFolders() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ft-rsync-only-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        for dir in ["src/runs/2026-10/old/scenarios", "src/runs/2026-11/new/scenarios", "dst"] {
+            try fm.createDirectory(at: root.appendingPathComponent(dir), withIntermediateDirectories: true)
+        }
+        try Data("{}".utf8).write(to: root.appendingPathComponent("src/runs/2026-10/old/scenarios/A.s1.json"))
+        try Data("{}".utf8).write(to: root.appendingPathComponent("src/runs/2026-11/new/scenarios/B.s1.json"))
+        let list = root.appendingPathComponent("list.txt")
+        try Data("runs/2026-11/new\n".utf8).write(to: list)
+        let layout = RemoteLayout(base: "/Users/ci/fleetest-runner", issuer: "alice", home: "/Users/ci")
+        var args = RemoteArtifactCollection.resultsRsyncArgs(
+            project: "E2E", layout: layout, sshTarget: "user@host", localProjectsDir: "/unused", runDirsListFile: list.path)
+        args.removeLast(2)
+        args += [root.appendingPathComponent("src").path + "/", root.appendingPathComponent("dst").path + "/"]
+        let rsync = Process()
+        rsync.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        rsync.arguments = ["rsync"] + args
+        let pipe = Pipe()
+        rsync.standardOutput = pipe
+        rsync.standardError = FileHandle.nullDevice
+        try rsync.run()
+        rsync.waitUntilExit()
+        XCTAssertEqual(rsync.terminationStatus, 0)
+        let output = String(decoding: pipe.fileHandleForReading.availableData, as: UTF8.self)
+        XCTAssertEqual(RemoteArtifactCollection.transferredScenarioJSONPaths(rsyncOutput: output),
+                       ["runs/2026-11/new/scenarios/B.s1.json"], output)
+        XCTAssertFalse(fm.fileExists(atPath: root.appendingPathComponent("dst/runs/2026-10").path))
     }
 
     // MARK: - RemotePathRewrite
