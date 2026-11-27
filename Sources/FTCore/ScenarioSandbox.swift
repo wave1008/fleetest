@@ -657,6 +657,13 @@ public enum ScenarioSandbox {
             // 根そのもの(中身は書ける)。`prepareWritableRoots` の doc
             + (try writablePaths(scope).map { "(literal " + (try quoted(canonicalPath($0))) + ")" })
         lines.append("(deny file-write* " + denied.joined(separator: " ") + ")")
+        // Simulator のデータ容器の中に symlink とハードリンクを作らせない(容器の外 = ホストのファイルへ出る道。親や cfprefsd が
+        // 容器の中のパスを辿ると先のファイルに作用する = 判定と実行の間に差し替える形も、作れなければ成り立たない)
+        if let udid = scope.simulatorUDID {
+            let container = try "(regex #\"" + simulatorDataContainerRegex(home: scope.home, udid: udid) + "\")"
+            lines.append("(deny file-write-create (require-all (vnode-type SYMLINK) " + container + "))")
+            lines.append("(deny file-link " + container + ")")
+        }
         let unreadable = try scope.denyRead.map { try subpath($0) }
         if !unreadable.isEmpty {
             lines.append("(deny file-read* " + unreadable.joined(separator: " ") + ")")

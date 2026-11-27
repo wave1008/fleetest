@@ -150,9 +150,11 @@ public enum SimctlPolicy {
     static func preferencesDomain(_ path: String, context: Context) -> Refusal? {
         let refusal = Refusal(reason: "simctl spawn defaults delete is only allowed for a preferences domain inside"
             + " this lane's app containers: \(path)")
-        guard let udid = context.udid else { return refusal }
-        let container = (((path as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent as NSString)
-            .deletingLastPathComponent
+        // 容器 = パスの中の最後の `/Library/Preferences/` より手前(ByHost の分は1段深い。ドメインの名前は `/` を含まない)
+        guard let udid = context.udid, let marker = path.range(of: "/Library/Preferences/", options: .backwards) else {
+            return refusal
+        }
+        let container = String(path[..<marker.lowerBound])
         let root = FileManager.default.homeDirectoryForCurrentUser.path
             + "/Library/Developer/CoreSimulator/Devices/\(udid)/data/Containers"
         let realContainer = ScenarioSandbox.canonicalPath(container)

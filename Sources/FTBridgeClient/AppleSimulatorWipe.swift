@@ -69,6 +69,11 @@ public enum AppleSimulatorWipe {
                 + report.groups.map { "\($0.id) (\($0.itemsRemoved) item(s))" }.joined(separator: ", ") + ".")
         }
         for problem in report.problems { lines.append("NOT done: \(problem)") }
+        // group の容器は同じ group の他のプロセス(ウィジェット・拡張)が動いていれば書き戻しうる(止めたのは対象のアプリだけ)
+        if !report.groups.isEmpty {
+            lines.append("NOT stopped: other members of the app groups (widgets, extensions) — if one is running, it can write"
+                + " the group preferences back")
+        }
         // 消したのは容器2種だけ。連絡先は端末全体のストアに残る(Simulator の Library/AddressBook。他のアプリも読むので消さない)
         lines.append("NOT touched: device-wide stores outside these containers (for example the contacts in the simulator's"
             + " Library/AddressBook, which every app shares), so data the app keeps there remains.")
@@ -95,10 +100,10 @@ public enum AppleSimulatorWipe {
         // symlink の容器・設定の置き場は辿らない(下の emptyContents が容器を断る。その前に先の設定を消させない)
         func flushUnlessLinked(_ container: String) -> [(path: String, detail: String)] {
             if (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil { return [] }
-            guard let domains = SimulatorPreferencesFlush.domainPaths(container: container) else {
-                return [(container + "/Library/Preferences", "a symbolic link — refusing to clear the preferences it points to")]
+            switch SimulatorPreferencesFlush.domainPaths(container: container) {
+            case .domains(let domains): return SimulatorPreferencesFlush.flush(udid: udid, domainPaths: domains)
+            case .refused(let why): return [(container, "refused: \(why)")]
             }
-            return SimulatorPreferencesFlush.flush(udid: udid, domainPaths: domains)
         }
         var unflushed = flushUnlessLinked(dataPath)
         guard let dataWipe = emptyContents(of: dataPath) else {

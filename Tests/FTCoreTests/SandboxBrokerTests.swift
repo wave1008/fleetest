@@ -68,6 +68,7 @@ final class SimctlPolicyTests: XCTestCase {
             simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Data/Application/ABC-1/Library/Preferences/com.example.app"),
             simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Shared/AppGroup/G-1/Library/Preferences/group.com.example"),
             simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Data/Application/ABC-1/Library/Preferences/Some SDK"),
+            simctl("spawn", "UDID-1", "defaults", "delete", Self.containers("UDID-1") + "/Data/Application/ABC-1/Library/Preferences/ByHost/com.example.app.ABCD"),
             ["SIMCTL_CHILD_DYLD_INSERT_LIBRARIES=\(bridge)", "SIMCTL_CHILD_FT_PORT=8135",
              "SIMCTL_CHILD_FT_OWNER_REPO=/x", "SIMCTL_CHILD_FT_WEBVIEW_DOM=0"]
                 + simctl("launch", "--terminate-running-process", "UDID-1", "com.example.app"),
@@ -97,6 +98,8 @@ final class SimctlPolicyTests: XCTestCase {
             mine + "/Bundle/Application/ABC-1/Library/Preferences/com.example.app",                     // アプリの本体の側
             mine + "/Data/Application/ABC-1/Library/Caches/com.example.app",                            // 設定の置き場でない
             mine + "/Data/Application/ABC-1/Library/Preferences/a\nb",                                // 制御文字
+            mine + "/Data/Application/ABC-1/Library/Preferences/x.plist",                              // 拡張子付き(そのものに作用する)
+            mine + "/Data/Application/ABC-1/Library/Preferences/Other/com.example.app",                // ByHost 以外の下の階層
             FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Preferences/com.apple.dock", // ホストの設定
         ] {
             XCTAssertNotNil(refusal(simctl("spawn", "UDID-1", "defaults", "delete", path)), path)

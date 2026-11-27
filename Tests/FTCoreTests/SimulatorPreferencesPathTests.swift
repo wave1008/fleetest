@@ -21,13 +21,15 @@ final class SimulatorPreferencesPathTests: XCTestCase {
         for ok in ["com.example.app", "Some SDK", "group.com.example+beta", "-g", "日本語"] {
             XCTAssertTrue(SimulatorPreferencesPath.isDomainName(ok), ok)
         }
-        for bad in ["", ".", "..", "a/b", "a\nb", "a\u{7f}"] {
+        for bad in ["", ".", "..", "a/b", "a\nb", "a\u{7f}", "x.plist", "X.PLIST"] {
             XCTAssertFalse(SimulatorPreferencesPath.isDomainName(bad), bad)
         }
     }
 
-    func testDomainInsideTheRealPreferencesDirectory() {
+    func testDomainInsideTheRealPreferencesDirectory() throws {
         XCTAssertTrue(SimulatorPreferencesPath.isDomain(container + "/Library/Preferences/com.example.app", inContainer: container))
+        try FileManager.default.createDirectory(atPath: container + "/Library/Preferences/ByHost", withIntermediateDirectories: true)
+        XCTAssertTrue(SimulatorPreferencesPath.isDomain(container + "/Library/Preferences/ByHost/com.example.app.ABCD", inContainer: container))
         XCTAssertFalse(SimulatorPreferencesPath.isDomain(container + "/Library/Caches/com.example.app", inContainer: container))
         XCTAssertFalse(SimulatorPreferencesPath.isDomain(container + "/Library/Preferences/sub/x", inContainer: container))
     }
@@ -43,6 +45,16 @@ final class SimulatorPreferencesPathTests: XCTestCase {
         try FileManager.default.removeItem(atPath: container + "/Library/Preferences")
         try FileManager.default.createSymbolicLink(atPath: container + "/Library/Preferences", withDestinationPath: outside.path)
         XCTAssertFalse(SimulatorPreferencesPath.isDomain(container + "/Library/Preferences/com.apple.dock", inContainer: container))
+    }
+
+    /// 名前に拡張子を付けた形(`defaults delete` は `x.plist` そのものに作用する)・パスそのものが symlink の形
+    func testPlistNamedDomainAndSymlinkedPathAreRefused() throws {
+        try FileManager.default.createSymbolicLink(atPath: container + "/Library/Preferences/x.plist",
+                                                   withDestinationPath: outside.appendingPathComponent("com.apple.dock.plist").path)
+        XCTAssertFalse(SimulatorPreferencesPath.isDomain(container + "/Library/Preferences/x.plist", inContainer: container))
+        try FileManager.default.createSymbolicLink(atPath: container + "/Library/Preferences/y",
+                                                   withDestinationPath: outside.path)
+        XCTAssertFalse(SimulatorPreferencesPath.isDomain(container + "/Library/Preferences/y", inContainer: container))
     }
 
     func testSymlinkedPlistIsRefused() throws {
