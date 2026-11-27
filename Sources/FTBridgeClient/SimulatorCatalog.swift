@@ -107,17 +107,26 @@ public enum SimulatorCatalog {
         return found
     }
 
+    /// runtime の識別子 → OS の表記("…SimRuntime.iOS-27-0" → "iOS 27.0")。iOS でなければ nil。
+    /// **版は先頭から続く数字の区切りだけ** —— 機種専用の runtime は末尾に機種が付く(iPhone Duo =
+    /// `iOS-27-2-iPhone19-4`。`simctl list runtimes` の名前は `iOS 27.2`)。区切りを全部 `.` にすると
+    /// `iOS 27.2.iPhone19.4` になり、プロファイルの `osVersion` と一致せず名前 + OS の解決と種類の観測が黙って外れる
+    static func osName(runtimeIdentifier: String) -> String? {
+        let prefix = "com.apple.CoreSimulator.SimRuntime."
+        let short = runtimeIdentifier.hasPrefix(prefix) ? String(runtimeIdentifier.dropFirst(prefix.count)) : runtimeIdentifier
+        let parts = short.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.first == "iOS" else { return nil }
+        let version = parts.dropFirst().prefix { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
+        guard !version.isEmpty else { return nil }
+        return "iOS " + version.joined(separator: ".")
+    }
+
     /// `simctl list devices -j` の解析部(純粋関数。nil = `devices` が読めない)
     public static func devices(simctlJSON json: [String: Any]) -> [SimDeviceInfo]? {
         guard let runtimes = json["devices"] as? [String: [[String: Any]]] else { return nil }
         var found: [SimDeviceInfo] = []
         for (runtime, list) in runtimes {
-            // "com.apple.CoreSimulator.SimRuntime.iOS-27-0" → "iOS 27.0"
-            let os = runtime
-                .replacingOccurrences(of: "com.apple.CoreSimulator.SimRuntime.", with: "")
-                .replacingOccurrences(of: "-", with: ".")
-                .replacingOccurrences(of: "iOS.", with: "iOS ")
-            guard os.hasPrefix("iOS") else { continue }
+            guard let os = osName(runtimeIdentifier: runtime) else { continue }
             for device in list {
                 guard (device["isAvailable"] as? Bool) == true,
                       let udid = device["udid"] as? String,

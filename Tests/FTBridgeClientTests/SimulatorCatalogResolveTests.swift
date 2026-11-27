@@ -76,4 +76,35 @@ final class SimulatorCatalogResolveTests: XCTestCase {
         XCTAssertEqual(SimulatorCatalog.modelNames(simctlJSON: json),
                        ["A": "iPhone 18 Pro", "B": "iPad Pro (11-inch) (5th generation)"])
     }
+
+    // MARK: - runtime の識別子 → OS
+
+    /// 機種専用の runtime(iPhone Duo の実物 `iOS-27-2-iPhone19-4`。`simctl list runtimes` の名前は `iOS 27.2`)は
+    /// 末尾の機種を版に混ぜない(混ぜると `iOS 27.2.iPhone19.4` = プロファイルの osVersion と一致しない)
+    func testRuntimeIdentifierReadsOnlyTheLeadingVersionNumbers() {
+        let p = "com.apple.CoreSimulator.SimRuntime."
+        XCTAssertEqual(SimulatorCatalog.osName(runtimeIdentifier: p + "iOS-27-2-iPhone19-4"), "iOS 27.2")
+        XCTAssertEqual(SimulatorCatalog.osName(runtimeIdentifier: p + "iOS-27-2"), "iOS 27.2")
+        XCTAssertEqual(SimulatorCatalog.osName(runtimeIdentifier: p + "iOS-18-3-1"), "iOS 18.3.1")
+        XCTAssertNil(SimulatorCatalog.osName(runtimeIdentifier: p + "watchOS-11-0"))
+        XCTAssertNil(SimulatorCatalog.osName(runtimeIdentifier: p + "iOS-"))
+    }
+
+    /// 本命: Duo の runtime の下に居るシミュレータを、プロファイルと同じ名前 + `iOS 27.2` で解決できる
+    func testDeviceSpecificRuntimeResolvesByNameAndOS() throws {
+        let json: [String: Any] = [
+            "devices": [
+                "com.apple.CoreSimulator.SimRuntime.iOS-27-2-iPhone19-4": [
+                    ["udid": "DUO", "name": "iPhone Duo(iOS 27.2)-01", "isAvailable": true, "state": "Shutdown"],
+                ],
+                "com.apple.CoreSimulator.SimRuntime.iOS-27-2": [
+                    ["udid": "PRO", "name": "iPhone 18 Pro(iOS 27.2)-01", "isAvailable": true, "state": "Shutdown"],
+                ],
+            ],
+        ]
+        let devices = try XCTUnwrap(SimulatorCatalog.devices(simctlJSON: json))
+        XCTAssertEqual(Set(devices.map(\.os)), ["iOS 27.2"])
+        let resolved = try SimulatorCatalog.resolve(spec: spec("iPhone Duo(iOS 27.2)-01", os: "iOS 27.2"), in: devices)
+        XCTAssertEqual(resolved.udid, "DUO")
+    }
 }
