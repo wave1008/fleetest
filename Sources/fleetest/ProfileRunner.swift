@@ -165,7 +165,7 @@ enum ProfileRunner {
         // (素の台の名前。宣言が無い run は空 = 従来の絞り込みと同一)
         let (resolved, _) = limitingDevicesAvoidingMCP(
             full, iosScenarios: counts.ios, androidScenarios: counts.android,
-            requirements: localScenarios.compactMap(\.deviceRequirements).filter { !$0.isEmpty },
+            requirements: full.deviceRequirements(of: localScenarios),
             traits: deviceTraits, trim: !broadcast, leaseStateDir: leaseStateDir)
         var elapsed = 0
         let stage = { "the check of the local device(s) (waited \(elapsed)s)" }
@@ -246,7 +246,7 @@ enum ProfileRunner {
     /// **既定値を置かない**(一覧の前に呼ぶ経路は空を渡す = 宣言を知らない。理由は `LimitingDevicesWiringTests` の表)
     static func limitingDevicesAvoidingMCP(
         _ full: ResolvedProfile, iosScenarios: Int?, androidScenarios: Int?,
-        requirements: [DeviceRequirementSet], traits: [String: DeviceTraits], trim: Bool,
+        requirements: [ScenarioDeviceRequirement], traits: [String: DeviceTraits], trim: Bool,
         leaseStateDir: URL?
     ) -> (resolved: ResolvedProfile, warnings: [String]) {
         let holders = leaseStateDir.map {
@@ -427,13 +427,10 @@ enum ProfileRunner {
         let plannedTraits: [String: DeviceTraits]
         if let early {
             prepared = early
-            plannedTraits = DeviceRequirementEntry.traitsForRun(
-                injected: injectedDeviceTraits, resolved: early.full, declared: !requirementSets.isEmpty)
-            // 一覧の前に外した台が条件に要ったか(grep の漏れ・古い --skip-build のバイナリ)。要ったなら走らせず事実を言う
-            if !requirementSets.isEmpty, early.resolved.devices.count < early.full.devices.count {
-                try Self.requireDevicesForDeclarations(
-                    requirements: requirementSets, full: early.full, kept: early.resolved, traits: plannedTraits)
-            }
+            // 一覧の前に外した台が条件に要ったか(grep の漏れ・古い --skip-build のバイナリ)・観測していなければここで観測する
+            plannedTraits = try Self.traitsAfterListing(
+                requirements: requirementSets, full: early.full, kept: early.resolved,
+                observedBeforeListing: early.deviceTraits, injected: injectedDeviceTraits)
         } else {
             let counts = full.scenarioCounts(items.map(\.info))
             let traits = DeviceRequirementEntry.traitsForRun(
@@ -442,7 +439,7 @@ enum ProfileRunner {
             prepared = try await Self.prepareSupply(
                 full: full, profileName: profileName,
                 iosScenarios: counts.ios, androidScenarios: counts.android,
-                requirements: requirementSets, deviceTraits: traits,
+                requirements: full.deviceRequirements(of: items.map(\.info)), deviceTraits: traits,
                 scenarioCount: items.count, broadcast: broadcast, reportDirOverride: reportDirOverride,
                 failureLogDir: recorder?.runDir, supplyProgress: supplyProgress, interruptState: interruptState,
                 supplyAbandon: runExit.supplyAbandon)

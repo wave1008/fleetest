@@ -105,11 +105,16 @@ final class LimitingDevicesWiringTests: XCTestCase {
         }
         XCTAssertEqual(supplyStartCalls, 1)
         // 待った回は一覧の後に条件つきで絞る(api run)・一覧の前に台を外した回は検算する(両経路)
-        XCTAssertTrue(api.contains("requirements: requirementSets, traits: traits"), "api run が一覧の後に条件つきで絞っていない")
-        XCTAssertTrue(api.contains("requireDevicesForDeclarations("))
+        XCTAssertTrue(api.contains("requirements: preListing.full.deviceRequirements(of: selected), traits: traits"), "api run が一覧の後に条件つきで絞っていない")
+        // 一覧の後の検算・観測は両経路が同じ1つの入口を通る(宣言の grep が漏らした回も、ここで観測して台の性質を運ぶ)
+        XCTAssertEqual(Self.calls(of: "ProfileRunner.traitsAfterListing", in: api).count, 1, "api run が一覧の後の入口を通っていない")
+        XCTAssertEqual(Self.calls(of: "Self.traitsAfterListing", in: Self.source("Sources/fleetest/ProfileRunner.swift")).count, 1,
+                       "fleetest run が一覧の後の入口を通っていない")
+        XCTAssertTrue(api.contains("plannedTraits = try ProfileRunner.traitsAfterListing("), "api run が観測を参加しなかった台の結論へ運んでいない")
         let runner = Self.source("Sources/fleetest/ProfileRunner.swift")
-        XCTAssertTrue(runner.contains("requireDevicesForDeclarations("))
-        XCTAssertTrue(runner.contains("requirements: requirementSets, deviceTraits: traits"), "ProfileRunner.run が一覧の後に条件を渡していない")
+        let supply = Self.source("Sources/fleetest/ProfileRunner+Supply.swift")
+        XCTAssertEqual(Self.calls(of: "requireDevicesForDeclarations", in: supply).count, 1, "検算は入口(traitsAfterListing)の1箇所からだけ呼ぶ")
+        XCTAssertTrue(runner.contains("requirements: full.deviceRequirements(of: items.map(\\.info)), deviceTraits: traits"), "ProfileRunner.run が一覧の後に条件を渡していない")
     }
 
     /// 親の観測は子へ運ぶ: 内部フラグの値を ProfileRunner.run / 供給へ渡す(渡し忘れると子が観測し直す)

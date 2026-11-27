@@ -198,4 +198,32 @@ final class RunOrchestratorDeviceRequirementTests: XCTestCase {
         XCTAssertNil(f.orchestrator.declaredMatchNote(item: item("S", requires: fold), worker: driverless(nil), declared: "fold"))
         XCTAssertNil(f.orchestrator.declaredMatchNote(item: item("S"), worker: driverless(traits(foldable: true)), declared: "fold"))
     }
+
+    /// 一覧の前の供給が観測せず(性質なしで合流)、一覧の後に観測した性質があるとき、合流するレーンはそれを引き継ぐ:
+    /// 引き継がないと effectiveTraits が foldable を読めず、合う台で走るはずの item が「読めなかった」赤になる
+    func testLaneJoiningWithoutTraitsTakesThePlannedOnes() {
+        func worker(_ name: String, _ t: DeviceTraits?) -> RunWorker {
+            RunWorker(label: "\(name)(ios:1)", platform: "ios", driver: NoteUnusedDriver(),
+                      connection: DriverConnection(platform: "ios", physical: false), logicalName: name,
+                      deviceKind: nil, deviceTraits: t)
+        }
+        let planned = ["Duo": traits(foldable: true)]
+        let bare = worker("Duo", nil)
+        XCTAssertFalse(DeviceRequirementGate.permits(fold, traits: bare.effectiveTraits), "前提: 引き継ぎ前は読めない")
+        let carried = RunOrchestrator.carryingPlannedTraits(bare, planned: planned)
+        XCTAssertTrue(DeviceRequirementGate.permits(fold, traits: carried.effectiveTraits))
+        // 持っている性質は上書きしない・観測に無い台はそのまま
+        let own = worker("Duo", traits(foldable: false))
+        XCTAssertEqual(RunOrchestrator.carryingPlannedTraits(own, planned: planned).deviceTraits, traits(foldable: false))
+        XCTAssertNil(RunOrchestrator.carryingPlannedTraits(worker("Other", nil), planned: planned).deviceTraits)
+    }
+
+    /// 合流の入口(admit)が引き継ぎを通る(通さないと上の関数は死んだコード)
+    func testAdmitCarriesThePlannedTraits() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/FTCore/RunOrchestrator.swift")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertEqual(text.components(separatedBy: "Self.carryingPlannedTraits(worker, planned: plannedTraits)").count - 1, 1)
+        XCTAssertTrue(text.contains("func admit(_ worker: RunWorker"))
+    }
 }

@@ -142,4 +142,51 @@ final class DeviceRequirementEntryTests: XCTestCase {
             remoteTimeout: nil, quiet: false, junitPath: nil, deviceTraits: sample)
         XCTAssertTrue(remote.contains("--device-traits"))
     }
+
+    // MARK: - 一覧の後の観測(宣言の grep が漏らした回)
+
+    private func profileOf(_ names: [String]) throws -> ResolvedProfile {
+        let p = try project(files: [:])
+        let devices = names.map { ResolvedDevice(platform: "ios", spec: DeviceSpec(name: $0, kind: .physical, udid: "U-\($0)")) }
+        return ResolvedProfile(
+            project: p, runName: "r", appName: "app", apps: [:], devices: devices, fm: FMConfig(), heal: false,
+            reportDir: p.rootURL, defaultTimeout: nil, scenarioTimeout: nil, wipeDataOnBloat: true, updateWebView: false,
+            wipeDataThresholdGB: 8, recoverCpuFallbackToGpu: false, locale: "ja_JP",
+            iosPreActionPing: true, containerInference: true, ocrTextVisibilityCheck: true,
+            preferCheckStateClassifier: true, enableAnimations: false, responseMeasurement: false, responseRepeat: 5,
+            homeOnStart: true, playProtectBypass: true, record: false, recordFailuresOnly: false,
+            recordBitrateKbps: 1500, recordFullResolution: false, warnings: [])
+    }
+
+    /// 宣言の grep が漏らして一覧の前に観測しなかった回(`observedBeforeListing` = [:])でも、宣言が一覧で分かったら観測した性質を返す
+    /// (注入された観測で代用 = 台に触らずに試せる)。返した性質を参加しなかった台の結論と、性質を持たずに合流した台へ運ぶ
+    func testTraitsAfterListingObservesWhenTheGrepMissedTheDeclaration() throws {
+        let full = try profileOf(["Pro", "Duo"])
+        let injected = ["Duo": DeviceTraits(platform: "ios", physical: true, foldable: true)]
+        let fold = DeviceRequirementSet(required: [.foldable])
+        let traits = try ProfileRunner.traitsAfterListing(
+            requirements: [fold], full: full, kept: full, observedBeforeListing: [:], injected: injected)
+        XCTAssertEqual(traits, injected)
+        // 宣言が無ければ起こした時点の観測のまま(観測を足さない)
+        XCTAssertEqual(try ProfileRunner.traitsAfterListing(
+            requirements: [], full: full, kept: full, observedBeforeListing: [:], injected: injected), [:])
+        // 起こした時点で観測していれば観測し直さない
+        let before = ["Pro": DeviceTraits(platform: "ios", physical: true, foldable: false)]
+        XCTAssertEqual(try ProfileRunner.traitsAfterListing(
+            requirements: [fold], full: full, kept: full, observedBeforeListing: before, injected: injected), before)
+    }
+
+    /// 観測し直した性質で、一覧の前に外した台が条件に要ったかも検算する(漏れた回の取りこぼしを赤にする)
+    func testTraitsAfterListingStillRejectsALeftOutDeviceThatTheDeclarationNeeds() throws {
+        let full = try profileOf(["Pro", "Duo"])
+        var kept = full
+        kept.devices = [full.devices[0]]
+        let injected = ["Duo": DeviceTraits(platform: "ios", physical: true, foldable: true),
+                        "Pro": DeviceTraits(platform: "ios", physical: true, foldable: false)]
+        XCTAssertThrowsError(try ProfileRunner.traitsAfterListing(
+            requirements: [DeviceRequirementSet(required: [.foldable])], full: full, kept: kept,
+            observedBeforeListing: [:], injected: injected)) { error in
+            XCTAssertTrue((error as? ValidationError)?.message.contains("Duo") == true, "\(error)")
+        }
+    }
 }

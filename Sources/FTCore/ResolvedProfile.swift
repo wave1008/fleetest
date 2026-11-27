@@ -189,6 +189,15 @@ public struct ResolvedProfile: Sendable {
     /// 見積りが両 OS に数えて走らない側の OS の台を用意していた
     public var undeclaredScenarioPlatform: String { iosDevices.isEmpty ? "android" : "ios" }
 
+    /// 一覧のシナリオの台の条件を、走る OS つきで取り出す(空の組は除く)。platform 未宣言は `undeclaredScenarioPlatform` の側
+    /// (`scenarioCounts` と同じ規則。台の絞り込みが OS ごとに自分のシナリオの条件だけを見るための入力)
+    public func deviceRequirements(of scenarios: [ScenarioInfo]) -> [ScenarioDeviceRequirement] {
+        scenarios.compactMap { info in
+            guard let set = info.deviceRequirements, !set.isEmpty else { return nil }
+            return ScenarioDeviceRequirement(set: set, platform: info.platform ?? undeclaredScenarioPlatform)
+        }
+    }
+
     /// 台数の見積りに使う OS ごとの本数(platform 未宣言は `undeclaredScenarioPlatform` の側にだけ数える)。
     /// 一覧が確定しているときに使う = 0 は「その OS で走るシナリオが無い」(`limitingDevices` はその OS の台を用意しない)
     public func scenarioCounts(platforms: [String?]) -> (ios: Int, android: Int) {
@@ -243,13 +252,15 @@ public struct ResolvedProfile: Sendable {
     /// 観測 `traits` は台の名前で引く)、本数の残りを従来の順で埋める。**宣言が無い run(空配列)は従来の `prefix` と同一**。
     /// 必須の台が MCP の操作中でも残す(呼び手が警告する)。本数 0 の OS には必須の台も残さない
     public func limitingDevices(iosScenarios: Int?, androidScenarios: Int?,
-                                requirements: [DeviceRequirementSet], traits: [String: DeviceTraits],
+                                requirements: [ScenarioDeviceRequirement], traits: [String: DeviceTraits],
                                 avoiding: (ResolvedDevice) -> Bool) -> ResolvedProfile {
-        func keep(_ list: [ResolvedDevice], _ count: Int?) -> [ResolvedDevice] {
+        func keep(_ list: [ResolvedDevice], _ count: Int?, platform: String) -> [ResolvedDevice] {
+            // その OS のシナリオの条件だけ渡す(他の OS のシナリオの条件を読めない台に当てて、本数を超えて残さない)
+            let sets = requirements.filter { $0.platform == nil || $0.platform == platform }.map(\.set)
             let free = list.filter { !avoiding($0) }
             let avoided = list.filter(avoiding)
             let must = count == 0 ? [] : DeviceRequirementTrim.mustKeep(
-                devices: list, requirements: requirements, traits: traits)
+                devices: list, requirements: sets, traits: traits)
             guard !must.isEmpty else {
                 guard let count else { return free.isEmpty ? avoided : free }
                 if free.count >= count {
@@ -270,7 +281,7 @@ public struct ResolvedProfile: Sendable {
             }
             return kept
         }
-        let kept = Set(keep(iosDevices, iosScenarios) + keep(androidDevices, androidScenarios))
+        let kept = Set(keep(iosDevices, iosScenarios, platform: "ios") + keep(androidDevices, androidScenarios, platform: "android"))
         guard kept.count < devices.count else { return self }
         var trimmed = self
         trimmed.devices = devices.filter { kept.contains($0) }
@@ -295,5 +306,17 @@ public enum ProfileFileKind: String, CaseIterable, Sendable {
         case .app: return "app"
         case .run: return "run"
         }
+    }
+}
+
+
+/// 台の条件の組と、それを宣言したシナリオが走る OS(`ResolvedProfile.limitingDevices` の入力)。platform nil = どちらの OS の台にも掛ける
+public struct ScenarioDeviceRequirement: Equatable, Sendable {
+    public let set: DeviceRequirementSet
+    public let platform: String?
+
+    public init(set: DeviceRequirementSet, platform: String?) {
+        self.set = set
+        self.platform = platform
     }
 }

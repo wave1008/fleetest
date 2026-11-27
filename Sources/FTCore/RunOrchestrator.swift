@@ -737,6 +737,7 @@ public final class RunOrchestrator: Sendable {
                 sampleCPU: { cpuSampler.sample() },
                 sleep: { try? await Task.sleep(for: .seconds($0)) })
             func admit(_ worker: RunWorker, _ queue: ScenarioQueue) async {
+                let worker = Self.carryingPlannedTraits(worker, planned: plannedTraits)  // 性質の無い台へ一覧の後に読んだ性質を当てる
                 // 実効モードを run.json へ(初期も遅延参加もここを通る = 参加したデバイスだけが載る)
                 if let record = worker.modeRecord { recorder?.recordWorkerMode(record) }
                 await startGate.waitForTurn(log: { [continuation] message in
@@ -923,6 +924,13 @@ public final class RunOrchestrator: Sendable {
                                         skipped: summary.skipped))
         continuation.finish()
         return summary
+    }
+
+    /// 台の性質を持たずに合流した台(一覧の前の供給は宣言の文字列が無いと観測しない)へ、一覧の後に観測した性質を載せる。**引き継ぎはここだけ**
+    /// (レーンの登録・配る判定・復帰の引き継ぎが同じ `deviceTraits` を読む)。鍵はレーン名(= プロファイルの台の名前)。観測が無ければそのまま
+    static func carryingPlannedTraits(_ worker: RunWorker, planned: [String: DeviceTraits]) -> RunWorker {
+        guard worker.deviceTraits == nil, let traits = planned[ScenarioQueue.lane(of: worker)] else { return worker }
+        return worker.with(deviceTraits: traits)
     }
 
     /// 宣言されたのに合流しなかった台を、その OS のキューへ「落ちた台」として記帳する(DR-214)。

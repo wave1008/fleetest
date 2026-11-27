@@ -32,13 +32,18 @@ final class ResolvedProfileDeviceRequirementTrimTests: XCTestCase {
         "Duo2": DeviceTraits(platform: "ios", physical: false, foldable: true),
     ]
 
+    /// platform nil = どちらの OS の台にも掛ける(従来の形)
+    private func req(_ set: DeviceRequirementSet, _ platform: String? = nil) -> ScenarioDeviceRequirement {
+        ScenarioDeviceRequirement(set: set, platform: platform)
+    }
+
     private func names(_ p: ResolvedProfile) -> [String] { p.devices.map(\.name) }
 
     /// **本命**: 1本の fold シナリオで、Duo は並びが先でも後でも残る
     func testFoldScenarioKeepsTheFoldableDeviceInEitherOrder() {
         for order in [["Pro", "Duo"], ["Duo", "Pro"]] {
             let kept = profile(order.map { device($0) }).limitingDevices(
-                iosScenarios: 1, androidScenarios: 0, requirements: [fold], traits: traits, avoiding: { _ in false })
+                iosScenarios: 1, androidScenarios: 0, requirements: [req(fold)], traits: traits, avoiding: { _ in false })
             XCTAssertEqual(names(kept), ["Duo"], "order \(order)")
         }
     }
@@ -50,21 +55,21 @@ final class ResolvedProfileDeviceRequirementTrimTests: XCTestCase {
         XCTAssertEqual(names(kept), ["Pro"])
         // 空の組(宣言はあるが条件が空)も同じ
         let empty = profile([device("Pro"), device("Duo")]).limitingDevices(
-            iosScenarios: 1, androidScenarios: 0, requirements: [DeviceRequirementSet()], traits: traits, avoiding: { _ in false })
+            iosScenarios: 1, androidScenarios: 0, requirements: [req(DeviceRequirementSet())], traits: traits, avoiding: { _ in false })
         XCTAssertEqual(names(empty), ["Pro"])
     }
 
     /// 必須の台の後に、本数の残りを従来の順で埋める(2本・先頭が合わない)
     func testFillsTheRestInTheOldOrderAfterTheRequiredDevice() {
         let kept = profile([device("Pro"), device("Duo"), device("Other")]).limitingDevices(
-            iosScenarios: 2, androidScenarios: 0, requirements: [fold], traits: traits, avoiding: { _ in false })
+            iosScenarios: 2, androidScenarios: 0, requirements: [req(fold)], traits: traits, avoiding: { _ in false })
         XCTAssertEqual(names(kept), ["Pro", "Duo"])
     }
 
     /// 本数 0 の OS には必須の台も残さない(その OS で走るシナリオが無い)
     func testZeroCountOSKeepsNoRequiredDevice() {
         let kept = profile([device("Duo"), device("A1", "android")]).limitingDevices(
-            iosScenarios: 0, androidScenarios: 1, requirements: [fold], traits: traits, avoiding: { _ in false })
+            iosScenarios: 0, androidScenarios: 1, requirements: [req(fold)], traits: traits, avoiding: { _ in false })
         XCTAssertEqual(names(kept), ["A1"])
     }
 
@@ -72,7 +77,7 @@ final class ResolvedProfileDeviceRequirementTrimTests: XCTestCase {
     func testOnlyOneMatchingDeviceIsForcedInAndTheChoiceDoesNotDependOnOrder() {
         for order in [["Duo2", "Duo", "Pro"], ["Pro", "Duo", "Duo2"]] {
             let kept = profile(order.map { device($0) }).limitingDevices(
-                iosScenarios: 1, androidScenarios: 0, requirements: [fold], traits: traits, avoiding: { _ in false })
+                iosScenarios: 1, androidScenarios: 0, requirements: [req(fold)], traits: traits, avoiding: { _ in false })
             XCTAssertEqual(names(kept), ["Duo"], "order \(order)")
         }
     }
@@ -81,10 +86,10 @@ final class ResolvedProfileDeviceRequirementTrimTests: XCTestCase {
     func testRequiredDeviceHeldByMCPIsKeptAndTheRestStillAvoided() {
         let duo = device("Duo")
         let kept = profile([device("Pro"), duo]).limitingDevices(
-            iosScenarios: 1, androidScenarios: 0, requirements: [fold], traits: traits, avoiding: { $0 == duo })
+            iosScenarios: 1, androidScenarios: 0, requirements: [req(fold)], traits: traits, avoiding: { $0 == duo })
         XCTAssertEqual(names(kept), ["Duo"])
         let two = profile([device("Pro"), duo, device("Other")]).limitingDevices(
-            iosScenarios: 2, androidScenarios: 0, requirements: [fold], traits: traits, avoiding: { $0 == duo })
+            iosScenarios: 2, androidScenarios: 0, requirements: [req(fold)], traits: traits, avoiding: { $0 == duo })
         XCTAssertEqual(names(two), ["Pro", "Duo"])
     }
 
@@ -92,7 +97,7 @@ final class ResolvedProfileDeviceRequirementTrimTests: XCTestCase {
     func testUnknownCountKeepsTheRequiredDeviceEvenIfAvoided() {
         let duo = device("Duo")
         let kept = profile([device("Pro"), duo]).limitingDevices(
-            iosScenarios: nil, androidScenarios: nil, requirements: [fold], traits: traits, avoiding: { $0 == duo })
+            iosScenarios: nil, androidScenarios: nil, requirements: [req(fold)], traits: traits, avoiding: { $0 == duo })
         XCTAssertEqual(Set(names(kept)), ["Pro", "Duo"])
     }
 
@@ -100,15 +105,15 @@ final class ResolvedProfileDeviceRequirementTrimTests: XCTestCase {
     /// 「合う台が無い」の緑に化ける = 陽性対照 11/27)。読めない台どうしの同着は識別子の辞書順
     func testUnreadableDeviceIsKeptWhenNoDeviceFits() {
         let kept = profile([device("Pro"), device("Duo")]).limitingDevices(
-            iosScenarios: 1, androidScenarios: 0, requirements: [fold], traits: [:], avoiding: { _ in false })
+            iosScenarios: 1, androidScenarios: 0, requirements: [req(fold)], traits: [:], avoiding: { _ in false })
         XCTAssertEqual(names(kept), ["Duo"])
         let oneUnreadable = profile([device("Pro"), device("Duo")]).limitingDevices(
-            iosScenarios: 1, androidScenarios: 0, requirements: [fold],
+            iosScenarios: 1, androidScenarios: 0, requirements: [req(fold)],
             traits: ["Pro": DeviceTraits(platform: "ios", physical: false, foldable: false)], avoiding: { _ in false })
         XCTAssertEqual(names(oneUnreadable), ["Duo"])
         // 合う台があれば読めない台は残さない(合う台で走る)
         let fits = profile([device("Pro"), device("Duo"), device("X")]).limitingDevices(
-            iosScenarios: 1, androidScenarios: 0, requirements: [fold], traits: traits, avoiding: { _ in false })
+            iosScenarios: 1, androidScenarios: 0, requirements: [req(fold)], traits: traits, avoiding: { _ in false })
         XCTAssertEqual(names(fits), ["Duo"])
     }
 
@@ -117,7 +122,7 @@ final class ResolvedProfileDeviceRequirementTrimTests: XCTestCase {
         let remote = ResolvedDevice(platform: "ios", spec: DeviceSpec(name: "Duo", machine: "M1", kind: .physical, udid: "U-R"))
         XCTAssertEqual(DeviceRequirementTrim.traits(of: remote, observed: traits).foldable, nil)
         let kept = profile([device("Pro"), remote]).limitingDevices(
-            iosScenarios: 1, androidScenarios: 0, requirements: [fold], traits: traits, avoiding: { _ in false })
+            iosScenarios: 1, androidScenarios: 0, requirements: [req(fold)], traits: traits, avoiding: { _ in false })
         XCTAssertEqual(kept.devices.map(\.spec.machine), ["M1"])
     }
 
@@ -136,5 +141,34 @@ final class ResolvedProfileDeviceRequirementTrimTests: XCTestCase {
                                                      traits: ["Pro": traits["Pro"]!])
         XCTAssertEqual(unread.count, 1)
         XCTAssertTrue(unread[0].contains("could not be checked on local/Duo"), "\(unread)")
+    }
+
+    /// 他の OS のシナリオの条件で、この OS の台を本数を超えて残さない: Android だけの fold のシナリオ1本・iOS 1本のとき、
+    /// foldable を読めない iOS の台を「読めない台」として余分に残さない。Android 側は foldable の台を残す
+    func testAnotherPlatformsRequirementDoesNotForceAnExtraDeviceOfThisPlatform() {
+        let p = profile([device("Pro"), device("Duo"), device("A1", "android"), device("A2", "android")])
+        let observed: [String: DeviceTraits] = [
+            "A1": DeviceTraits(platform: "android", physical: false, foldable: false),
+            "A2": DeviceTraits(platform: "android", physical: false, foldable: true),
+        ]
+        let kept = p.limitingDevices(
+            iosScenarios: 1, androidScenarios: 1, requirements: [req(fold, "android")], traits: observed,
+            avoiding: { _ in false })
+        XCTAssertEqual(names(kept), ["Pro", "A2"])
+        // platform 未指定(nil)は従来どおり両方に掛かる = iOS の読めない台も残る(対照)
+        let both = p.limitingDevices(
+            iosScenarios: 1, androidScenarios: 1, requirements: [req(fold)], traits: observed, avoiding: { _ in false })
+        XCTAssertEqual(names(both), ["Duo", "A2"])
+    }
+
+    /// 一覧から条件を取り出すとき、platform 未宣言のシナリオは `undeclaredScenarioPlatform` の側(`scenarioCounts` と同じ規則)
+    func testRequirementsOfScenariosResolveTheUndeclaredPlatform() {
+        let p = profile([device("Pro"), device("A1", "android")])
+        let infos = [
+            ScenarioInfo(id: "C.S1", title: "a", platform: "android", deviceRequirements: fold),
+            ScenarioInfo(id: "C.S2", title: "b", platform: nil, deviceRequirements: fold),
+            ScenarioInfo(id: "C.S3", title: "c", platform: "ios", deviceRequirements: DeviceRequirementSet()),
+        ]
+        XCTAssertEqual(p.deviceRequirements(of: infos).map(\.platform), ["android", "ios"])
     }
 }

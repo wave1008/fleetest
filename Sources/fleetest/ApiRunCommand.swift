@@ -607,7 +607,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                     injected: injectedDeviceTraits, resolved: preListing.full, declared: !requirementSets.isEmpty)
                 let (resolved, mcpWarnings) = ProfileRunner.limitingDevicesAvoidingMCP(
                     preListing.full, iosScenarios: preListing.estimate, androidScenarios: preListing.estimate,
-                    requirements: requirementSets, traits: traits, trim: true, leaseStateDir: preListing.leaseDir)
+                    requirements: preListing.full.deviceRequirements(of: selected), traits: traits, trim: true, leaseStateDir: preListing.leaseDir)
                 if resolved.devices.count < preListing.full.devices.count {
                     logStderr("→ Using \(resolved.devices.count) of \(preListing.full.devices.count) device(s)"
                         + " for \(scenarios.count) scenario(s)")
@@ -616,11 +616,11 @@ struct ApiRunCommand: AsyncParsableCommand {
                 RunEnvironment.apply(resolved)
                 resolvedProfile = resolved
                 startSupply(resolved, deviceTraits: traits)
-            } else if !requirementSets.isEmpty, provisional.devices.count < preListing.full.devices.count {
-                let traits = DeviceRequirementEntry.traitsForRun(
-                    injected: injectedDeviceTraits, resolved: preListing.full, declared: true)
-                try ProfileRunner.requireDevicesForDeclarations(
-                    requirements: requirementSets, full: preListing.full, kept: provisional, traits: traits)
+            } else {
+                // 一覧の前に外した台が条件に要ったか・観測していなければここで観測する(`fleetest run` と同じ入口の関数)
+                plannedTraits = try ProfileRunner.traitsAfterListing(
+                    requirements: requirementSets, full: preListing.full, kept: provisional,
+                    observedBeforeListing: plannedTraits, injected: injectedDeviceTraits)
             }
         }
         let androidWorkersTask = startedAndroidTask

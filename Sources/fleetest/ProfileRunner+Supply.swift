@@ -54,11 +54,14 @@ extension ProfileRunner {
         let servicesSession: ServicesSession?
         let androidTask: Task<[RunWorker], Error>
         let iosTask: Task<[RunWorker], Never>?
+        /// 供給を起こしたときに観測していた台の性質(一覧の前は宣言の文字列が無ければ `[:]`)。一覧の後の検算が観測し直すかの根拠
+        let deviceTraits: [String: DeviceTraits]
         private let cleanup: SupplyCleanup
 
         init(full: ResolvedProfile, resolved: ResolvedProfile, reportDir: URL, leaseStateDir: URL?, repoRoot: URL,
              triageBox: BlankTriageBox, androidTask: Task<[RunWorker], Error>, iosTask: Task<[RunWorker], Never>?,
-             cleanup: SupplyCleanup) {
+             deviceTraits: [String: DeviceTraits], cleanup: SupplyCleanup) {
+            self.deviceTraits = deviceTraits
             self.full = full
             self.resolved = resolved
             self.reportDir = reportDir
@@ -190,6 +193,23 @@ extension ProfileRunner {
             sourcesDeclare: true, trimsBeforeListing: probe.resolved.devices.count < full.devices.count)
     }
 
+    /// **一覧の前に供給を起こした経路(`fleetest run` / `api run`)が、一覧の後に呼ぶ1つの入口**。宣言があるのに起こした時点で観測していなければ
+    /// (ソースの grep が宣言を見つけられなかった = 別のソース・生成コード)ここで観測し、一覧の前に外した台が条件に要ったなら
+    /// `requireDevicesForDeclarations` で断る。戻り値は結論と、台の性質を持たずに合流したレーンが引き継ぐ性質(`plannedTraits`)。
+    /// 宣言が無ければ何もしない(起こした時点の観測をそのまま返す)
+    static func traitsAfterListing(requirements: [DeviceRequirementSet], full: ResolvedProfile, kept: ResolvedProfile,
+                                   observedBeforeListing: [String: DeviceTraits],
+                                   injected: [String: DeviceTraits]?) throws -> [String: DeviceTraits] {
+        guard !requirements.isEmpty else { return observedBeforeListing }
+        let traits = observedBeforeListing.isEmpty
+            ? DeviceRequirementEntry.traitsForRun(injected: injected, resolved: full, declared: true)
+            : observedBeforeListing
+        if kept.devices.count < full.devices.count {
+            try requireDevicesForDeclarations(requirements: requirements, full: full, kept: kept, traits: traits)
+        }
+        return traits
+    }
+
     /// 一覧の前に外した台が、一覧で分かった宣言に要るなら失敗にする(事実だけ。走らせない)
     static func requireDevicesForDeclarations(requirements: [DeviceRequirementSet], full: ResolvedProfile,
                                               kept: ResolvedProfile, traits: [String: DeviceTraits]) throws {
@@ -208,7 +228,7 @@ extension ProfileRunner {
     /// ソースにあれば観測した値)。台は条件に合うものを残して絞り、供給したレーンへ性質を運ぶ。**既定値を置かない**
     static func prepareSupply(
         full: ResolvedProfile, profileName: String, iosScenarios: Int?, androidScenarios: Int?,
-        requirements: [DeviceRequirementSet], deviceTraits: [String: DeviceTraits],
+        requirements: [ScenarioDeviceRequirement], deviceTraits: [String: DeviceTraits],
         scenarioCount: Int?, broadcast: Bool, reportDirOverride: String?, failureLogDir: URL?,
         supplyProgress: RunSupplyProgress, interruptState: RunInterruptState, supplyAbandon: SupplyAbandon
     ) async throws -> PreparedSupply {
@@ -286,7 +306,7 @@ extension ProfileRunner {
         handedOver = true
         return PreparedSupply(
             full: full, resolved: resolved, reportDir: reportDir, leaseStateDir: leaseStateDir, repoRoot: repoRoot,
-            triageBox: triageBox, androidTask: androidTask, iosTask: iosTask, cleanup: cleanup)
+            triageBox: triageBox, androidTask: androidTask, iosTask: iosTask, deviceTraits: deviceTraits, cleanup: cleanup)
     }
 }
 
