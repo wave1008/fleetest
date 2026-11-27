@@ -181,6 +181,15 @@ export interface MonitorJobRun {
   readonly machines: readonly string[];
 }
 
+/** 機械の次の run の準備中の段階(ProtocolVersion 79。FTCore の ApiMonitorJobPreparing と対)。
+ * machine は中継で書き換え済みの機械名(手元は "local")。stage は未知の値も運ぶ(表示は runBoard.js が段階の文言へ寄せる)。 */
+export interface MonitorJobPreparing {
+  readonly machine: string;
+  readonly stage: string;
+  readonly project: string;
+  readonly profile: string;
+}
+
 /** run の上の1階層のジョブ(ProtocolVersion 76。入れ子のジョブ・タスクは無い)。 */
 export interface MonitorJob {
   readonly jobID: string;
@@ -191,6 +200,8 @@ export interface MonitorJob {
   /** 受信時点の経過秒(run と同じく秒読みは読み手が進める)。 */
   readonly elapsedSeconds: number;
   readonly runs: readonly MonitorJobRun[];
+  /** **必須**(ProtocolVersion 79)。無ければ空配列。 */
+  readonly preparing: readonly MonitorJobPreparing[];
 }
 
 /** run ボードの1 run(1機械ぶん。DS-18.1)。機械分担の run は `runGroup` を共有する
@@ -521,6 +532,16 @@ function isMonitorJobRun(value: unknown): value is MonitorJobRun {
   );
 }
 
+function isMonitorJobPreparing(value: unknown): value is MonitorJobPreparing {
+  return (
+    isRecord(value) &&
+    typeof value.machine === "string" &&
+    typeof value.stage === "string" &&
+    typeof value.project === "string" &&
+    typeof value.profile === "string"
+  );
+}
+
 function isMonitorJob(value: unknown): value is MonitorJob {
   if (!isRecord(value)) {
     return false;
@@ -535,7 +556,9 @@ function isMonitorJob(value: unknown): value is MonitorJob {
     typeof value.mine === "boolean" &&
     typeof value.elapsedSeconds === "number" &&
     Array.isArray(value.runs) &&
-    value.runs.every(isMonitorJobRun)
+    value.runs.every(isMonitorJobRun) &&
+    Array.isArray(value.preparing) &&
+    value.preparing.every(isMonitorJobPreparing)
   );
 }
 

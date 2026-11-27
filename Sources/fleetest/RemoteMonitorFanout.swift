@@ -317,6 +317,11 @@ final class RemoteMonitorFanout: @unchecked Sendable {
                 run.machines = run.machines.map { $0 == "local" ? machine : $0 }
                 return run
             }
+            job.preparing = job.preparing.map { item in
+                var item = item
+                if item.machine == "local" { item.machine = machine }
+                return item
+            }
             return job
         }
     }

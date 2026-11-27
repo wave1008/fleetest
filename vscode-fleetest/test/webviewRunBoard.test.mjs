@@ -107,6 +107,30 @@ const machineRows = (document) => idleRows(document).map((el) =>
 /** その行のツリーに並ぶデバイスの名前。 */
 const laneNames = (el) => [...el.querySelectorAll(".run-board-lane-name")].map((n) => n.textContent);
 
+// 複数対象の run の対象と対象の間(親が次の run を用意している最中)を「空き」と言わない
+test("準備中の段階: 機械の行に「空き」の代わりに段階とプロジェクト・プロファイルを出す。段階が無い機械は「空き」のまま", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  post(window, { type: "hostMetricsMachines", machines: ["M1Max", "M1Ultra"] });
+  const stage = (machine, name) => ({ machine, stage: name, project: "E2E-RN", profile: "ios-inapp-boost" });
+  post(window, monitorRunsMessage({ runs: [], jobs: [jobFixture()] }));
+  post(window, monitorRunsMessage({ machine: "M1Max", runs: [], jobs: [] }));
+  post(window, monitorRunsMessage({ machine: "M1Ultra", runs: [], jobs: [] }));
+  assert.deepEqual(machineRows(document), ["local空き", "M1Max空き", "M1Ultra空き"], "段階が無ければ空き");
+  post(window, monitorRunsMessage({ runs: [], jobs: [{ ...jobFixture(), preparing: [
+    stage("M1Max", "sendingScenarios"), stage("M1Ultra", "collectingResults"), stage("local", "from-the-future")] }] }));
+  assert.deepEqual(machineRows(document), [
+    "local空き",
+    "M1Max次の run を準備中: シナリオを送信中(E2E-RN / ios-inapp-boost)",
+    "M1Ultra次の run を準備中: 前の結果を回収中(E2E-RN / ios-inapp-boost)",
+  ], "未知の段階は空きへ倒す");
+  const status = idleRows(document)[1].querySelector(".run-board-idle-machine-status");
+  assert.equal(status.className.includes("run-board-machine-state-idle"), true, "警告色にしない(グレーの空きと同じクラス)");
+  // 段階が消えたら空きへ戻る
+  post(window, monitorRunsMessage({ runs: [], jobs: [jobFixture()] }));
+  assert.deepEqual(machineRows(document), ["local空き", "M1Max空き", "M1Ultra空き"]);
+});
+
 test("1行 = 1機械。run のある機械は同じ行に範囲と進捗、無い機械はバッジと状態だけ", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
@@ -1257,7 +1281,7 @@ const jobsInRowsOf = (document) => [...document.querySelectorAll("#run-board-row
 /** 見出しの行(タコメーターの右)のジョブの数と経過 */
 const jobHeadsOf = (document) => [...document.querySelectorAll("#run-board-header .run-board-header-job")];
 const jobFixture = () => ({
-  jobID: "j1", title: "E2E", mine: true, elapsedSeconds: 760,
+  jobID: "j1", title: "E2E", mine: true, elapsedSeconds: 760, preparing: [],
   runs: [
     { project: "E2E-CMP", profile: "ios", state: "passed", machines: ["local"] },
     { project: "E2E-CMP", profile: "android", state: "failed", machines: ["M1Ultra"] },

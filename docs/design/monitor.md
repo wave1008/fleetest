@@ -1292,6 +1292,12 @@ RR-17(サービスの宣言)のサーバーを run ボードの2か所で出す:
 - **生存判定は `ownerPid` + `startedAt`**(`RunProgressLedger` と同じ。mtime を見ない)。持ち主が死んだジョブは読み手が無視し、
   次にジョブを作る者(`job begin`・自前のジョブを作る複数対象の run = どちらも `JobProgressLedger.begin`)が掃く。
   **read-modify-write は `<jobID>.lock` の flock で直列化**(同じジョブの run が並行しうる)。ID はパスの部品なので英数字と `-` だけ通す
+- **機械の準備中の段階(`preparing`。ProtocolVersion 79)**: 複数対象の run は対象と対象の間に機械が「空き」に見える(実測 10〜60 秒:
+  前の結果の回収 → 録画・ログの回収 → ランナーの照合 → プロジェクトの転送 → シナリオの送信 → 実行の開始)。ジョブが機械名 → `{stage, project, profile}` を持ち
+  (`JobPreparingStage` = collectingResults / checkingRunner / transferringProject / sendingScenarios / startingRun)、`RemoteRunDispatcher` が各段の入口で
+  `JobPreparingReporter`(子は `FT_JOB_ID` で台帳を書く)から置き、リモートの run の最初の1行で消す。対象が終端になるとき(`MultiTargetJobTracker.mark`)・借りたジョブを閉じるときも、
+  その対象の分を消す。拡張は run の無い(idle の)機械の行に「空き」の代わりに段階を出す(未知の段階・不明の機械は出さない)。
+  **ジョブを持たない単発の `--runner` の run は書かない**(`FT_JOB_ID` が無ければ `JobPreparingReporter` は nil)
 - **書き手は3つ**:
   - `fleetest job begin --title <T> --owner-pid <PID> [--run <project>:<profile>]...` / `fleetest job end --id <ID>`(スクリプト・CI)。
     `--owner-pid` が必須なのはコマンド置換の中では親 pid が当てにならないため(`Scripts/job.sh` は `$$`)

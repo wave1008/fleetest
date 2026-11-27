@@ -90,4 +90,85 @@ final class MultiTargetJobTrackerTests: XCTestCase {
         XCTAssertEqual(T.finalState(codes: [], started: false, hasUnhanded: false, interrupted: true), .canceled)
         XCTAssertEqual(T.finalState(codes: [], started: false, hasUnhanded: false, interrupted: false), .failed)
     }
+
+    // MARK: 機械の準備中の段階
+
+    private func ownTracker(_ dir: URL) throws -> MultiTargetJobTracker {
+        try XCTUnwrap(MultiTargetJobTracker.begin(
+            targets: [("A", "p"), ("B", "q")], issuer: "me", directory: dir, outerJobID: nil, outerMarked: false,
+            ownerPid: ProcessInfo.processInfo.processIdentifier, setEnvironment: { _, _ in }))
+    }
+
+    func testPreparingStagesAreSetPerMachine() throws {
+        let dir = tempDir()
+        let tracker = try ownTracker(dir)
+        for stage in JobPreparingStage.allCases {
+            tracker.preparing(machine: "M1", stage: stage, project: "A", profile: "p")
+            let job = try XCTUnwrap(JobProgressLedger.readAll(directory: dir).first)
+            XCTAssertEqual(job.preparing["M1"], JobPreparingActivity(stage: stage, project: "A", profile: "p"))
+        }
+        tracker.preparing(machine: "M2", stage: .startingRun, project: "B", profile: "q")
+        XCTAssertEqual(Set(try XCTUnwrap(JobProgressLedger.readAll(directory: dir).first).preparing.keys), ["M1", "M2"])
+    }
+
+    /// 対象が終端になったら、その対象の段階だけ消える(次の対象が同じ機械へ置いた段階は残る)
+    func testTerminalMarkClearsOnlyThatTargetsPreparing() throws {
+        let dir = tempDir()
+        let tracker = try ownTracker(dir)
+        tracker.running(project: "A", profile: "p", machine: "M1")
+        tracker.preparing(machine: "M1", stage: .collectingResults, project: "A", profile: "p")
+        tracker.preparing(machine: "M2", stage: .checkingRunner, project: "B", profile: "q")
+        tracker.mark(project: "A", profile: "p", state: .passed)
+        let job = try XCTUnwrap(JobProgressLedger.readAll(directory: dir).first)
+        XCTAssertNil(job.preparing["M1"])
+        XCTAssertEqual(job.preparing["M2"]?.project, "B")
+    }
+
+    /// 借りたジョブを閉じるとき、閉じていない自分の対象の段階も消える
+    func testCloseOutClearsPreparingOfOpenTargetsInBorrowedJob() throws {
+        let dir = tempDir()
+        let outer = JobProgressLedger.begin(
+            title: "e2e", ownerPid: ProcessInfo.processInfo.processIdentifier,
+            runs: [JobRunEntry(project: "A", profile: "p", state: .pending)], issuer: nil, directory: dir)
+        let tracker = try XCTUnwrap(MultiTargetJobTracker.begin(
+            targets: [("A", "p")], directory: dir, outerJobID: outer.jobID, outerMarked: false, setEnvironment: { _, _ in }))
+        tracker.running(project: "A", profile: "p", machine: "M1")
+        tracker.preparing(machine: "M1", stage: .transferringProject, project: "A", profile: "p")
+        tracker.closeOut()
+        XCTAssertTrue(try XCTUnwrap(JobProgressLedger.readAll(directory: dir).first).preparing.isEmpty)
+    }
+
+    /// 子のディスパッチ側の書き手: 自分の置いた段階だけ消す(次の対象の段階は消さない)・ジョブが無ければ nil
+    func testReporterClearsOnlyItsOwnActivity() throws {
+        let dir = tempDir()
+        let tracker = try ownTracker(dir)
+        let a = try XCTUnwrap(JobPreparingReporter.fromEnvironment(
+            machine: "M1", project: "A", profile: "p", jobID: tracker.jobID, directory: dir))
+        let b = try XCTUnwrap(JobPreparingReporter.fromEnvironment(
+            machine: "M1", project: "B", profile: "q", jobID: tracker.jobID, directory: dir))
+        a.enter(.collectingResults)
+        b.enter(.checkingRunner)
+        a.clear()
+        XCTAssertEqual(try XCTUnwrap(JobProgressLedger.readAll(directory: dir).first).preparing["M1"]?.stage, .checkingRunner)
+        b.clear()
+        XCTAssertTrue(try XCTUnwrap(JobProgressLedger.readAll(directory: dir).first).preparing.isEmpty)
+        XCTAssertNil(JobPreparingReporter.fromEnvironment(machine: "M1", project: "A", profile: "p", jobID: nil, directory: dir))
+        XCTAssertNil(JobPreparingReporter.fromEnvironment(machine: nil, project: "A", profile: "p", jobID: "x", directory: dir))
+    }
+
+    // MARK: 配線(ソース走査)
+
+    /// RemoteRunDispatcher が5つの段階をすべて報告し、リモートの run の最初の行で消すこと
+    func testDispatcherReportsEveryStageAndClearsOnRunStart() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/fleetest/RemoteRunDispatcher.swift")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        for stage in JobPreparingStage.allCases {
+            XCTAssertTrue(text.contains("preparing?.enter(.\(stage.rawValue))"),
+                          "RemoteRunDispatcher が段階 \(stage.rawValue) を報告していない(run ボードの機械の行が「空き」に見える)")
+        }
+        XCTAssertTrue(text.contains("onRunStarted: { preparing?.clear() }"), "リモートの run が始まっても準備中の表示が残る")
+        XCTAssertTrue(text.contains("runStarted.withLock") && text.contains("onRunStarted()"),
+                      "最初に中継した行で onRunStarted を呼んでいない")
+    }
 }

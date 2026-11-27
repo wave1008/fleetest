@@ -35,6 +35,23 @@ public struct JobRunEntry: Codable, Equatable, Sendable {
     }
 }
 
+/// 複数対象の run で、機械の次の run を用意している間の段階(run ボードの機械の行が「空き」に見える隙間を埋める)
+public enum JobPreparingStage: String, Codable, Sendable, CaseIterable {
+    case collectingResults, checkingRunner, transferringProject, sendingScenarios, startingRun
+}
+
+public struct JobPreparingActivity: Codable, Equatable, Sendable {
+    public var stage: JobPreparingStage
+    public var project: String
+    public var profile: String
+
+    public init(stage: JobPreparingStage, project: String, profile: String) {
+        self.stage = stage
+        self.project = project
+        self.profile = profile
+    }
+}
+
 public struct JobProgressRecord: Codable, Equatable, Sendable {
     public let jobID: String
     public let title: String
@@ -43,14 +60,18 @@ public struct JobProgressRecord: Codable, Equatable, Sendable {
     /// ISO8601 UTC
     public let startedAt: String
     public var runs: [JobRunEntry]
+    /// 機械名(ディスパッチ先の登録名)→ 準備中の段階。run が始まる・対象が終端になる・ジョブを閉じるときに消す
+    public var preparing: [String: JobPreparingActivity]
 
-    public init(jobID: String, title: String, issuer: String?, ownerPid: Int32, startedAt: String, runs: [JobRunEntry]) {
+    public init(jobID: String, title: String, issuer: String?, ownerPid: Int32, startedAt: String, runs: [JobRunEntry],
+                preparing: [String: JobPreparingActivity] = [:]) {
         self.jobID = jobID
         self.title = title
         self.issuer = issuer
         self.ownerPid = ownerPid
         self.startedAt = startedAt
         self.runs = runs
+        self.preparing = preparing
     }
 }
 
@@ -135,6 +156,22 @@ public enum JobProgressLedger {
         update(jobID: jobID, directory: directory) {
             JobRunMarking.mark(runs: &$0.runs, project: project, profile: profile, state: state,
                                machine: machine, pid: pid)
+        }
+    }
+
+    /// 機械の準備中の段階を置く(activity = nil で消す)。`onlyFor` を渡すと、その project/profile の分だけ消す
+    /// (次の対象がすでに置いた段階を前の対象の後始末で消さない)
+    public static func setPreparing(
+        jobID: String, machine: String, activity: JobPreparingActivity?,
+        onlyFor: (project: String, profile: String)? = nil, directory: URL = directory()
+    ) {
+        update(jobID: jobID, directory: directory) { record in
+            if let activity {
+                record.preparing[machine] = activity
+            } else if let current = record.preparing[machine],
+                      onlyFor.map({ current.project == $0.project && current.profile == $0.profile }) ?? true {
+                record.preparing[machine] = nil
+            }
         }
     }
 

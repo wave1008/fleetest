@@ -147,6 +147,17 @@ struct ApiMonitorJob: Codable, Equatable {
     let mine: Bool
     let elapsedSeconds: Int
     var runs: [ApiMonitorJobRun]
+    /// 機械の次の run の準備中(ProtocolVersion 79)。機械名順。拡張は run の無い機械の行に「空き」の代わりに出す
+    var preparing: [ApiMonitorJobPreparing]
+}
+
+struct ApiMonitorJobPreparing: Codable, Equatable {
+    /// 準備先の機械の登録名(手元は "local")。中継する RemoteMonitorFanout が "local" をその機械名へ書き換える
+    var machine: String
+    /// `JobPreparingStage` の rawValue(台帳の値をそのまま運ぶ)
+    let stage: String
+    let project: String
+    let profile: String
 }
 
 struct ApiMonitorJobRun: Codable, Equatable {

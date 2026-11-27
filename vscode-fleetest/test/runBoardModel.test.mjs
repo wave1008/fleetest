@@ -447,10 +447,30 @@ test("observed:false の機械は「不明」として残す(空きに倒さな�
   assert.deepEqual(idle, [{ machine: "M1Max", status: "unknown" }]);
 });
 
+test("準備中の段階: run の無い idle の機械にだけ付く(\"local\" は手元・不明の機械・run のある機械には付けない)", () => {
+  const prep = (machine, stage = "checkingRunner") => ({ machine, stage, project: "P", profile: "ios" });
+  let state = applyMonitorRunsEvent(new Map(), { observed: true, runs: [],
+    jobs: [job({ preparing: [prep("local"), prep("M1Max"), prep("M1Ultra"), prep("Gone")] })] });
+  state = applyMonitorRunsEvent(state, { machine: "M1Max", observed: true, runs: [run({})], jobs: [] });
+  // M1Ultra は一度も受けていない = 不明
+  const idle = machinesWithoutRuns(state, ["", "M1Max", "M1Ultra"], buildRunGroups(state));
+  assert.deepEqual(idle, [
+    { machine: "", status: "idle", preparing: prep("local") },
+    { machine: "M1Ultra", status: "unknown" },
+  ]);
+});
+
+test("準備中の段階: 観測できなくなった機械のジョブの段階は出さない(古い段階を出し続けない)", () => {
+  let state = applyMonitorRunsEvent(new Map(), { observed: true, runs: [],
+    jobs: [job({ preparing: [{ machine: "local", stage: "startingRun", project: "P", profile: "ios" }] })] });
+  state = applyMonitorRunsEvent(state, { observed: false, runs: [] });
+  assert.deepEqual(machinesWithoutRuns(state, [""], buildRunGroups(state)), [{ machine: "", status: "unknown" }]);
+});
+
 // ---- ジョブ(ProtocolVersion 76)-----------------------------------------------------------
 
 const jr = (state, extra) => ({ project: "P", profile: "ios", state, machines: [], ...extra });
-const job = (overrides) => ({ jobID: "j1", title: "E2E", mine: true, elapsedSeconds: 760, runs: [], ...overrides });
+const job = (overrides) => ({ jobID: "j1", title: "E2E", mine: true, elapsedSeconds: 760, runs: [], preparing: [], ...overrides });
 
 test("ジョブの数え上げ: run 済 = passed+failed+canceled+skipped・待機 = pending・未知の state は待機に数える(落とさない)", () => {
   const counts = jobCounts(job({ runs: [
@@ -499,11 +519,19 @@ test("listJobs: 機械の行が来たら置き換える(消えたジョブは残
 test("isMonitorEvent: jobs は必須・jobID は省略可。型崩れは拒否し、未知の state は運ぶ。toWebviewMessage は jobs を渡す", () => {
   const ok = structuredClone(wireEvent);
   ok.jobs = [{ jobID: "j", title: "E2E", issuer: null, mine: true, elapsedSeconds: 1,
-    runs: [{ project: "P", profile: "ios", state: "future", machines: ["local"] }] }];
+    runs: [{ project: "P", profile: "ios", state: "future", machines: ["local"] }],
+    preparing: [{ machine: "M1Max", stage: "sendingScenarios", project: "P", profile: "ios" }] }];
   ok.runs[0].jobID = "j";
   assert.equal(isMonitorEvent(ok), true);
   assert.equal(ok.jobs[0].issuer, undefined);
   assert.equal(toWebviewMessage(ok).jobs[0].runs[0].state, "future");
+  assert.equal(toWebviewMessage(ok).jobs[0].preparing[0].stage, "sendingScenarios", "準備中の段階も webview へ渡す");
+  const noPreparing = structuredClone(ok);
+  delete noPreparing.jobs[0].preparing;
+  assert.equal(isMonitorEvent(noPreparing), false, "古い形(preparing 無し)は受理しない");
+  const brokenPreparing = structuredClone(ok);
+  brokenPreparing.jobs[0].preparing[0].stage = 3;
+  assert.equal(isMonitorEvent(brokenPreparing), false);
   const missing = structuredClone(wireEvent);
   delete missing.jobs;
   assert.equal(isMonitorEvent(missing), false, "古い形(jobs 無し)は受理しない");

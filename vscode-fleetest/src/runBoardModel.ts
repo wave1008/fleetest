@@ -85,6 +85,14 @@ export interface RunBoardJobRun {
   readonly machines: readonly string[];
 }
 
+/** 機械の次の run の準備中(MonitorJobPreparing と同じ形)。machine の "local" は手元(LOCAL_MACHINE_KEY)を指す。 */
+export interface RunBoardJobPreparing {
+  readonly machine: string;
+  readonly stage: string;
+  readonly project: string;
+  readonly profile: string;
+}
+
 /** run の上の1階層のジョブ(MonitorJob と同じ形)。入れ子のジョブは無い。 */
 export interface RunBoardJob {
   readonly jobID: string;
@@ -93,6 +101,7 @@ export interface RunBoardJob {
   readonly mine: boolean;
   readonly elapsedSeconds: number;
   readonly runs: readonly RunBoardJobRun[];
+  readonly preparing: readonly RunBoardJobPreparing[];
 }
 
 /** 控えに畳んだあとのジョブ。machine / receivedAtMs の意味は RunBoardRun と同じ(秒読みの基準)。 */
@@ -425,6 +434,27 @@ export function jobsMayBeRunning(state: ReadonlyMap<string, MachineRunsEntry>): 
 export interface MachineWithoutRuns {
   readonly machine: string;
   readonly status: Exclude<MachineRunStatus, "running">;
+  /** run が無い間に親が次の run を用意している段階(複数対象の run のジョブが運ぶ)。観測できている(idle の)機械だけ。 */
+  readonly preparing?: RunBoardJobPreparing;
+}
+
+/** 機械ごとの準備中の段階(観測できている機械のジョブから。同じ機械に複数あれば先に見つけた1件)。鍵は機械名("local" は手元)。 */
+function preparingByMachine(state: ReadonlyMap<string, MachineRunsEntry>): Map<string, RunBoardJobPreparing> {
+  const result = new Map<string, RunBoardJobPreparing>();
+  for (const entry of state.values()) {
+    if (!entry.observed) {
+      continue;
+    }
+    for (const job of entry.jobs) {
+      for (const item of job.preparing) {
+        const key = item.machine === "local" ? LOCAL_MACHINE_KEY : item.machine;
+        if (!result.has(key)) {
+          result.set(key, item);
+        }
+      }
+    }
+  }
+  return result;
 }
 
 /** `machines`(フリートに居る機械の母集団)のうち、`groups` のどの run も使っていないものを
@@ -441,13 +471,16 @@ export function machinesWithoutRuns(
       busy.add(run.machine ?? LOCAL_MACHINE_KEY);
     }
   }
+  const preparing = preparingByMachine(state);
   const result: MachineWithoutRuns[] = [];
   for (const machine of machines) {
     if (busy.has(machine)) {
       continue;
     }
     const status = machineRunStatus(state, machine);
-    result.push({ machine, status: status === "running" ? "idle" : status });
+    const idle = status === "running" ? "idle" : status;
+    const activity = idle === "idle" ? preparing.get(machine) : undefined;
+    result.push(activity ? { machine, status: idle, preparing: activity } : { machine, status: idle });
   }
   return result;
 }

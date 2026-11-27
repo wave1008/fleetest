@@ -406,6 +406,15 @@ export function setRunBoardExpandAll(value) {
   render();
 }
 
+// 準備中の段階(FTCore.JobPreparingStage の rawValue)→ 文言のキー
+const PREPARING_STAGE_KEYS = {
+  collectingResults: 'runBoard.preparingStage.collectingResults',
+  checkingRunner: 'runBoard.preparingStage.checkingRunner',
+  transferringProject: 'runBoard.preparingStage.transferringProject',
+  sendingScenarios: 'runBoard.preparingStage.sendingScenarios',
+  startingRun: 'runBoard.preparingStage.startingRun',
+};
+
 // run の無い機械の行(行の DOM は run 行と共有する = ensureRow)。バッジと状態(空き / —)だけを
 // 出し、開くとその機械のデバイスが並ぶ。**デバイスはその状態に関わらず出す**(停止中でも消さない)。
 function updateIdleRow(row, entry) {
@@ -432,6 +441,13 @@ function updateIdleRow(row, entry) {
   if (entry.status === 'unknown') {
     row.statusEl.textContent = t('runBoard.remainingUnknown');
     setHoverTip(row.statusEl, t('runBoard.machineUnknown'));
+  } else if (entry.preparing && PREPARING_STAGE_KEYS[entry.preparing.stage]) {
+    // 対象と対象の間(親が次の run を用意している最中)を「空き」と言わない。未知の段階は「空き」へ倒す
+    row.statusEl.textContent = t('runBoard.machinePreparing', {
+      stage: t(PREPARING_STAGE_KEYS[entry.preparing.stage]),
+      project: entry.preparing.project, profile: entry.preparing.profile,
+    });
+    setHoverTip(row.statusEl, '');
   } else {
     row.statusEl.textContent = t('runBoard.machineIdle');
     setHoverTip(row.statusEl, '');

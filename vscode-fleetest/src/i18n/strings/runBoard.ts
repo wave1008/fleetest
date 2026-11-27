@@ -16,6 +16,15 @@ export const runBoardStrings = {
   "runBoard.expandLanes": { ja: "デバイスごとの内訳を開く", en: "Show per-device lanes" },
   "runBoard.collapseLanes": { ja: "デバイスごとの内訳を閉じる", en: "Hide per-device lanes" },
   "runBoard.machineIdle": { ja: "空き", en: "Free" },
+  "runBoard.machinePreparing": {
+    ja: "次の run を準備中: {stage}({project} / {profile})",
+    en: "Preparing the next run: {stage} ({project} / {profile})",
+  },
+  "runBoard.preparingStage.collectingResults": { ja: "前の結果を回収中", en: "Collecting the previous results" },
+  "runBoard.preparingStage.checkingRunner": { ja: "ランナーを確認中", en: "Checking the runner" },
+  "runBoard.preparingStage.transferringProject": { ja: "プロジェクトを転送中", en: "Transferring the project" },
+  "runBoard.preparingStage.sendingScenarios": { ja: "シナリオを送信中", en: "Sending the scenarios" },
+  "runBoard.preparingStage.startingRun": { ja: "実行を開始中", en: "Starting the run" },
   "runBoard.machineUnknown": { ja: "実行状況を観測できていません", en: "Run status not observed" },
   "runBoard.issuerRun": { ja: "{issuer} の run", en: "{issuer}'s run" },
   // ジョブ(run の上の1階層。ProtocolVersion 76)。見出しの行の数・経過と、数のホバーの一覧

@@ -50,9 +50,27 @@ struct MultiTargetJobTracker: Sendable {
                                machine: machine, pid: pid, directory: directory)
     }
 
+    /// 機械の準備中の段階を置く(子のディスパッチは `JobPreparingReporter` で同じ欄を書く。ここは親側の口)
+    func preparing(machine: String, stage: JobPreparingStage, project: String, profile: String) {
+        JobProgressLedger.setPreparing(
+            jobID: jobID, machine: machine,
+            activity: JobPreparingActivity(stage: stage, project: project, profile: profile), directory: directory)
+    }
+
+    /// 終端にする対象の準備中の段階は残さない(子が途中で死ぬと自分では消せない)。
+    /// 次の対象が同じ機械へ置いた段階は project/profile が違うので消さない
     func mark(project: String, profile: String, state: JobRunState) {
-        if state.isTerminal { open.withLock { _ = $0.remove(Self.key(project, profile)) } }
+        if state.isTerminal {
+            open.withLock { _ = $0.remove(Self.key(project, profile)) }
+            Self.clearPreparing(of: project, profile, jobID: jobID, directory: directory)
+        }
         JobProgressLedger.mark(jobID: jobID, project: project, profile: profile, state: state, directory: directory)
+    }
+
+    private static func clearPreparing(of project: String, _ profile: String, jobID: String, directory: URL) {
+        JobProgressLedger.update(jobID: jobID, directory: directory) { record in
+            record.preparing = record.preparing.filter { !($0.value.project == project && $0.value.profile == profile) }
+        }
     }
 
     /// 出口の安全網。自分のジョブなら消す(終端でない行も一緒に消える)。外側のジョブを借りているときは、
@@ -67,6 +85,9 @@ struct MultiTargetJobTracker: Sendable {
         JobProgressLedger.update(jobID: jobID, directory: directory) { record in
             for key in left {
                 let parts = key.split(separator: "\u{1}", maxSplits: 1, omittingEmptySubsequences: false)
+                record.preparing = record.preparing.filter {
+                    !($0.value.project == String(parts[0]) && $0.value.profile == String(parts[1]))
+                }
                 JobRunMarking.mark(runs: &record.runs, project: String(parts[0]), profile: String(parts[1]),
                                    state: .canceled)
             }

@@ -184,6 +184,10 @@ struct RemoteRunDispatcher {
         buildArgs: (String, String?, String?, String?) -> [String]
     ) async throws -> Int32 {
         let setupStart = Date()
+        // 機械の準備の段階を台帳へ書く(複数対象の run のジョブの中だけ。ジョブの無い単発の `--runner` run は nil = 何も書かない)。
+        // run ボードの機械の行が、対象と対象の間で「空き」に見えないように(DS-18)
+        let preparing = JobPreparingReporter.fromEnvironment(machine: hostLabel, project: project.name, profile: profile)
+        preparing?.enter(.checkingRunner)
         let (layout, session) = try resolveLayout()
         cacheHardwareUUID(project: project, session: session)
         var (developerDir, toolMatch) = try checkCompatibility(layout: layout)
@@ -222,12 +226,14 @@ struct RemoteRunDispatcher {
         // ワークスペースの用意(ステージング)は project の rsync より先に行う。ワークスペースは
         // 既定でプロジェクトルート配下(prepareWorkspace 参照)なので、順序を逆にすると
         // 直前にステージングしたファイルが transfer() の対象から漏れる
+        preparing?.enter(.transferringProject)
         let remoteWorkspace = try prepareWorkspace(project: project, profile: profile, setOverrides: setOverrides,
                                                    layout: layout)
         try transfer(project: project, layout: layout)
 
         let stamp = Self.makeStamp()
         // 手元のビルド済みシナリオ実行バイナリをランナーへ送る(送れなければ空 = 子が自分でビルドする)
+        preparing?.enter(.sendingScenarios)
         let prebuiltArgs = sendPrebuiltScenarios(project: project, layout: layout, stamp: stamp, tool: toolMatch)
         let remoteReportDir = layout.dispatchReportDir(stamp: stamp)
         let remoteJUnitPath = localJUnitPath != nil
@@ -242,15 +248,17 @@ struct RemoteRunDispatcher {
         // ssh 起動の直前にもう一度見る(理由は取得直後のガードの宣言参照)
         try bailIfAlreadyInterrupted(
             interruptFlag: interruptFlag, layout: layout, lockDisposition: &lockDisposition)
+        preparing?.enter(.startingRun)
         let exitCode: Int32
         do {
             exitCode = try runRemoteAndRelay(
                 fleetestArgs: fleetestArgs, layout: layout, timeoutSeconds: timeoutSeconds,
                 stamp: stamp, project: project.name, localRoot: Self.packageRoot(of: project).path,
                 developerDir: developerDir, interruptFlag: interruptFlag,
-                linkedToParent: linkedToParent, lockLink: lockLink)
+                linkedToParent: linkedToParent, lockLink: lockLink, onRunStarted: { preparing?.clear() })
             finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: exitCode, interruptFlag: interruptFlag)
         } catch {
+            preparing?.clear()
             finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: nil, interruptFlag: interruptFlag)
             // timeout (throws from runInheritedWithLineRewrite): the remote run may still be
             // alive — the ssh session was just signalled, but the runner's teardown is
@@ -273,6 +281,8 @@ struct RemoteRunDispatcher {
             exitCode: exitCode, interrupted: interruptFlag.interrupted, layout: layout,
             reportDir: remoteReportDir)
 
+        // 結果の回収は次の対象の準備の入口(消すのは次の段階か、対象が終端になるときの親)
+        preparing?.enter(.collectingResults)
         collectReports(project: project, remoteReportDir: remoteReportDir,
                       interrupted: interruptFlag.interrupted, exitCode: exitCode)
         relinkCollectedReportTexts(project: project, stamp: stamp)
@@ -1087,7 +1097,8 @@ struct RemoteRunDispatcher {
                                    timeoutSeconds: Int?, stamp: String, project: String, localRoot: String,
                                    developerDir: String?,
                                    interruptFlag: DispatchInterruptFlag, linkedToParent: Bool,
-                                   lockLink: RemoteLockLink? = nil) throws -> Int32 {
+                                   lockLink: RemoteLockLink? = nil,
+                                   onRunStarted: @escaping @Sendable () -> Void = {}) throws -> Int32 {
         log("==> running on \(host.sshTarget): fleetest \(fleetestArgs.joined(separator: " "))")
         let command = RemoteShell.remoteRunCommand(layout: layout, fleetestArgs: fleetestArgs,
                                                    issuer: LocalConfig.resolveIssuerId(),
@@ -1107,7 +1118,8 @@ struct RemoteRunDispatcher {
             ParentBoundCommand.wrap(sshRunBase + (lockLink?.sshArgs ?? []) + [host.sshTarget, command],
                                     parentPID: ProcessInfo.processInfo.processIdentifier),
             layout: layout, timeoutSeconds: timeoutSeconds, stamp: stamp, project: project, localRoot: localRoot,
-            interruptFlag: interruptFlag, linkedToParent: linkedToParent, lockWaitExtender: extender)
+            interruptFlag: interruptFlag, linkedToParent: linkedToParent, lockWaitExtender: extender,
+            onRunStarted: onRunStarted)
         if status == 90 {
             log("==> the remote fleetest binary is missing — build it on the remote first"
                 + " (swift build --product fleetest)")
@@ -1594,7 +1606,8 @@ struct RemoteRunDispatcher {
                                              project: String, localRoot: String,
                                              interruptFlag: DispatchInterruptFlag,
                                              linkedToParent: Bool,
-                                             lockWaitExtender: RemoteLockWaitExtender? = nil) throws -> Int32 {
+                                             lockWaitExtender: RemoteLockWaitExtender? = nil,
+                                             onRunStarted: @escaping @Sendable () -> Void = {}) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = argv
@@ -1613,7 +1626,10 @@ struct RemoteRunDispatcher {
         // **写す先は workDir**(base ではない。collectJUnit と同じ理由)
         let remoteRoot = layout.workDir
         let mode = self.mode
+        // リモートの run の最初の1行 = 向こうの run が始まった(run ボードに run が出るので準備中の表示を外す)
+        let runStarted = LockedValue(false)
         @Sendable func relayLine(_ line: String) {
+            if runStarted.withLock({ started -> Bool in defer { started = true }; return !started }) { onRunStarted() }
             // 親子の配りの行(WorkQueueProtocol)は書き換えず、そのまま stdout へ(api run の機械可読行でもある)
             if WorkQueueProtocol.isWorkLine(line) {
                 ConsoleOut.out(line)

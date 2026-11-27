@@ -55,9 +55,25 @@ final class ApiMonitorJobsTests: XCTestCase {
 
     func testFanoutRewritesOnlyLocalMachineNames() {
         let job = ApiMonitorJob(jobID: "j", title: "t", issuer: nil, mine: false, elapsedSeconds: 0, runs: [
-            ApiMonitorJobRun(project: "A", profile: "p", state: "running", machines: ["local", "M3"])])
+            ApiMonitorJobRun(project: "A", profile: "p", state: "running", machines: ["local", "M3"])],
+            preparing: [ApiMonitorJobPreparing(machine: "local", stage: "checkingRunner", project: "A", profile: "p"),
+                        ApiMonitorJobPreparing(machine: "M3", stage: "startingRun", project: "A", profile: "p")])
         let out = RemoteMonitorFanout.machineStamped(jobs: [job], machine: "M1Ultra")
         XCTAssertEqual(out[0].runs[0].machines, ["M1Ultra", "M3"])
+        XCTAssertEqual(out[0].preparing.map(\.machine), ["M1Ultra", "M3"], "準備中の機械名の local もその機械名へ書き換える")
+    }
+
+    /// 準備中の段階は機械名順で、台帳の値をそのまま運ぶ。無ければ空配列
+    func testPreparingIsEmittedSortedByMachine() {
+        var r = record("j", runs: [])
+        r.preparing = ["M2": JobPreparingActivity(stage: .sendingScenarios, project: "A", profile: "p"),
+                       "M1": JobPreparingActivity(stage: .collectingResults, project: "B", profile: "q")]
+        let out = ApiMonitorCommand.monitorJobs(records: [r, record("k", runs: [])], now: now, myIssuer: "me",
+                                                isAlive: { _ in true })
+        XCTAssertEqual(out[0].preparing, [
+            ApiMonitorJobPreparing(machine: "M1", stage: "collectingResults", project: "B", profile: "q"),
+            ApiMonitorJobPreparing(machine: "M2", stage: "sendingScenarios", project: "A", profile: "p")])
+        XCTAssertEqual(out[1].preparing, [])
     }
 
     func testFanoutIngestStampsJobsInRelayedMonitorRunsLine() throws {
@@ -66,11 +82,13 @@ final class ApiMonitorJobsTests: XCTestCase {
                                          log: { _ in }, relayLine: { line in relayed.withLock { $0.append(line) } })
         let event = ApiMonitorRunsEvent(runs: [], services: [], jobs: [
             ApiMonitorJob(jobID: "j", title: "t", issuer: nil, mine: false, elapsedSeconds: 0, runs: [
-                ApiMonitorJobRun(project: "A", profile: "p", state: "running", machines: ["local"])])])
+                ApiMonitorJobRun(project: "A", profile: "p", state: "running", machines: ["local"])],
+                preparing: [ApiMonitorJobPreparing(machine: "local", stage: "startingRun", project: "A", profile: "p")])])
         fanout.ingest(line: String(data: try JSONEncoder().encode(event), encoding: .utf8)!, machine: "M1Ultra")
         let out = try XCTUnwrap(relayed.withLock { $0.first })
         let decoded = try JSONDecoder().decode(ApiMonitorRunsEvent.self, from: Data(out.utf8))
         XCTAssertEqual(decoded.jobs[0].runs[0].machines, ["M1Ultra"])
+        XCTAssertEqual(decoded.jobs[0].preparing[0].machine, "M1Ultra")
         XCTAssertEqual(decoded.machine, "M1Ultra")
     }
 

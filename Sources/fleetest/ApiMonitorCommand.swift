@@ -783,6 +783,10 @@ struct ApiMonitorCommand: AsyncParsableCommand {
                         return ApiMonitorJobRun(project: run.project, profile: run.profile,
                                                 state: (orphaned ? JobRunState.canceled : run.state).rawValue,
                                                 machines: run.machines)
+                    },
+                    preparing: record.preparing.sorted { $0.key < $1.key }.map {
+                        ApiMonitorJobPreparing(machine: $0.key, stage: $0.value.stage.rawValue,
+                                               project: $0.value.project, profile: $0.value.profile)
                     })
             }
     }
