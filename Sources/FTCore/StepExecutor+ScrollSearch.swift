@@ -1274,7 +1274,8 @@ extension StepExecutor {
             // 記録に添える移動量(前の回と重なっていたか = 飛び越しの有無を後から読むための測る口。端・飛び越しの判定には使わず、払いの回数の重みにだけ使う)
             var travelTrace = ""
             if let previousSnapshot {
-                let container = scrollContainer(step: step, in: snapshot, vertical: vertical)
+                // searchStep = 払い直した容器を持つ(scroll-redirected-to-container の後は画面ではなくその容器で量る)
+                let container = scrollContainer(step: searchStep, in: snapshot, vertical: vertical)
                     .flatMap { ScrollGeometry.intersection($0, snapshot.screen) } ?? snapshot.screen
                 let extent = vertical ? container.height : container.width
                 if let travel = Self.measuredTravel(before: previousSnapshot, after: snapshot, vertical: vertical) {

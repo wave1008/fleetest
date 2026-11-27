@@ -68,6 +68,9 @@ final class ScrollSearchContainerRedirectTests: XCTestCase {
         guard case .failed(let reason) = result.status else { return XCTFail("\(result.status)") }
         XCTAssertFalse(reason.contains("nothing moved at all"), reason)
         XCTAssertTrue(reason.contains("reached its end"), reason)
+        // 払い直した後の移動量は容器(高さ 400)で量る。画面(1080)で量ると容器いっぱいの払いも「少し」と数える(探索 11/27 alocal F1)
+        // (払い直す前の round 1 は画面の払いなので画面で量るのが正しい)
+        XCTAssertTrue(reason.contains("moved 60 of 400, content went up"), reason)
     }
 
     func testDoesNotRedirectWhenSeveralContainers() async throws {
