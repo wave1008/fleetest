@@ -46,10 +46,23 @@ def _on_signal(signum, _frame):
         _child.send_signal(signal.SIGINT)
 
 
-def run_child(cmd, **kwargs):
+def run_child(cmd, timed_log=None, **kwargs):
+    """timed_log: 出力をそのまま流しつつ、各行に経過秒を付けた写しをこのパスへ書く(段2の所要の内訳を後から読む測る口。
+    利用者向けの出力の形は変えない = 行は stdout へそのまま)"""
     global _child
-    _child = subprocess.Popen(cmd, cwd=ROOT, process_group=0, **kwargs)
+    if timed_log is None:
+        _child = subprocess.Popen(cmd, cwd=ROOT, process_group=0, **kwargs)
+    else:
+        _child = subprocess.Popen(cmd, cwd=ROOT, process_group=0, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                  bufsize=1, text=True, errors="replace", **kwargs)
     try:
+        if timed_log is not None:
+            start = time.time()
+            with open(timed_log, "w") as timed:
+                for line in _child.stdout:
+                    sys.stdout.write(line)
+                    timed.write(f"{time.time() - start:8.2f} {line}")
+                    timed.flush()
         while True:
             try:
                 return _child.wait()
@@ -391,7 +404,7 @@ def stage2(opts, fleet, targets, suts, suites, witness, run_dir, env, started):
         return interrupted_exit(fleet, run_dir)
     print("==> 段 2: fleetest run(空いたマシンが次の対象を取る)")
     run_started = time.time()
-    run_ok = run_child(run_args(targets, opts.record), env=env) == 0
+    run_ok = run_child(run_args(targets, opts.record), timed_log=os.path.join(run_dir, "stage2.timed.log"), env=env) == 0
     if _interrupted:
         return interrupted_exit(fleet, run_dir)
     witness_ok = True
