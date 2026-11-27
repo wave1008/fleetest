@@ -83,7 +83,7 @@ polling (screenshots at a fixed interval); the choice is remembered per workspac
   (hover for how to stop them). Servers whose starting process has exited without cleaning up show as
   "Servers without owner: <project>" (hover for how to remove them). For the few seconds a finished run
   takes to stop its servers, the row says "Servers stopping: <project>".
-- While a multi-target run (`fleetest run --target …`) is preparing a machine's next run — collecting the previous results, checking the runner, transferring the project, sending the scenarios, starting the run — that machine's row says what it is doing ("Preparing the next run: …") instead of "Free".
+- While a multi-target run (`fleetest run --target …`) is preparing a machine's next run — collecting the previous results, waiting for the runner's turn (another run is using it), checking the runner, transferring the project, sending the scenarios, starting the run — that machine's row says what it is doing ("Preparing the next run: …") instead of "Free".
 - When a script or CI pipeline that starts several runs in turn declares its plan, a **job** (the list of runs about to be started) appears on the run board.
   In the run board header, to the right of the tachometer, you see "N/M runs done", the number of failed runs (❌, only when some failed),
   how many of the job's runs are running and **waiting**, and the elapsed time. With two or more jobs, each job's title comes before its counts.

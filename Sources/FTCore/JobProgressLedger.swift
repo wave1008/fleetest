@@ -37,7 +37,7 @@ public struct JobRunEntry: Codable, Equatable, Sendable {
 
 /// 複数対象の run で、機械の次の run を用意している間の段階(run ボードの機械の行が「空き」に見える隙間を埋める)
 public enum JobPreparingStage: String, Codable, Sendable, CaseIterable {
-    case collectingResults, checkingRunner, transferringProject, sendingScenarios, startingRun
+    case collectingResults, waitingForRunner, checkingRunner, transferringProject, sendingScenarios, startingRun
 }
 
 public struct JobPreparingActivity: Codable, Equatable, Sendable {
@@ -130,8 +130,21 @@ public enum JobProgressLedger {
         return record
     }
 
-    /// flock の内側で読み → body → 書く。ファイルが無ければ何もしない(リモート側・終わったジョブ)
-    public static func update(jobID: String, directory: URL = directory(), _ body: (inout JobProgressRecord) -> Void) {
+    /// 読めない台帳(別の fleetest 版が書いた形)の報告。互換読みは置かない(DR-5)ので黙って飛ばさず、
+    /// 同じファイルは1プロセスで1回だけ stderr へ1行(モニターは毎周読む)
+    public static func reportUnreadable(_ fileName: String) {
+        guard reportedUnreadable.withLock({ $0.insert(fileName).inserted }) else { return }
+        ConsoleOut.err("warning: the job ledger \(fileName) cannot be read — it was written by another fleetest version;"
+            + " align the fleetest versions (skipping it)")
+    }
+
+    private static let reportedUnreadable = LockedValue<Set<String>>([])
+
+    /// flock の内側で読み → body → 書く。ファイルが無ければ何もしない(リモート側・終わったジョブ)。
+    /// 読めない形のファイルは `onUnreadable` へ報告して何もしない
+    public static func update(jobID: String, directory: URL = directory(),
+                              onUnreadable: (String) -> Void = reportUnreadable,
+                              _ body: (inout JobProgressRecord) -> Void) {
         guard isValidID(jobID) else { return }
         let url = fileURL(jobID: jobID, directory: directory)
         guard FileManager.default.fileExists(atPath: url.path) else { return }
@@ -142,8 +155,11 @@ public enum JobProgressLedger {
             if errno == EINTR { continue }
             return
         }
-        guard let data = try? Data(contentsOf: url),
-              var record = try? JSONDecoder().decode(JobProgressRecord.self, from: data) else { return }
+        guard let data = try? Data(contentsOf: url) else { return }
+        guard var record = try? JSONDecoder().decode(JobProgressRecord.self, from: data) else {
+            onUnreadable(url.lastPathComponent)
+            return
+        }
         body(&record)
         write(record, directory: directory)
     }
@@ -153,9 +169,14 @@ public enum JobProgressLedger {
         jobID: String, project: String, profile: String, state: JobRunState,
         machine: String? = nil, pid: Int32? = nil, directory: URL = directory()
     ) {
-        update(jobID: jobID, directory: directory) {
-            JobRunMarking.mark(runs: &$0.runs, project: project, profile: profile, state: state,
+        update(jobID: jobID, directory: directory) { record in
+            JobRunMarking.mark(runs: &record.runs, project: project, profile: profile, state: state,
                                machine: machine, pid: pid)
+            // 終端になる対象の準備中の段階は残さない(ディスパッチの子が途中で死ぬと自分では消せない)。
+            // 次の対象が同じ機械へ置いた段階は project/profile が違うので消さない
+            if state.isTerminal {
+                record.preparing = record.preparing.filter { !($0.value.project == project && $0.value.profile == profile) }
+            }
         }
     }
 
@@ -188,16 +209,20 @@ public enum JobProgressLedger {
         try? FileManager.default.removeItem(at: lockURL(jobID: jobID, directory: directory))
     }
 
-    /// 生きている持ち主のジョブだけ返す(pid + startedAt の照合)。壊れた JSON は1件だけ飛ばす
+    /// 生きている持ち主のジョブだけ返す(pid + startedAt の照合)。読めない JSON は `onUnreadable` へ報告して1件だけ飛ばす
     public static func readAll(
         directory: URL = directory(), isAlive: (Int32) -> Bool = ProcessLiveness.isAlive,
-        startTime: (Int32) -> Date? = ProcessLiveness.startTime
+        startTime: (Int32) -> Date? = ProcessLiveness.startTime,
+        onUnreadable: (String) -> Void = reportUnreadable
     ) -> [JobProgressRecord] {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else { return [] }
         var records: [JobProgressRecord] = []
         for name in names where name.hasSuffix(".json") {
-            guard let data = try? Data(contentsOf: directory.appendingPathComponent(name)),
-                  let record = try? JSONDecoder().decode(JobProgressRecord.self, from: data) else { continue }
+            guard let data = try? Data(contentsOf: directory.appendingPathComponent(name)) else { continue }
+            guard let record = try? JSONDecoder().decode(JobProgressRecord.self, from: data) else {
+                onUnreadable(name)
+                continue
+            }
             guard ownerAlive(record, isAlive: isAlive, startTime: startTime) else { continue }
             records.append(record)
         }

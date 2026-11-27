@@ -118,11 +118,11 @@ test("準備中の段階: 機械の行に「空き」の代わりに段階とプ
   post(window, monitorRunsMessage({ machine: "M1Ultra", runs: [], jobs: [] }));
   assert.deepEqual(machineRows(document), ["local空き", "M1Max空き", "M1Ultra空き"], "段階が無ければ空き");
   post(window, monitorRunsMessage({ runs: [], jobs: [{ ...jobFixture(), preparing: [
-    stage("M1Max", "sendingScenarios"), stage("M1Ultra", "collectingResults"), stage("local", "from-the-future")] }] }));
+    stage("M1Max", "sendingScenarios"), stage("M1Ultra", "waitingForRunner"), stage("local", "from-the-future")] }] }));
   assert.deepEqual(machineRows(document), [
     "local空き",
     "M1Max次の run を準備中: シナリオを送信中(E2E-RN / ios-inapp-boost)",
-    "M1Ultra次の run を準備中: 前の結果を回収中(E2E-RN / ios-inapp-boost)",
+    "M1Ultra次の run を準備中: ランナーの順番待ち(E2E-RN / ios-inapp-boost)",
   ], "未知の段階は空きへ倒す");
   const status = idleRows(document)[1].querySelector(".run-board-idle-machine-status");
   assert.equal(status.className.includes("run-board-machine-state-idle"), true, "警告色にしない(グレーの空きと同じクラス)");

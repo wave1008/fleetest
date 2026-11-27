@@ -98,6 +98,23 @@ final class JobProgressLedgerTests: XCTestCase {
         XCTAssertEqual(read.map(\.jobID), [alive.jobID])
     }
 
+    /// 別の fleetest 版が書いた形(読めない JSON)は、黙って飛ばさず報告する(互換読みは置かない = DR-5)
+    func testUnreadableLedgerIsReportedByReadAllAndUpdate() throws {
+        let dir = tempDir()
+        let alive = JobProgressLedger.begin(title: "alive", ownerPid: 10, runs: [], issuer: nil, directory: dir,
+                                            isAlive: { _ in true }, startTime: Self.unknownStart)
+        try "{\"jobID\":\"old\"}".write(to: dir.appendingPathComponent("old.json"), atomically: true, encoding: .utf8)
+        let reported = LockedValue<[String]>([])
+        let read = JobProgressLedger.readAll(directory: dir, isAlive: { _ in true }, startTime: Self.unknownStart,
+                                             onUnreadable: { name in reported.withLock { $0.append(name) } })
+        XCTAssertEqual(read.map(\.jobID), [alive.jobID], "動作は従来どおり(読めない1件だけ飛ばす)")
+        XCTAssertEqual(reported.withLock { $0 }, ["old.json"])
+        JobProgressLedger.update(jobID: "old", directory: dir, onUnreadable: { name in reported.withLock { $0.append("u:" + name) } }) { _ in
+            XCTFail("読めないファイルへ body を撃たない")
+        }
+        XCTAssertEqual(reported.withLock { $0 }, ["old.json", "u:old.json"])
+    }
+
     func testSweepRemovesOnlyDeadOwnersAndOrphanLocks() throws {
         let dir = tempDir()
         let keep = JobProgressLedger.begin(title: "keep", ownerPid: 10, runs: [], issuer: nil, directory: dir,

@@ -1292,11 +1292,14 @@ RR-17(サービスの宣言)のサーバーを run ボードの2か所で出す:
 - **生存判定は `ownerPid` + `startedAt`**(`RunProgressLedger` と同じ。mtime を見ない)。持ち主が死んだジョブは読み手が無視し、
   次にジョブを作る者(`job begin`・自前のジョブを作る複数対象の run = どちらも `JobProgressLedger.begin`)が掃く。
   **read-modify-write は `<jobID>.lock` の flock で直列化**(同じジョブの run が並行しうる)。ID はパスの部品なので英数字と `-` だけ通す
-- **機械の準備中の段階(`preparing`。ProtocolVersion 79)**: 複数対象の run は対象と対象の間に機械が「空き」に見える(実測 10〜60 秒:
+- **機械の準備中の段階(`preparing`。ProtocolVersion 79、`waitingForRunner` を足して 80)**: 複数対象の run は対象と対象の間に機械が「空き」に見える(実測 10〜60 秒:
   前の結果の回収 → 録画・ログの回収 → ランナーの照合 → プロジェクトの転送 → シナリオの送信 → 実行の開始)。ジョブが機械名 → `{stage, project, profile}` を持ち
-  (`JobPreparingStage` = collectingResults / checkingRunner / transferringProject / sendingScenarios / startingRun)、`RemoteRunDispatcher` が各段の入口で
-  `JobPreparingReporter`(子は `FT_JOB_ID` で台帳を書く)から置き、リモートの run の最初の1行で消す。対象が終端になるとき(`MultiTargetJobTracker.mark`)・借りたジョブを閉じるときも、
-  その対象の分を消す。拡張は run の無い(idle の)機械の行に「空き」の代わりに段階を出す(未知の段階・不明の機械は出さない)。
+  (`JobPreparingStage` = collectingResults / waitingForRunner(他の run の dispatch.lock の待機列で待っている間) / checkingRunner / transferringProject / sendingScenarios / startingRun)、`RemoteRunDispatcher` が各段の入口で
+  `JobPreparingReporter`(子は `FT_JOB_ID` で台帳を書く)から置く。**消すのはディスパッチ自身(`performDispatch` 冒頭の `defer` の1箇所。
+  throw・中断・回収の終わりのどの出口でも。外側のジョブの run でも残らない)**で、加えてリモートの run の開始行(`RemoteRelay.isRunStartLine` = `api run` の `runStarted` イベントか `run` の `🚀 Starting`。
+  最初の1行では判定しない = ssh の警告で消えない)を中継した時点でも消す。台帳側は対象が終端になるとき(`JobProgressLedger.mark`。複数対象の run の
+  `MultiTargetJobTracker.mark` も外側のジョブの run の `JobMembership.finish` もここを通る)・借りたジョブを閉じるときも、その対象の分を消す。
+  **別の fleetest 版が書いた台帳は読めない**(互換読みを置かない = DR-5。stderr に1行出して飛ばす)。拡張は run の無い(idle の)機械の行に「空き」の代わりに段階を出す(未知の段階・不明の機械は出さない)。
   **ジョブを持たない単発の `--runner` の run は書かない**(`FT_JOB_ID` が無ければ `JobPreparingReporter` は nil)
 - **書き手は3つ**:
   - `fleetest job begin --title <T> --owner-pid <PID> [--run <project>:<profile>]...` / `fleetest job end --id <ID>`(スクリプト・CI)。

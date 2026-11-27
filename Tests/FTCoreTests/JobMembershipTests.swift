@@ -45,6 +45,22 @@ final class JobMembershipTests: XCTestCase {
         XCTAssertEqual(read(dir).first?.state, .passed, "2回目の finish は何もしない")
     }
 
+    /// 外側のジョブの run(ディスパッチの子が段階を置いたまま終わった)でも、終了で段階が残らない
+    func testFinishClearsThePreparingStagesOfItsTarget() {
+        let dir = tempDir()
+        let id = makeJob(dir)
+        JobMembership.claim(project: "A", profile: "p", jobID: id, alreadyMarked: false, pid: 4242,
+                            directory: dir, setMarked: {})
+        for (machine, project) in [("M1", "A"), ("M2", "B")] {
+            JobProgressLedger.setPreparing(
+                jobID: id, machine: machine,
+                activity: JobPreparingActivity(stage: .collectingResults, project: project, profile: "p"), directory: dir)
+        }
+        JobMembership.finish(exitCode: 0)
+        XCTAssertEqual(JobProgressLedger.readAll(directory: dir).first?.preparing.keys.sorted(), ["M2"],
+                       "自分の対象(A/p)の段階だけ消える")
+    }
+
     func testFinishWithNonZeroAndInterruptCodes() {
         for (code, expected) in [(Int32(1), JobRunState.failed), (130, .canceled)] {
             let dir = tempDir()

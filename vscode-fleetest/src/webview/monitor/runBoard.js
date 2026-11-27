@@ -409,6 +409,7 @@ export function setRunBoardExpandAll(value) {
 // 準備中の段階(FTCore.JobPreparingStage の rawValue)→ 文言のキー
 const PREPARING_STAGE_KEYS = {
   collectingResults: 'runBoard.preparingStage.collectingResults',
+  waitingForRunner: 'runBoard.preparingStage.waitingForRunner',
   checkingRunner: 'runBoard.preparingStage.checkingRunner',
   transferringProject: 'runBoard.preparingStage.transferringProject',
   sendingScenarios: 'runBoard.preparingStage.sendingScenarios',

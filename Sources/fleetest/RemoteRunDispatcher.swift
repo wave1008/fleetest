@@ -187,6 +187,9 @@ struct RemoteRunDispatcher {
         // 機械の準備の段階を台帳へ書く(複数対象の run のジョブの中だけ。ジョブの無い単発の `--runner` run は nil = 何も書かない)。
         // run ボードの機械の行が、対象と対象の間で「空き」に見えないように(DS-18)
         let preparing = JobPreparingReporter.fromEnvironment(machine: hostLabel, project: project.name, profile: profile)
+        // どの出口(throw・中断・正常終了 = 回収の終わり)でも自分の段階を消す。**消す場所はここだけ**
+        // (外側のジョブの run でも段階が残らないように。親の終端の掃除に頼らない)
+        defer { preparing?.clear() }
         preparing?.enter(.checkingRunner)
         let (layout, session) = try resolveLayout()
         cacheHardwareUUID(project: project, session: session)
@@ -208,11 +211,14 @@ struct RemoteRunDispatcher {
         let interruptFlag = DispatchInterruptFlag()
         let lockHeldRelay = InterruptRelay.observing { interruptFlag.mark() }
         defer { lockHeldRelay.stop() }
+        // 他の run の待機列で待つ間は「確認中」と言わない(取得後は下の checkingRunner が置き換える。親が握っていれば取得は即座 = 一瞬で置き換わる)
+        preparing?.enter(.waitingForRunner)
         let waitedForLock = try acquireDispatchLock(layout: layout, runGroup: runGroup, interruptFlag: interruptFlag)
         var lockDisposition = LockDisposition.undecided
         defer { if lockDisposition.releasesAtExit { releaseDispatchLock(layout: layout) } }
         // **待った後はランナーのツールを照合し直す**(照合はロックを取る前の1回だけ。待っている間に別の `remote align` が
         // ランナーのツールを差し替えうる = 照合していない版で走る)。不一致なら throw → 上の defer がロックを外す
+        preparing?.enter(.checkingRunner)   // 取得後は待ちの段階を外す(以降の ssh 照会も含む)
         if waitedForLock { (developerDir, toolMatch) = try checkCompatibility(layout: layout) }
         // **取得の直後にもう一度見る**: 待機列で待っている間の中断はループ内(acquireDispatchLock)
         // で捕まえて外に出るが、待たずに一発で取れた場合や、待機列を抜けた直後に中断が来た場合は
@@ -258,7 +264,6 @@ struct RemoteRunDispatcher {
                 linkedToParent: linkedToParent, lockLink: lockLink, onRunStarted: { preparing?.clear() })
             finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: exitCode, interruptFlag: interruptFlag)
         } catch {
-            preparing?.clear()
             finishLockLink(lockLink, reportDir: remoteReportDir, exitCode: nil, interruptFlag: interruptFlag)
             // timeout (throws from runInheritedWithLineRewrite): the remote run may still be
             // alive — the ssh session was just signalled, but the runner's teardown is
@@ -281,7 +286,7 @@ struct RemoteRunDispatcher {
             exitCode: exitCode, interrupted: interruptFlag.interrupted, layout: layout,
             reportDir: remoteReportDir)
 
-        // 結果の回収は次の対象の準備の入口(消すのは次の段階か、対象が終端になるときの親)
+        // 結果の回収も準備の一部(消すのは関数冒頭の defer)
         preparing?.enter(.collectingResults)
         collectReports(project: project, remoteReportDir: remoteReportDir,
                       interrupted: interruptFlag.interrupted, exitCode: exitCode)
@@ -1626,10 +1631,11 @@ struct RemoteRunDispatcher {
         // **写す先は workDir**(base ではない。collectJUnit と同じ理由)
         let remoteRoot = layout.workDir
         let mode = self.mode
-        // リモートの run の最初の1行 = 向こうの run が始まった(run ボードに run が出るので準備中の表示を外す)
+        // 向こうの run の開始行(`RemoteRelay.isRunStartLine`)を最初に中継した時点で onRunStarted(準備中の表示を外す)
         let runStarted = LockedValue(false)
         @Sendable func relayLine(_ line: String) {
-            if runStarted.withLock({ started -> Bool in defer { started = true }; return !started }) { onRunStarted() }
+            if RemoteRelay.isRunStartLine(line),
+               runStarted.withLock({ started -> Bool in defer { started = true }; return !started }) { onRunStarted() }
             // 親子の配りの行(WorkQueueProtocol)は書き換えず、そのまま stdout へ(api run の機械可読行でもある)
             if WorkQueueProtocol.isWorkLine(line) {
                 ConsoleOut.out(line)

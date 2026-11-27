@@ -21,6 +21,7 @@ export const runBoardStrings = {
     en: "Preparing the next run: {stage} ({project} / {profile})",
   },
   "runBoard.preparingStage.collectingResults": { ja: "前の結果を回収中", en: "Collecting the previous results" },
+  "runBoard.preparingStage.waitingForRunner": { ja: "ランナーの順番待ち", en: "Waiting for the runner" },
   "runBoard.preparingStage.checkingRunner": { ja: "ランナーを確認中", en: "Checking the runner" },
   "runBoard.preparingStage.transferringProject": { ja: "プロジェクトを転送中", en: "Transferring the project" },
   "runBoard.preparingStage.sendingScenarios": { ja: "シナリオを送信中", en: "Sending the scenarios" },

@@ -1563,4 +1563,14 @@ public enum RemoteRelay {
     public static func isMachineReadableLine(_ line: String) -> Bool {
         line.trimmingCharacters(in: .whitespaces).hasPrefix("{")
     }
+
+    /// 向こうの run が始まったことを示す行(中継で最初に見えた時点で、ジョブの台帳の準備中の段階を外す)。
+    /// 子が必ず出す2つだけ: `api run` の NDJSON の `runStarted` イベント(`ApiRunStartedEvent.kind`)・`run` の開始行
+    /// `🚀 Starting`(`RunStartLine`。どちらの実装も出す)。**最初の1行では判定しない** —— ssh の警告・
+    /// 「バイナリが無い」の行でも消えてしまう。始まらずに終わった run は呼び手の defer が消す
+    public static func isRunStartLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("{") { return trimmed.contains("\"kind\":\"runStarted\"") }
+        return trimmed.hasPrefix("🚀 Starting")
+    }
 }
