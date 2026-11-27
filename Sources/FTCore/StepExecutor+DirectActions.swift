@@ -998,8 +998,9 @@ extension StepExecutor {
             + " in a multi-line field it inserts a newline)"
         guard !KeyboardWait.isShown(afterEnter) else {
             let changed = Self.focusedValueChanged(before: focusedBeforeEnter, after: afterEnter)
-            return StepOutcome(status: .failed("the keyboard is still shown: \(tried), and \(enterNote)"
-                + " did not close it either"
+            // enterNote は成功の注記の動詞句(「sent Enter, which also fires …」)= 失敗文では「then 〜, and that did not close it」で包む
+            return StepOutcome(status: .failed("the keyboard is still shown: \(tried), and then \(enterNote) — that did"
+                + " not close it either"
                 + (changed ? " — the focused field's value changed after Enter (a newline was probably added to it; every"
                     + " further hideKeyboard() adds another)" : "")))
         }

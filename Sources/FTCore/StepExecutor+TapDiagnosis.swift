@@ -311,8 +311,9 @@ extension StepExecutor {
         guard (dx * dx + dy * dy).squareRoot() >= Self.movedTargetThreshold else { return ("", false) }
         // 「動く前の座標を撃った」とは言わない: tap は ref で撃たれ、ブリッジが撃つ時点の枠の中心へ解決する。動いたのは tap の結果
         // (焦点 → キーボードで押し上げ等)のことが多く、失敗したステップが tap と無関係でも同じ文が付いていた
-        return (" (the target has moved (\(Int(saturating: dx)),\(Int(saturating: dy))) since the preceding"
-            + " \(last.description) — the layout shifted after that tap (for example the keyboard opened and pushed the content up)."
+        // 動いたのは直前の tap の対象(失敗したステップの対象とは限らない)= 主語を「the target」にしない(探索 11/27 amax F1)
+        return (" (the element that \(last.description) hit has moved (\(Int(saturating: dx)),\(Int(saturating: dy))) since that tap"
+            + " — the layout shifted after that tap (for example the keyboard opened and pushed the content up)."
             + " This is only a fact about the screen: the tap itself may have been fine)", false)
     }
 

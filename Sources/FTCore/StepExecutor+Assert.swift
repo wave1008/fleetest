@@ -1585,7 +1585,8 @@ extension StepExecutor {
         let classifierError = visionClassifierErrors[CheckStateClassifier.name] ?? classifierFailureThisStep
         return found
             ? .failed(Self.checkStateFailure(lastState, locator: step.locatorSummary,
-                                             classification: lastClassification, classifierError: classifierError)
+                                             classification: lastClassification, classifierError: classifierError,
+                                             isAndroid: isAndroid)
                       + tapDiagnosisHint(lastSnapshot?.elements))
             : failed(.notFound, "element not found: \(step.locatorSummary)" + notFoundCoverOrScopeHint(step, lastSnapshot)
                       + Self.truncationHint(lastSnapshot)

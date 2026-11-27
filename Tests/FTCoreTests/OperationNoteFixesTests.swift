@@ -30,7 +30,7 @@ final class OperationNoteFixesTests: XCTestCase {
         let tapped = element(1, id: "a", y: 100)
         let ex = executor()
         armLastTap(ex, target: tapped, before: [tapped])
-        XCTAssertTrue(ex.tapDiagnosisHint([element(1, id: "a", y: 300)]).contains("the target has moved"))
+        XCTAssertTrue(ex.tapDiagnosisHint([element(1, id: "a", y: 300)]).contains("hit has moved"))
     }
 
     // MARK: - 2

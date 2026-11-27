@@ -92,26 +92,32 @@ extension StepExecutor {
     /// 学習できなかったとき、案内が見本を置けと勧め、本当の理由は文の末尾に回っていた)
     static func checkStateFailure(_ state: CheckState, locator: String,
                                   classification: VisionClassifier.Classification?,
-                                  classifierError: String?) -> String {
+                                  classifierError: String?, isAndroid: Bool) -> String {
         if state == .unknown, let classifierError {
             return "the element reports no check state and CheckStateClassifier could not judge it from its image:"
-                + " \(locator) (accessibility has no selected trait and no on/off value; CheckStateClassifier:"
+                + " \(locator) (accessibility has \(isAndroid ? "no checked or selected state" : "no selected trait and no on/off value"); CheckStateClassifier:"
                 + " \(classifierError))"
         }
-        return checkStateMismatch(state, locator: locator)
+        return checkStateMismatch(state, locator: locator, isAndroid: isAndroid)
             + checkStateSourceHint(classification, classifierError: classifierError)
     }
 
-    static func checkStateMismatch(_ state: CheckState, locator: String) -> String {
+    static func checkStateMismatch(_ state: CheckState, locator: String, isAndroid: Bool) -> String {
         switch state {
         case .on: return "the element is on: \(locator)"
         case .off: return "the element is off: \(locator)"
         case .indeterminate: return "the element is in an indeterminate (partially checked) state: \(locator)"
         case .unknown:
-            return "the element reports no check state: \(locator) (no selected trait and no on/off value; "
+            // 直し方の例は OS ごと(Android のアプリに SwiftUI の書き方を勧めても従えない = 探索 11/27 alocal F2)
+            let missing = isAndroid ? "no checked or selected state" : "no selected trait and no on/off value"
+            let expose = isAndroid
+                ? "make it checkable or selectable in accessibility (e.g. Compose Modifier.toggleable / selectable, Flutter"
+                    + " Semantics(checked:) / selected:, View isCheckable / isSelected)"
+                : "expose it (e.g. SwiftUI .accessibilityRepresentation { Toggle(...) })"
+            return "the element reports no check state: \(locator) (\(missing); "
                 + "it is either off or an implementation that does not expose its check state to accessibility, "
                 + "such as a custom-drawn button. Verify a text that reflects the state with textIs, have the app "
-                + "expose it (e.g. SwiftUI .accessibilityRepresentation { Toggle(...) }), or put sample images of the "
+                + "\(expose), or put sample images of the "
                 + "element in vision/classifiers/CheckStateClassifier/[ON] and [OFF] to judge it from its image)"
         }
     }
