@@ -112,4 +112,35 @@ final class ScenarioQueueDeviceRequirementTests: XCTestCase {
         let p = await plain
         XCTAssertNil(p)
     }
+
+    /// pulled: 合わない台のレーンが宣言つきの単位を引いても、手元の合う台が取るまでは聞き直さない(溜め込まない)。
+    /// 親へ返す口が無いので、手元に置くのは1本まで。合う台が取れば再開する
+    func testPulledUnfitLaneParksOneDeclaredUnitAndDoesNotHoardTheRest() async {
+        final class Source: ScenarioPullSource, @unchecked Sendable {
+            let remaining = LockedValue<[String]>((1...10).map { "S\($0)" })
+            func next(platform: String, lane: String) async -> PullAnswer {
+                remaining.withLock { $0.isEmpty ? nil : $0.removeFirst() }
+                    .map { .unit(ScenarioUnitKey(id: $0, variant: nil)) } ?? .exhausted
+            }
+            func stopWaiting() {}
+            func declareNotApplicable(platform: String, lane: String, unit: ScenarioUnitKey,
+                                      departedUntried: Bool, kinds: Set<String>) async -> NotApplicableHandoff.Verdict { .skipped }
+            func noteKept(unit: ScenarioUnitKey, on: Bool) {}
+        }
+        let source = Source()
+        let handed = LockedValue<[String]>([])
+        let catalog = Dictionary(grouping: (1...10).map { item("S\($0)", requires: fold) }, by: \.unitKey)
+        let queue = ScenarioQueue(pulled: ScenarioQueue.PullState(
+            source: source, platform: "ios", catalog: LockedValue(catalog),
+            onHandOut: { i in handed.withLock { $0.append(i.info.id) } }, onUnknownID: { _ in }))
+        await queue.laneJoined("L1", traits: traits(foldable: false))
+        await queue.laneJoined("L2", traits: traits(foldable: true))
+        let first = await queue.next(lane: "L1", shouldStop: Self.deadline(0.6))
+        XCTAssertNil(first, "合わない台は走らせない")
+        XCTAssertEqual(handed.value.count, 1, "合わない台が宣言つきの単位を溜め込んだ: \(handed.value)")
+        let taken = await queue.next(lane: "L2", shouldStop: Self.deadline())
+        XCTAssertEqual(taken?.info.id, "S1", "手元に置いた1本は合う台が取る")
+        _ = await queue.next(lane: "L1", shouldStop: Self.deadline(0.4))
+        XCTAssertEqual(handed.value.count, 2, "合う台が取った後は聞き直す(1本だけ)")
+    }
 }

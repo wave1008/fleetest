@@ -25,23 +25,44 @@ public enum DeviceRequirementGate {
         case skipped(reason: String)
     }
 
-    /// 結論を決める。**1台でも合えば nil**(合う台があるので結論ではなくドレインの通常の理由)・台が1つも無いときも nil。
+    /// 宣言されたが run に参加しなかった台(供給失敗・合流しなかった)。traits nil = 観測していない(読めなかった扱い)
+    public typealias AbsentDevice = (id: String, traits: DeviceTraits?)
+
+    /// 結論を決める。**参加した台のどれかが合えば nil**(結論ではなくドレインの通常の理由)・参加した台が1つも無いときも nil。
     /// 読めなかった台が1台でもあれば失敗(読めなかった台を「合わない」に丸めない = DR-237・DR-1)。
+    /// **`absent` = 参加しなかった台**。合う台・読めなかった台が居れば緑にしない(合う台が欠けただけで「合う台が無い」とは言えない)。
+    /// 緑にできるのは、run が使う全台(参加した台 + 参加しなかった台)が読めて、どれも合わないときだけ。
     /// `perDevice` = broadcast(1レーン1キュー)。文言だけが違う
     public static func conclusion(_ requirements: DeviceRequirementSet, lanes: [DeviceRequirementMatch.Device],
-                                  perDevice: Bool = false) -> Conclusion? {
+                                  absent: [AbsentDevice] = [], perDevice: Bool = false) -> Conclusion? {
         guard !lanes.isEmpty else { return nil }
         let part = DeviceRequirementMatch.partition(requirements, devices: lanes)
         guard part.fits.isEmpty else { return nil }
-        let facts = DeviceRequirementMatch.noMatchFacts(requirements, devices: lanes).joined(separator: "; ")
         let conditions = describe(requirements)
-        if !part.unreadable.isEmpty {
-            return .failed(reason: "could not read the device traits needed for the declared device conditions"
-                + " (\(conditions)): \(facts)")
+        var facts = DeviceRequirementMatch.noMatchFacts(requirements, devices: lanes)
+        var absentBlocks = false
+        for device in absent {
+            switch fit(requirements, traits: device.traits) {
+            case .fits:
+                absentBlocks = true
+                facts.append("\(device.id): fits but did not take part in the run")
+            case .unreadable(let traits):
+                absentBlocks = true
+                facts.append("\(device.id): unreadable (\(traits.joined(separator: ", "))) and did not take part in the run")
+            case .unfit(let reasons):
+                facts.append("\(device.id): unfit (\(reasons.joined(separator: "; "))) and did not take part in the run")
+            }
+        }
+        let joined = facts.joined(separator: "; ")
+        if !part.unreadable.isEmpty || absentBlocks {
+            let lead = part.unreadable.isEmpty
+                ? "a device that may match the declared device conditions did not take part in the run"
+                : "could not read the device traits needed for the declared device conditions"
+            return .failed(reason: "\(lead) (\(conditions)): \(joined)")
         }
         return .skipped(reason: perDevice
-            ? "not applicable (conditions not met): \(conditions) — \(facts)"
-            : "not applicable: no matching device for \(conditions) — \(facts)")
+            ? "not applicable (conditions not met): \(conditions) — \(joined)"
+            : "not applicable: no matching device for \(conditions) — \(joined)")
     }
 
     /// DSL の書き方どおりの条件の一覧(`required: …; excluded: …`)

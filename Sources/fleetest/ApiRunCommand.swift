@@ -508,8 +508,11 @@ struct ApiRunCommand: AsyncParsableCommand {
         cleanup.supplyLease = supplyLease
         var startedAndroidTask: Task<[RunWorker], Error>?
         var startedIOSTask: Task<[RunWorker], Never>?
+        // 供給を起こしたときの台の性質(参加しなかった台の結論の入力。宣言が無い run は空)
+        var plannedTraits: [String: DeviceTraits] = [:]
         // 供給のタスクを起こす(一覧の前 = 今までどおり並行・一覧の後 = 台の条件つきで絞った後)。起こした後の片付けの待ちもここで登録する
         func startSupply(_ resolved: ResolvedProfile, deviceTraits: [String: DeviceTraits]) {
+            plannedTraits = deviceTraits
             let shouldStop = runExit.supplyAbandon.shouldStop(interruptState)
             let android = Task {
                 for line in ProfileRunner.supplyHeaderLines(profileName: resolved.runName, resolved: resolved) { logSupply(line) }
@@ -743,7 +746,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                         variantPlan: variantPlan,
                         workers: androidWorkers + eagerIOSWorkers, iosWorkersTask: effectiveIosWorkersTask,
                         recorder: recorder, supplyLease: supplyLease, supplyProgress: supplyProgress,
-                        interruptState: interruptState)
+                        interruptState: interruptState, plannedTraits: plannedTraits)
                 }
             } else {
                 outcome = try await runDirect(
@@ -1278,7 +1281,8 @@ struct ApiRunCommand: AsyncParsableCommand {
         resolved: ResolvedProfile, project: TestProject, selected: [ScenarioInfo], runHooksClass: String?,
         variantPlan: RunVariantPlan,
         workers: [RunWorker], iosWorkersTask: Task<[RunWorker], Never>?, recorder: RunRecorder?,
-        supplyLease: SupplyLeaseHolder?, supplyProgress: RunSupplyProgress, interruptState: RunInterruptState
+        supplyLease: SupplyLeaseHolder?, supplyProgress: RunSupplyProgress, interruptState: RunInterruptState,
+        plannedTraits: [String: DeviceTraits]
     ) async throws -> RunOutcome {
         let repoRoot = try RepoRoot.find()
         // `--set` の上書きは ProfileResolver.resolve が resolved.fm へ当て済み(二重適用しない)
@@ -1373,6 +1377,7 @@ struct ApiRunCommand: AsyncParsableCommand {
                 })
             },
             supply: supplyProgress,
+            plannedTraits: plannedTraits,
             // revive でポートが変わると label も変わる。登録しないと以後の NDJSON の worker が
             // workersReady の id と食い違う(lateWorkers と同じ処理)
             onRevived: { workerID.merge([$0]) },

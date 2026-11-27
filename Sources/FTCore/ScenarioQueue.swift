@@ -113,9 +113,13 @@ actor ScenarioQueue {
     /// 参加したことのあるレーンは離脱後も残す(結論の「使った台」)
     private var laneTraits: [String: DeviceTraits] = [:]
 
+    /// 宣言されたのに参加しなかったレーン → 台の性質(nil = 観測していない)。ドレインの結論の入力(合う台が欠けただけで緑にしない)。
+    /// 再参加(`laneJoined`)で外す
+    private var absentLaneTraits: [String: DeviceTraits?] = [:]
+
     func laneJoined(_ lane: String?, kind: String? = nil, traits: DeviceTraits? = nil) {
         if let lane, !lane.isEmpty {
-            liveLanes.insert(lane); departedLanes.remove(lane)
+            liveLanes.insert(lane); departedLanes.remove(lane); absentLaneTraits[lane] = nil
             if let kind { laneKinds[lane] = [kind] } else { laneKinds[lane] = nil }
             if let traits { laneTraits[lane] = traits }
         }
@@ -126,11 +130,18 @@ actor ScenarioQueue {
         laneTraits.keys.sorted().map { (id: $0, traits: laneTraits[$0]!) }
     }
 
+    /// 参加しなかったレーン(結論の入力。性質が分かっていれば添える)
+    func absentLanes() -> [DeviceRequirementGate.AbsentDevice] {
+        absentLaneTraits.keys.sorted().map { (id: $0, traits: absentLaneTraits[$0] ?? nil) }
+    }
+
     /// 宣言されたのに供給で合流しなかったレーン。何も試していない台が落ちたものとして数える(`laneJoined` で外れる)。
-    /// 呼ぶのはそのレーンの供給が終わってから(供給中の台を数えると、遅れて合流する台へ回し直せるのに失敗にしてしまう)
-    func laneNeverJoined(_ lane: String) {
+    /// 呼ぶのはそのレーンの供給が終わってから(供給中の台を数えると、遅れて合流する台へ回し直せるのに失敗にしてしまう)。
+    /// `traits` = 親が観測した台の性質(nil = 読めなかった扱い)
+    func laneNeverJoined(_ lane: String, traits: DeviceTraits? = nil) {
         guard !lane.isEmpty, !liveLanes.contains(lane) else { return }
         departedLanes.insert(lane)
+        absentLaneTraits[lane] = .some(traits)
     }
 
     /// このレーンへ配らない item か。**台の条件に合わない・読めなかったレーンは配らない**(判定は `DeviceRequirementGate`。
@@ -266,7 +277,7 @@ actor ScenarioQueue {
                 try? await Task.sleep(for: Self.avoidedItemRecheckInterval)
                 continue
             }
-            if pull != nil, !pullExhaustedLanes.contains(lane) {
+            if pull != nil, !pullExhaustedLanes.contains(lane), !parkedUnitAwaitsAnotherLane(lane) {
                 if let item = await pullNext(lane: lane) { return item }
                 // 返事を待つ間に別のレーンが離脱して再キューした分を拾う(拾わずに終わると、回せる健全なレーンが居たのに
                 // ドレインで未実行の失敗になる)
@@ -291,6 +302,18 @@ actor ScenarioQueue {
             }
             if await shouldStop?() == true { return nil }
             try? await Task.sleep(for: Self.avoidedItemRecheckInterval)
+        }
+    }
+
+    /// 手元に、このレーンは取れず別の生きているレーンが取れる台の条件つきの item があるか。
+    /// pulled で合わない単位を引いたレーンが聞き直し続けると、他のマシンの合う台が取れた単位まで溜め込む(配った数は進むのに走らない)。
+    /// 取れる台が手元に居ないときは false(従来どおり聞き直す = そこで止めても誰も取らない)。
+    /// 代償: 待つ間このレーンは条件の無い単位も引かない(合うレーンが取れば再開)
+    private func parkedUnitAwaitsAnotherLane(_ lane: String) -> Bool {
+        items.contains { item in
+            guard let requirements = item.info.deviceRequirements, !requirements.isEmpty,
+                  !DeviceRequirementGate.permits(requirements, traits: laneTraits[lane]) else { return false }
+            return liveLanes.contains { $0 != lane && DeviceRequirementGate.permits(requirements, traits: laneTraits[$0]) }
         }
     }
 
@@ -336,6 +359,9 @@ actor ScenarioQueue {
                 // 条件に合わないレーンへ配られた単位は、このレーンで走らせず手元に戻す(合うレーンが取るか、無ければドレインの結論)
                 if !DeviceRequirementGate.permits(item.info.deviceRequirements, traits: laneTraits[lane]) {
                     items.append(item)
+                    // 親へ返す口は無い(`declareNotApplicable` は「試して対象外」の意味で、親は緑の対象外に確定しうる)ので、
+                    // 手元の別のレーンが取れるなら、取られるまでこのレーンは聞き直さない = 溜め込まない(上限 1 本)
+                    if parkedUnitAwaitsAnotherLane(lane) { return nil }
                     continue
                 }
                 if Self.bindsDevice(item), classLane[Self.className(item)] == nil { classLane[Self.className(item)] = lane }

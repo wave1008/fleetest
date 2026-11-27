@@ -51,6 +51,8 @@ enum ProfileRunOrchestrator {
         profile: String, progressHistoryRuns: Int, interruptState: RunInterruptState,
         lateWorkers: (platforms: Set<String>, provider: @Sendable () async -> [RunWorker])?,
         supply: RunSupplyProgress,
+        /// 親が観測した台の性質(レーン名で引く。参加しなかった台の結論の入力。宣言が無い run は空)
+        plannedTraits: [String: DeviceTraits],
         onRevived: @escaping @Sendable (RunWorker) -> Void,
         log: @escaping @Sendable (String) -> Void
     ) -> RunOrchestrator {
@@ -241,6 +243,7 @@ enum ProfileRunOrchestrator {
             },
             lateWorkers: lateWorkers,
             plannedLanes: resolved.devices.map { (lane: $0.name, platform: $0.platform) },
+            plannedTraits: plannedTraits,
             installHandler: InstallHandlerFactory.make(apps: resolved.apps),
             appBundleIDs: resolved.apps.mapValues(\.bundleID),
             appTargets: resolved.apps,

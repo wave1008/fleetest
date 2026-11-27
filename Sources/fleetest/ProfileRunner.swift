@@ -423,19 +423,22 @@ enum ProfileRunner {
         // 台の条件(DR-237): 一覧が出てから本数で絞るので、宣言のあるシナリオの条件に合う台を残す
         let requirementSets = items.compactMap(\.info.deviceRequirements).filter { !$0.isEmpty }
         let prepared: PreparedSupply
+        // 参加しなかった台の結論の入力(宣言が無い run は空)。台を外す前の全台を観測した値
+        let plannedTraits: [String: DeviceTraits]
         if let early {
             prepared = early
+            plannedTraits = DeviceRequirementEntry.traitsForRun(
+                injected: injectedDeviceTraits, resolved: early.full, declared: !requirementSets.isEmpty)
             // 一覧の前に外した台が条件に要ったか(grep の漏れ・古い --skip-build のバイナリ)。要ったなら走らせず事実を言う
             if !requirementSets.isEmpty, early.resolved.devices.count < early.full.devices.count {
-                let traits = DeviceRequirementEntry.traitsForRun(
-                    injected: injectedDeviceTraits, resolved: early.full, declared: true)
                 try Self.requireDevicesForDeclarations(
-                    requirements: requirementSets, full: early.full, kept: early.resolved, traits: traits)
+                    requirements: requirementSets, full: early.full, kept: early.resolved, traits: plannedTraits)
             }
         } else {
             let counts = full.scenarioCounts(items.map(\.info))
             let traits = DeviceRequirementEntry.traitsForRun(
                 injected: injectedDeviceTraits, resolved: full, declared: !requirementSets.isEmpty)
+            plannedTraits = traits
             prepared = try await Self.prepareSupply(
                 full: full, profileName: profileName,
                 iosScenarios: counts.ios, androidScenarios: counts.android,
@@ -561,6 +564,7 @@ enum ProfileRunner {
                 await iosTask?.value ?? []
             }) : nil,
             supply: supplyProgress,
+            plannedTraits: plannedTraits,
             onRevived: { _ in },
             log: { ConsoleOut.out($0) })
         // **新しい InterruptRelay は登録しない**(1プロセス1組。呼び出し元が既に登録済み)。

@@ -289,6 +289,7 @@ extension MCPServer {
         let selectedCount = infos.count
         // 台の条件(DR-237)で対象外にしたテストと、条件で選んだプロファイルの台(宣言が無ければどちらも空 = 従来どおり)
         var selectionSkipped: [(id: String, reason: String)] = []
+        var selectionDeferred: [(id: String, device: String)] = []
         var chosenDeviceName: String?
         var placementGate = InOrderGate()
 
@@ -312,7 +313,7 @@ extension MCPServer {
                     infos: infos, candidates: { ScenarioDeviceSelection.profileCandidates(devices: devices) }),
                    let early = try deviceSelectionOutcome(
                     result, names: devices.map(\.name), args: args, project: project, infos: &infos,
-                    skipped: &selectionSkipped, chosenName: &chosenDeviceName, prologue: &prologue) {
+                    skipped: &selectionSkipped, deferred: &selectionDeferred, chosenName: &chosenDeviceName, prologue: &prologue) {
                     return early
                 }
             }
@@ -389,7 +390,7 @@ extension MCPServer {
                 infos: infos, candidates: { [ScenarioDeviceSelection.directCandidate(directConnection)] }),
                let early = try deviceSelectionOutcome(
                 result, names: [directConnection.udid ?? directConnection.serial ?? "device"], args: args,
-                project: project, infos: &infos, skipped: &selectionSkipped, chosenName: &chosenDeviceName,
+                project: project, infos: &infos, skipped: &selectionSkipped, deferred: &selectionDeferred, chosenName: &chosenDeviceName,
                 prologue: &prologue, announceChoice: false) {
                 return early
             }
@@ -435,6 +436,10 @@ extension MCPServer {
         lines.append(contentsOf: ScenarioDeviceSelection.skippedLines(selectionSkipped))
         outcomes.append(contentsOf: selectionSkipped.map { ($0.id, true, nil, true) })
         skippedCount += selectionSkipped.count
+        // 別の台なら走らせられるテストは未実行の赤(緑の対象外にしない)
+        lines.append(contentsOf: ScenarioDeviceSelection.deferredLines(selectionDeferred))
+        outcomes.append(contentsOf: selectionDeferred.map { ($0.id, false, nil, false) })
+        failedCount += selectionDeferred.count
         // 1回の呼び出し = 1デバイス(connection は1つ)= 1セッション。ロックは**MCP サーバーのプロセスで1つのホスト**を共有する
         // (別々の呼び出しが別のデバイスで同時に走りうるので、その場で渡さない)。設定は呼び出しごとに足し込む
         RunLockHost.mcpShared(project: project.name).configure(project: project, scenarioTimeouts: infos.map(\.scenarioTimeout),
@@ -550,7 +555,8 @@ extension MCPServer {
     /// 台の性質が読めなければ投げる(エラー。読めなかった台を「合わない」に丸めない)
     func deviceSelectionOutcome(
         _ result: ScenarioDeviceSelection.Result, names: [String], args: [String: Any], project: TestProject,
-        infos: inout [ScenarioInfo], skipped: inout [(id: String, reason: String)], chosenName: inout String?,
+        infos: inout [ScenarioInfo], skipped: inout [(id: String, reason: String)],
+        deferred: inout [(id: String, device: String)], chosenName: inout String?,
         prologue: inout [String], announceChoice: Bool = true) throws -> [[String: Any]]? {
         switch result {
         case .unreadable(let message):
@@ -563,9 +569,10 @@ extension MCPServer {
             let outcomes = skippedAll.map { (id: $0.id, passed: true, reportPath: String?.none, skipped: true) }
             return text(MCPMessageText.forMCP(lines.joined(separator: "\n")))
                 + [Self.structuredMarker(Self.scenarioRunSummary(outcomes))]
-        case .run(let chosen, let runnable, let skippedSome):
+        case .run(let chosen, let runnable, let skippedSome, let deferredSome):
             infos = runnable
             skipped = skippedSome
+            deferred = deferredSome
             if announceChoice {
                 chosenName = names[chosen]
                 // 条件で選んだと言うのは、走るテストに条件の宣言があるときだけ(宣言したテストが全部対象外なら条件で選んだのではない)

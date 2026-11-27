@@ -104,6 +104,46 @@ final class RunOrchestratorDeviceRequirementTests: XCTestCase {
         XCTAssertEqual(skipReason, reason)
     }
 
+    /// 合う台が参加しなかった(供給失敗)だけで、残りの台が全部合わないとき: 緑の対象外にしない(赤・その台を名指す)。
+    /// 緑にできるのは、参加しなかった台も含めて全台が読めて合わないときだけ
+    func testAFittingDeviceThatNeverJoinedMakesItARedNotAGreenSkip() async throws {
+        let f = try fixture()
+        let queue = ScenarioQueue([])
+        await queue.laneNeverJoined("duo", traits: traits(foldable: true))
+        await queue.laneJoined("pro", traits: traits(foldable: false))
+        let counted = await f.orchestrator.concludeDeviceRequirementGap(
+            item("C.S0010", requires: fold), queue: queue, platform: "ios", worker: nil, perDevice: false)
+        XCTAssertEqual(counted, 1)
+        XCTAssertEqual(f.orchestrator.deviceGapSkipped.value, 0)
+        let record = try XCTUnwrap(records(f.recorder).first)
+        XCTAssertEqual(record.skipKind, .noWorker)
+        XCTAssertFalse(record.passed)
+        let reason = try XCTUnwrap(record.failedSteps?.first?.description)
+        XCTAssertTrue(reason.contains("duo: fits but did not take part"), reason)
+    }
+
+    /// 参加しなかった台の性質が分からない(観測していない)ときも緑にしない。読めて合わない台なら緑のまま
+    func testAnUnreadableOrUnfitAbsentDevice() async throws {
+        let blind = try fixture()
+        let q1 = ScenarioQueue([])
+        await q1.laneNeverJoined("ghost")
+        await q1.laneJoined("pro", traits: traits(foldable: false))
+        let red = await blind.orchestrator.concludeDeviceRequirementGap(
+            item("C.S0010", requires: fold), queue: q1, platform: "ios", worker: nil, perDevice: false)
+        XCTAssertEqual(red, 1)
+        let reason = try XCTUnwrap(records(blind.recorder).first?.failedSteps?.first?.description)
+        XCTAssertTrue(reason.contains("ghost: unreadable (traits)"), reason)
+
+        let plain = try fixture()
+        let q2 = ScenarioQueue([])
+        await q2.laneNeverJoined("other", traits: traits(foldable: false))
+        await q2.laneJoined("pro", traits: traits(foldable: false))
+        let green = await plain.orchestrator.concludeDeviceRequirementGap(
+            item("C.S0010", requires: fold), queue: q2, platform: "ios", worker: nil, perDevice: false)
+        XCTAssertEqual(green, 0, "参加しなかった台も読めて合わない = 緑の対象外")
+        XCTAssertEqual(plain.orchestrator.deviceGapSkipped.value, 1)
+    }
+
     /// 合う台がある・条件が無い・台が1つも参加していない = 結論ではない(通常のドレイン)
     func testNoConclusionWhenALaneFitsOrThereIsNoConditionOrNoLane() async throws {
         let f = try fixture()

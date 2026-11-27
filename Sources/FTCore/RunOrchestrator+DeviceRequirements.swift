@@ -6,13 +6,13 @@ import Foundation
 extension RunOrchestrator {
     /// ドレインで残った item が台の条件を持ち、参加した台のどれにも合わないとき、失敗 / 対象外に確定する。
     /// 戻り値 = 失敗に数える本数(対象外は 0)・nil = 結論ではない(条件が無い・合う台がある・台が1つも参加していない = 通常のドレイン)。
-    /// 読めなかった台が1台でもあれば失敗(`.noWorker`・事実だけ)、全台が読めて合わなければ `.notApplicable`(緑)。
+    /// 読めなかった台が1台でもあれば失敗(`.noWorker`・事実だけ)、全台(参加しなかった台も)が読めて合わなければ `.notApplicable`(緑)。合う・読めない台が参加しなかっただけなら失敗。
     /// `perDevice` = broadcast(1レーン1キュー。記録の worker はそのデバイス)
     func concludeDeviceRequirementGap(_ item: ScenarioRunItem, queue: ScenarioQueue, platform: String, worker: String?,
                                       perDevice: Bool) async -> Int? {
         guard let requirements = item.info.deviceRequirements, !requirements.isEmpty,
               let conclusion = DeviceRequirementGate.conclusion(requirements, lanes: await queue.joinedLaneTraits(),
-                                                                perDevice: perDevice) else { return nil }
+                                                                absent: await queue.absentLanes(), perDevice: perDevice) else { return nil }
         switch conclusion {
         case .failed(let reason):
             continuation.yield(.flowSkipped(flowURL: item.url, reason: reason))

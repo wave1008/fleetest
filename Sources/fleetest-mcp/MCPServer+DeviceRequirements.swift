@@ -16,8 +16,11 @@ enum ScenarioDeviceSelection {
     }
 
     enum Result {
-        /// `chosen` = 候補の添字。`runnable` = その台で走らせるテスト(元の順)・`skipped` = 対象外にして名指しするテスト
-        case run(chosen: Int, runnable: [ScenarioInfo], skipped: [(id: String, reason: String)])
+        /// `chosen` = 候補の添字。`runnable` = その台で走らせるテスト(元の順)・`skipped` = 全候補が読めてどれも合わず対象外にするテスト。
+        /// `deferred` = 選んだ台では走らせられないが、別の候補の台なら合うテスト(`device` = 合う台の名前)。
+        /// **対象外(緑)にしない**: 呼び出しの結果は未実行の赤で、呼び手がその台を指して呼び直す
+        case run(chosen: Int, runnable: [ScenarioInfo], skipped: [(id: String, reason: String)],
+                 deferred: [(id: String, device: String)])
         /// どの台でも1本も走らせられない(全台が読めて、どれも合わない)。非エラーで返す
         case nothingApplicable(skipped: [(id: String, reason: String)])
         /// 台の性質が読めず判定できない(事実だけ)。エラーで返す
@@ -40,17 +43,23 @@ enum ScenarioDeviceSelection {
         if let top = best.max(), top > 0, let chosen = best.firstIndex(of: top) {
             var runnable: [ScenarioInfo] = []
             var skipped: [(id: String, reason: String)] = []
+            var deferred: [(id: String, device: String)] = []
             var unreadable: [String] = []
             for (i, info) in infos.enumerated() {
                 if fitting[chosen][i] { runnable.append(info); continue }
-                switch conclusion(info, lanes: [cands[chosen]]) {
+                // 選んだ台に合わないテストは全候補で判定する(別の台が合うなら「合う台が無い」と言わない)
+                if let other = cands.indices.first(where: { fitting[$0][i] }) {
+                    deferred.append((info.id, cands[other].name))
+                    continue
+                }
+                switch conclusion(info, lanes: cands) {
                 case .failed(let reason)?: unreadable.append("\(info.id): \(reason)")
                 case .skipped(let reason)?: skipped.append((info.id, reason))
                 case nil: runnable.append(info)
                 }
             }
             if !unreadable.isEmpty { return .unreadable(message: unreadable.joined(separator: "\n")) }
-            return .run(chosen: chosen, runnable: runnable, skipped: skipped)
+            return .run(chosen: chosen, runnable: runnable, skipped: skipped, deferred: deferred)
         }
         var skipped: [(id: String, reason: String)] = []
         var unreadable: [String] = []
@@ -100,6 +109,14 @@ enum ScenarioDeviceSelection {
                 ?? DeviceTraits(platform: "android", physical: false)
         }
         return Candidate(name: name, traits: TraitsInjection.apply(traits, key: name, environment: ProcessInfo.processInfo.environment))
+    }
+
+    /// 別の台なら走らせられるテストの行(未実行。対象外の行と見分ける)
+    static func deferredLines(_ deferred: [(id: String, device: String)]) -> [String] {
+        deferred.map {
+            "✗ \($0.id): not run on this call — it needs device \($0.device) (it fits the declared device conditions);"
+                + " call again for it with that device (its udid / serial)"
+        }
     }
 
     static func skippedLines(_ skipped: [(id: String, reason: String)]) -> [String] {

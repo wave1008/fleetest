@@ -72,6 +72,21 @@ public enum DeviceVersion {
         return out
     }
 
+    /// 台の OS 文字列用: 先頭のドット区切り整数だけ読み、後ろの英字の接尾辞は捨てる(`"12L"` → [12])。
+    /// API 32 のエミュレータは `Android 12L`(`androidVersionName`)。12L は 12 以上・13 未満として比べる
+    /// (`.minOS(android: "12")` に合い `"13"` に合わない)。接尾辞の形は 12L だけ(表の他の値は数字とドットのみ)。
+    /// 宣言側(`declarationError`)は厳密な `parse` のまま = 利用者が `"12L"` と書くのは断る
+    static func parseLeading(_ s: String) -> [Int]? {
+        var end = s.startIndex
+        while end < s.endIndex, s[end].isASCII, s[end].isNumber || s[end] == "." { end = s.index(after: end) }
+        let head = s[s.startIndex..<end]
+        guard head.first?.isNumber == true else { return nil }
+        // 数字の直後の接尾辞は英字だけ許す(`12L`)。`12.` のような末尾のドットは読めない扱い(parse が弾く)
+        let rest = s[end...]
+        guard rest.isEmpty || rest.allSatisfy({ $0.isLetter }) else { return nil }
+        return parse(String(head))
+    }
+
     static func compare(_ a: [Int], _ b: [Int]) -> Int {
         for i in 0..<max(a.count, b.count) {
             let x = i < a.count ? a[i] : 0, y = i < b.count ? b[i] : 0
@@ -229,7 +244,7 @@ public enum DeviceRequirementMatch {
             guard platform == t.platform, let want = DeviceVersion.parse(version) else { return .notBinding }
             guard let os = t.osVersion,
                   let prefix = DeviceCondition.osPrefixes.first(where: { os.hasPrefix($0.prefix) })?.prefix,
-                  let have = DeviceVersion.parse(String(os.dropFirst(prefix.count)))
+                  let have = DeviceVersion.parseLeading(String(os.dropFirst(prefix.count)))
             else { return .unreadable("osVersion") }
             return DeviceVersion.compare(have, want) >= 0 ? .matches : .doesNotMatch
         }

@@ -43,6 +43,8 @@ final class ProfileRunOrchestratorWiringTests: XCTestCase {
         let orchestrator = try Self.codeWithoutComments("Sources/FTCore/RunOrchestrator.swift")
         XCTAssertEqual(count("await Self.registerNeverJoined(", in: orchestrator), 2,
                        "初期ワーカーの前と遅延参加の合流の前の2箇所で記帳する")
-        XCTAssertEqual(count("await queues[entry.platform]?.laneNeverJoined(entry.lane)", in: orchestrator), 1)
+        XCTAssertEqual(count("await queues[entry.platform]?.laneNeverJoined(entry.lane, traits: traits[entry.lane])", in: orchestrator), 1)
+        XCTAssertEqual(count("plannedTraits: plannedTraits,", in: make), 1, "台の性質を渡さないと、合う台の欠落が緑の対象外に化ける")
+        XCTAssertEqual(count("traits: plannedTraits)", in: orchestrator), 2)
     }
 }

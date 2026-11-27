@@ -13,6 +13,22 @@ final class DeviceRequirementTests: XCTestCase {
     private func req(_ c: DeviceCondition...) -> DeviceRequirementSet { DeviceRequirementSet(required: c) }
     private func exc(_ c: DeviceCondition...) -> DeviceRequirementSet { DeviceRequirementSet(excluded: c) }
 
+    func testMinOSReadsTheLeadingNumberOfAnAPI32Emulator() {
+        // API 32 = "Android 12L"(androidVersionName の表で数字だけでない値はこれだけ)。12L は 12 以上・13 未満
+        let l = android(os: "Android 12L")
+        XCTAssertEqual(DeviceRequirementMatch.fit(req(.minOS(platform: "android", version: "12")), l), .fits)
+        guard case .unfit = DeviceRequirementMatch.fit(req(.minOS(platform: "android", version: "13")), l)
+        else { return XCTFail("12L is below 13") }
+        XCTAssertEqual(DeviceRequirementMatch.fit(req(.os("Android 12*")), l), .fits)
+        for api in 21...40 {
+            let name = RunProfileDeviceEditor.androidVersionName(apiLevel: api)
+            XCTAssertNotNil(DeviceVersion.parseLeading(String(name.dropFirst("Android ".count))), "\(name) must be readable for minOS")
+        }
+        XCTAssertNil(DeviceVersion.parseLeading("L12"))
+        XCTAssertNil(DeviceVersion.parseLeading("12."))
+        XCTAssertNil(DeviceVersion.parseLeading("12.4x5"))
+    }
+
     func testOtherOSConditionsDoNotBindThisDevice() {
         XCTAssertEqual(DeviceRequirementMatch.fit(req(.minOS(platform: "android", version: "99")), ios()), .fits)
         XCTAssertEqual(DeviceRequirementMatch.fit(req(.os("Android 1*")), ios()), .fits)

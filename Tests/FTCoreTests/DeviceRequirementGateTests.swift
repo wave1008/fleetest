@@ -46,6 +46,18 @@ final class DeviceRequirementGateTests: XCTestCase {
         XCTAssertTrue(per.contains("conditions not met"), per)
     }
 
+    func testAbsentFittingOrUnreadableDeviceBlocksTheGreenSkip() {
+        let joined = [(id: "a", traits: traits(foldable: false))]
+        guard case .failed(let r1)? = DeviceRequirementGate.conclusion(fold, lanes: joined, absent: [(id: "x", traits: traits(foldable: true))])
+        else { return XCTFail("failed expected") }
+        XCTAssertTrue(r1.contains("x: fits but did not take part"), r1)
+        guard case .failed = DeviceRequirementGate.conclusion(fold, lanes: joined, absent: [(id: "y", traits: nil)])
+        else { return XCTFail("failed expected") }
+        guard case .skipped = DeviceRequirementGate.conclusion(fold, lanes: joined, absent: [(id: "z", traits: traits(foldable: false))])
+        else { return XCTFail("skipped expected") }
+        XCTAssertNil(DeviceRequirementGate.conclusion(fold, lanes: [], absent: [(id: "x", traits: traits(foldable: true))]))
+    }
+
     func testClassLevelIsTheIntersectionAndAnyUndeclaredTestEmptiesIt() {
         let a = DeviceRequirementSet(required: [.foldable, .physical], excluded: [.homeButton])
         let b = DeviceRequirementSet(required: [.foldable], excluded: [.homeButton, .virtual])
