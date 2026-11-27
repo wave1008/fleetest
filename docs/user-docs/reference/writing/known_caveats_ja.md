@@ -312,6 +312,7 @@
 - [afterRun() は失敗した run でも走る](../testclass/creating_testclass_ja.md#注意点) — 中断・異常終了のときだけ走らず、合否にも数えません。`@RunHooks` があるプロジェクトの `--fleet` は断られます。
 - [共有サーバーを初期化する beforeRun() は、同時に使う別の run を壊すことがある](../testclass/creating_testclass_ja.md#注意点) — MCP は `ft_run_scenario` の呼び出しごとに走ります。他の run が動いていても壊れない形で書きます。
 - [@RunOnSingleMachine はマシン間で負荷を分けられなくなる](../testclass/creating_testclass_ja.md#注意点) — beforeAll() やデータを1つにまとめたいときと、beforeAll() から run メモ経由で値を渡すクラスにだけ使います。
+- [@RequiresDevice / @ExcludesDevice はアプリを起動せずにデバイスの性質を読む](../testclass/creating_testclass_ja.md#注意点) — 接続していない iOS の物理端末は最後に見えた OS を返し、折りたためる Android の物理端末は `.foldable` ではなく、`avdmanager` が失敗すると Emulator の機種名は読めません。実行プロファイルの外のデバイスと `.tag(...)` はまだ使えません。
 - [@RunOnSingleDevice はそのクラスの並列が無くなり、順番も決まらない](../testclass/creating_testclass_ja.md#注意点) — 防げるのはそのクラスの中の同時実行だけです。
 - [ロックの中でロックを呼ぶとエラーになる](../commands/run_lock_ja.md#注意点) — 入れ子はキーが同じでも別でもエラーです。要るキーは全部1回の呼び出しで渡します(ロックを取るヘルパー関数をロックの中から呼ぶのも入れ子です)。
 - [同時に走らせる必要が無いテストはロックより @RunInOrder を検討する](../commands/run_lock_ja.md#注意点) — `@RunInOrder` のクラスはテストを1台のデバイスで順に流すので、ロックが要りません。

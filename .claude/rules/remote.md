@@ -338,6 +338,7 @@ paths:
   **rsync の `-F`(dir-merge)は使わない** → MN-3.4。
   **3つの転送(run ディスパッチ・fan-out の `RemoteProjectSync`・プロジェクト外ミラー)が
   同じ走査を通る**(`rsyncArgs` の `ignore:` は既定値無し = 読み忘れはコンパイルで止まる)
+- **台の条件(`@RequiresDevice` / `@ExcludesDevice`)の機械をまたぐ判定は、親が子の機械の台の性質を `fleetest api device-traits` で読む**(DR-237。`DeviceRequirementFanout`。読みに失敗した機械はその台を「読めなかった」にしてログ1行・他の機械へ波及させない。どの機械も取れないシナリオはログだけで結果に書かない)
 - **対象外(`notApplicableReason`)で終わったシナリオは確定させず、同じ run の未試行の台へ回す**(DR-214。判定は `NotApplicableHandoff.decide` の1箇所 =
   機械の中は `ScenarioQueue.noteNotApplicable`・機械をまたぐ run は `DynamicDispatcher.handleNotApplicable`)。守る規律3つ: **①子は機械の中に回す先が無いときだけ
   親へ `na` を撃ち、返事(`verdict`)が来るまで結果を確定しない**(`ScenarioPullSource.declareNotApplicable` は既定実装を置かない。中断・EOF は従来の対象外)/

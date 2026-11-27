@@ -184,9 +184,9 @@ fleetest の Swift DSL は **Shirates(Classic)に準拠**している(コマン�
 | `ifScreenIs(Not)` / `ifStringIs` / `ifContains` 等 | — | ➖ 分岐の語彙を増やすと生成側の誤選択が増える(`ifTrue` と同じ理由)。条件は素の Swift `if` と `ifCanSelect` の2つに絞る |
 | `ifCheckON/OFF` | — | ➖ 同上(分岐の語彙を増やさない)。チェック状態で分ける必要があるなら `ifCanSelect(":checked" 相当のセレクタ)` か Swift 側で書く |
 | `ifImageExist(Not)` / `ifImageIs(Not)` | — | ➖ **分岐専用のコマンドは置かない**。画像の有無は `findImage`(見つからなくても失敗せず空要素を返す)の戻り値を Swift の `if !findImage("label").isEmpty { … }` で見る。見た目の検証は `existImage` / `imageIs` / `screenLooksLike` で書く |
-| `emulator` / `simulator` / `virtualDevice` / `realDevice` | — | ➖ シナリオの中で実機/仮想を分岐させない(差はツール側で吸収する)。実機・仮想デバイスでしか成立しないシナリオは @RequiresDevice(.physical) / `.virtual` で走らせる台を宣言する(DR-237。未実装) |
+| `emulator` / `simulator` / `virtualDevice` / `realDevice` | — | ➖ シナリオの中で実機/仮想を分岐させない(差はツール側で吸収する)。実機・仮想デバイスでしか成立しないシナリオは `@RequiresDevice(.physical)` / `.virtual` で走らせる台を宣言する(DR-237) |
 | `platformName` / `isAndroid` / `isiOS` ほかプロパティ | — | ➖ **`ios { }` / `android { }` で足りる**(2026-08-21 判定)。値が要る場面は Swift 側で書ける。真偽値を配ると「片方だけ通る」書き方が増え、どの OS で何を検証したかが読めなくなる |
-| `osaifuKeitai(Not)` / `specialTag` / `stub(Not)` / `arm64` / `intel` | — | ➖ **Shirates 固有の運用タグ**のブロックは置かない。特定端末の機能で実行を分けるのは、実行プロファイルの `devices[].tags` と @RequiresDevice(.tag(...)) が担う(DR-237。未実装)。OS は `@Test(platform:)` |
+| `osaifuKeitai(Not)` / `specialTag` / `stub(Not)` / `arm64` / `intel` | — | ➖ **Shirates 固有の運用タグ**のブロックは置かない。特定端末の機能で実行を分けるのは、実行プロファイルの `devices[].tags` と `@RequiresDevice(.tag(...))` が担う(DR-237。タグは段2で未実装。観測できる性質は `@RequiresDevice` / `@ExcludesDevice` で実装済み)。OS は `@Test(platform:)` |
 | — | `repeatWhileCanSelect(sel, maxLoopCount:)` | 🟢 |
 
 ## 同期

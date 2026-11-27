@@ -225,6 +225,42 @@ class 注文フロー {
 `--broadcast` ではそのことを示す1行が出ます。`--fleet` では出ません。
 テストデータの置き方は[テストデータの置き方](../writing/test_data_placement_ja.md)、メモの共有は[メモ](../commands/memo_ja.md)(run メモは、`--split` の無い `--fleet` を除き、マシンをまたいで共有されます)を参照してください。
 
+## 条件に合うデバイスだけで走らせる(@RequiresDevice / @ExcludesDevice)
+
+折りたたみ端末が要るテストや、物理端末でしか意味のないテストは、その条件を宣言できます。fleetest は条件に合うデバイスにだけ配るので、
+合わないデバイスで走らせてから対象外と分かる、ということがなくなります。クラス・`@Test`・その両方に付けられます(両方あれば両方が効きます)。
+属性の無いテストはこれまでどおりです。
+
+```swift
+@TestClass
+@RequiresDevice(.foldable)
+class FoldLayout { /* ... */ }
+
+@TestClass
+class Checkout {
+    @Test("ウォレットで決済する")
+    @RequiresDevice(.physical, .minOS(ios: "18"))
+    @ExcludesDevice(.model("iPhone SE*"))
+    func S0010() { scenario { /* ... */ } }
+}
+```
+
+- **`@RequiresDevice(...)`** は並べた条件を**全部**満たすデバイス、**`@ExcludesDevice(...)`** は**どれか1つ**に合うデバイスを外します(`@RequiresDevice` より優先)。
+- 条件: `.foldable`(fleetest が開閉を操作できるデバイス = iPhone Duo の Simulator・折りたためる Android の Emulator)・`.physical`・`.virtual`・
+  `.homeButton`(`appSwitcher()` が使えないデバイス = ホームボタンのある iPhone。Android と iPad は該当しません)・
+  `.minOS(ios: "18")` / `.minOS(android: "15")`・`.model("iPhone 1*")`・`.os("iOS 27*")`。`.model` / `.os` はセレクタと同じ `*` と `||` のパターンで、
+  `.os` は OS 名から書きます(`"27*"` ではなく `"iOS 27*"`)。
+- 条件はリテラルで書きます。変数・誤ったパターン・OS 名の無い `.os`・矛盾する条件・空の並びはコンパイルエラーです。
+  `@RunInOrder` / `@RunOnSingleDevice` / `@RunOnSingleMachine` のクラスの `@Test` 単位の宣言もコンパイルエラーです(クラスに書きます)。
+- fleetest は配る前に各デバイスの性質を読みます。プロファイルの台数より少なく準備するときは、条件の組ごとに合うデバイスを1台残します。
+  シナリオの一覧が出る前にデバイスを外すことになる run は、ソースにこれらの属性があれば一覧が出るまで待ちます。
+- 合うデバイスが無く、run が使う**全デバイスが読めた**ときは、そのテストを対象外(skipped)として記録し、サマリに `N scenario(s) had no matching device` と出します。
+  run が使うデバイスに読めないものが1台でもあれば失敗にし、デバイスごとの事実を添えます。
+- `--broadcast` では合うデバイスの全部で走ります。`afterAll()` と `@RunInOrder` / `@RunOnSingleDevice` のクラスも合うデバイスで走ります。
+- 複数のマシンにまたがる run では、各マシンが自分のデバイスを読みます。読みに失敗したマシンのデバイスは「読めなかった」と数え、ログに1行出します。
+  どのマシンも引き受けられないテストは `Skipped N scenario(s): no device of this run matches …` とデバイスごとの理由をログに出して飛ばします(OS が合わないテストと同じく、ログだけで結果には書きません)。
+- MCP の `ft_run_scenario` はプロファイルの中から合うデバイスを選び、クラスの中の対象外のテスト名を伝え、読めないデバイスがあればエラーにします。
+
 ## 未完成・廃止のマーク
 
 - `@Draft("理由")` は未完成(実装中)であることを示すマークです。一覧には「作業中」として
@@ -239,6 +275,7 @@ class 注文フロー {
 
 - `@RunOnSingleMachine` はマシン間で負荷を分けられなくなります。`beforeAll()` やデータを1つにまとめたいときだけ使い、寄せる先はコードに書けません(最初の1本を受け取ったマシンに寄ります)。
 - `@RunOnSingleDevice` はそのクラスの並列が無くなり、順番も決まっていません。防げるのはそのクラスの中の同時実行だけで、同じアカウントを別のクラスも使えばぶつかります。
+- `@RequiresDevice` / `@ExcludesDevice` はアプリを起動せずに各デバイスの性質を読みます。接続していない iOS の物理端末は最後に見えたときの OS を返し、折りたためる Android の物理端末は `.foldable` に数えません(開閉の操作は Simulator / Emulator だけ)。Android Emulator の機種名は `avdmanager` の機種定義から読むので、`avdmanager` が失敗すると読めません。実行プロファイルの外のデバイスを探す機能と `.tag(...)` の条件はまだありません。
 - `@RunInOrder` は並列化を妨げ、失敗すると残りは実行されず、再テストもクラスの最初からになります。まず1つの `@Test` にまとめられないかを考え、`@Order` は全テストに必須(整数・重複不可)で、選べるのはクラス全体か先頭から連続した範囲だけです。後のテストが `launchApp()` / `clearAppData()` をしなければ、アプリの画面の状態はテストの間で持ち越されます。
 - `beforeRun()` / `afterRun()` はデバッグ実行・プロファイルなしの run・dry-run では走らず、クラスの `var` では値を渡し合えません(別のプロセス)。run メモを使います。
 - `beforeRun()` はデバイスも compose.yaml のサーバーも使えず、宛先の許可とデータセットの上書きは走ったマシンのものです。マシンごとの準備は `run-setup.sh` / `beforeAll()` に置きます。

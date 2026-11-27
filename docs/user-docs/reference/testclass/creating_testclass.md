@@ -232,6 +232,42 @@ back and reruns the interrupted test; if it cannot come back, the remaining test
 With `--broadcast`, and in a run that runs the same thing on several machines (`--fleet` without `--split`; see [Remote runs](../../fleet/remote_runners.md)), the attribute has no effect (the class runs on several
 devices or machines). `--broadcast` prints one line saying so; `--fleet` does not. See [Where to put test data](../writing/test_data_placement.md) and [Memo](../commands/memo.md) (the run memo is shared across machines, except in `--fleet` without `--split`).
 
+## Running only on devices that fit (@RequiresDevice / @ExcludesDevice)
+
+A test that needs a foldable device, or only makes sense on a physical device, can say so. fleetest then sends it only to a device that fits,
+instead of starting it on a device that does not fit and only then finding it not applicable. Put the attribute on the class, on a `@Test`, or on both (both apply).
+Tests without the attribute run as before.
+
+```swift
+@TestClass
+@RequiresDevice(.foldable)
+class FoldLayout { /* ... */ }
+
+@TestClass
+class Checkout {
+    @Test("pay with the wallet")
+    @RequiresDevice(.physical, .minOS(ios: "18"))
+    @ExcludesDevice(.model("iPhone SE*"))
+    func S0010() { scenario { /* ... */ } }
+}
+```
+
+- **`@RequiresDevice(...)`**: the device must meet **all** the conditions listed. **`@ExcludesDevice(...)`**: a device that meets **any** one is left out (it wins over `@RequiresDevice`).
+- Conditions: `.foldable` (a device whose fold fleetest can operate: iPhone Duo Simulator, foldable Android Emulator), `.physical`, `.virtual`,
+  `.homeButton` (a device where `appSwitcher()` is unavailable, i.e. an iPhone with a home button; an Android device or an iPad never matches),
+  `.minOS(ios: "18")` / `.minOS(android: "15")`, `.model("iPhone 1*")`, `.os("iOS 27*")`. `.model` / `.os` take the same `*` and `||` patterns as selectors,
+  and `.os` must name the OS (`"iOS 27*"`, not `"27*"`).
+- Write the conditions as literals. A variable, a bad pattern, a `.os` without an OS name, conditions that contradict each other, or an empty list is a compile error.
+  A test-level declaration in a `@RunInOrder` / `@RunOnSingleDevice` / `@RunOnSingleMachine` class is also a compile error (declare it on the class).
+- fleetest reads each device's properties before handing out work. When fewer devices are prepared than the profile lists, one fitting device is kept for each set of conditions.
+  A run that would drop devices before the scenario list is known waits for the list when the sources contain these attributes.
+- If no device fits and **every** device the run uses could be read, the test is recorded as skipped (not applicable) and the summary says
+  `N scenario(s) had no matching device`. If any device the run uses could not be read, the test fails and the failure lists the facts per device.
+- With `--broadcast` it runs on every device that fits. `afterAll()` and `@RunInOrder` / `@RunOnSingleDevice` classes also use a fitting device.
+- Across machines, each machine reads its own devices; a machine whose read fails has its devices counted as unreadable, with one line in the log. A test no machine can take is skipped with
+  `Skipped N scenario(s): no device of this run matches …` and the reasons per device (this is only logged, like a test skipped for its OS).
+- MCP `ft_run_scenario` picks a fitting device of the profile, names the tests of a class that do not apply, and returns an error when a device cannot be read.
+
 ## Marking work in progress or retired tests
 
 - `@Draft("reason")` marks a test as not yet finished. It stays visible in listings as
@@ -247,6 +283,7 @@ Both can be attached to the class or to an individual `@Test` method.
 
 - `@RunOnSingleMachine` stops the load from being split between machines. Use it only to gather `beforeAll()` or data on one machine; you cannot write which machine (it is the one that received the first test).
 - `@RunOnSingleDevice` removes the class's parallelism and defines no order. It prevents only simultaneous runs inside that class; another class using the same account still collides.
+- `@RequiresDevice` / `@ExcludesDevice` read each device's properties without starting the app: an iOS physical device that is not connected reports the OS it had when last seen; an Android foldable physical device does not count as `.foldable` (fold control is Simulator / Emulator only); the model of an Android Emulator comes from the `avdmanager` device definitions and is unreadable when `avdmanager` fails. Finding devices outside the run profile and `.tag(...)` conditions are not available yet.
 - `@RunInOrder` hinders parallelism, the rest of the class is not run after a failure, and a retest starts from the class's first test. First ask whether the flow fits in one `@Test`; `@Order` is required on every test (integer, no repeats), and only the whole class or a range from the first test can be selected. The app screen state carries over between its tests unless a later test calls `launchApp()` / `clearAppData()`.
 - `beforeRun()` / `afterRun()` do not run in a debug run, a run without a profile or a dry-run, and cannot pass a value to each other through a class `var` (separate processes); use the run memo.
 - `beforeRun()` cannot use the device or the servers of compose.yaml, and the allowed domains and dataset overrides are those of the machine it ran on; per-machine preparation goes in `run-setup.sh` / `beforeAll()`.

@@ -239,6 +239,8 @@ class ログインできること {
 - **開いた直後に自動で終わる途中の状態**(読み込み中の骨組み等)を検証しない。速い端末では検証の前に終わっている。
   途中の状態を確かめたいなら、アプリの「読み込み直す」等の操作でその状態を作ってから読む
 
+**折りたたみ端末・物理端末・ホームボタン機などの特定のデバイスが要るシナリオは、`ios { }` / `android { }` や実行時の分岐で逃がさず、`@RequiresDevice(.foldable)` / `@RequiresDevice(.physical)` / `@RequiresDevice(.homeButton)`(外すなら `@ExcludesDevice(...)`)をクラスか `@Test` に宣言する**(条件に合うデバイスにだけ配られ、合う台が無ければ対象外で記録される。`.minOS(ios: "18")`・`.model("…*")`・`.os("iOS 27*")` も書ける。`.tag(...)` はまだ使えない)。詳細: `docs/user-docs/reference/testclass/creating_testclass_ja.md`
+
 **クラスに属性(`@RunOnSingleMachine` / `@RunOnSingleDevice` / `@RunInOrder` + `@Order`)を付ける前に、テストを独立させられないかを先に考える**:
 
 - テストデータは自分の範囲で用意する(書き換えるデータは `beforeEach()` / `condition` で、自分専用のアカウント・一意な名前を使う。他のテストが作ったデータに頼らない。
