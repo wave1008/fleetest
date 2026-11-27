@@ -1977,8 +1977,8 @@ public final class FTDriveCore {
         // (要素一覧・スクショだけでは「なぜ操作が効かなかったのか」に辿り着けない)
         let overlays = appLaunchedInThisProcess && appUnderTestLife == .notLaunched ? [] : foregroundOverlays?(executor.lastLaunchedAppBundleID) ?? []  // 起動が一度も成功していない(未インストール等)= 前面に出ていないので覆われたと言わない。試みた印 appLaunchedInThisProcess だけでは決まらない
         guard !overlays.isEmpty else { return }
-        // 「吸われた」と言わない(ログと md が共有): 止めたアプリ(窓は止めた後に出ただけ)・直前が抜けた back()(その後に送った操作が無い)
-        let mayBeSwallowed = !(stoppedByScenario || precedingStepWasBackLeftApp)
+        // 「吸われた」と言わない(ログと md が共有): 止めた・プロセスが居ない(窓はアプリが居なくなって出ただけ)・直前が抜けた back()
+        let mayBeSwallowed = !(stoppedByScenario || !processEvidence.isEmpty || precedingStepWasBackLeftApp)
         let recorded = withState { () -> Bool in
             guard let index = currentSceneIndex else { return false }
             record.scenes[index].failureForegroundWindows = overlays

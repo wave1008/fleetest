@@ -126,8 +126,15 @@ public final class SessionRecoveryDriver: AppDriver {
     // install と同じくセッション不要の host 側操作なので回復なしで素通し
     public func clearAppData(bundleID: String) async throws { try await base.clearAppData(bundleID: bundleID) }
     // simctl/devicectl 経由で /session を経ないため 409(セッション消失)を踏まない。install と同じ扱い
+    // 宛先のアプリが**前面に居ると観測できたら**張り直す相手として覚える(terminate の後の openURL は OS がアプリを起こすが、ランナーの
+    // セッションは無いまま = 覚えないと次の照会が「launch せよ」で赤になり、従うと着地した画面を捨てる)。宛先を無条件に覚えない ——
+    // 実機の run はプロセスの有無を答えられず(appIsRunning = nil)、URL が別のアプリへ開いたとき回復の activate がアプリを冷間起動する
     public func openURL(_ url: String, bundleID: String?) async throws {
         try await base.openURL(url, bundleID: bundleID)
+        if let bundleID, lastBundleID == nil, (try? await base.isAppForeground(bundleID: bundleID)) == true {
+            lastBundleID = bundleID
+            stoppedBySession = false
+        }
     }
     public func addMedia(path: String) async throws { try await base.addMedia(path: path) }
     public func acknowledgeOpenURLConsentIfPresent(bundleID: String, url: String) async {

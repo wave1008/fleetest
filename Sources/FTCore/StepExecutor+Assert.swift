@@ -230,8 +230,9 @@ extension StepExecutor {
             // 縮みと言い切れないがキーボードは出ている(XCUITest の木は CMP の全画面の容器が下端まで残るので幾何の判定が立たない。
             // in-app の木では立つ)。MCP の一致なしの断り(`hiddenOrOffscreenHint`)と同じ判定 `KeyboardWait.isShown` で「消えうる」と言う
             guard KeyboardWait.isShown(snapshot) else { return "" }
-            return " (the soft keyboard is up — an app that shrinks its window above it (Compose Multiplatform) drops what"
-                + " sat below it from the tree. Close it first (hideKeyboard()), then retry.)"
+            return " (the soft keyboard is up. If this app shrinks its window above it (Compose Multiplatform does), what sat"
+                + " below it is gone from the tree: close it first (hideKeyboard()) and retry. If the element is still missing"
+                + " with the keyboard closed, it is not on this screen.)"
         }
         return " (the soft keyboard is up at (\(Int(saturating: kb.x)),\(Int(saturating: kb.y))"
             + " \(Int(saturating: kb.width))x\(Int(saturating: kb.height))) and the window has shrunk to fit above it,"

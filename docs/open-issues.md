@@ -1093,6 +1093,7 @@ E2E-Flutter の Android の「画像で要素を探す」S0040 の `existImage("
 
 - 測った(2026-11-25・SE3 の実機・inapp-boost・E2E-iOS の覆い画面・3/3): in-app の当たり判定(`/touchlands`)は `#btn_under_footer` の中心への本物のタッチが**対象と `#tab_controls` の両方に届く**と答えた(タッチを受ける view は両者に共通の SwiftUI の入れ物)。半分のシートの裏の行(OI-170)と違い「対象に届かず覆いに届く」と言い切れないので、当たり判定を送りの根拠にできない(試した直しは取り下げた)= 据え置きのまま
 - 別の形(2026-11-27・探索 phys F1・SE3 の実機・xcuitest モード・3/3): `setTextSize(.extraLarge)` で行が下がり、中心だけがタブバーにかかった `#nav_lifecycle` を `tap(…, scroll: .down)` が送らずに押して ✅(説明文に「the target's centre is covered by staticText "コントロール", so this may have hit …」・notes 無し)。実際にタブ「コントロール」が押され、次のステップで赤。断る形(対象が全部タブの下)と違い一部が外に出ているので押す。送らずに押した理由(`/hittable` が真だった等)は材料不足 = 据え置きのまま(覆いの警告は文言だけで判定を変えない = 新しい検知は警告から)
+- 別の形(2026-11-27・探索3周目 iultra F1・iPhone 18 Pro(iOS 27.2)の Simulator・**xcuitest モード**・横向きの E2E-Flutter のテキスト入力・DSL 2/2): `tap("#btn_input_submit")` の中心がタブ「ホーム」の枠の中にあり、タブが押されてホームへ飛んだのに ✅(覆いの警告も notes も無い = SE3 の形と違い文言も出ない)。inapp-boost では「#tab_home が覆っていて人には押せない・in-app ブリッジで直接押した」の注記付きで緑。xcuitest で警告が出ない理由は材料不足 = 据え置き(既定のモードでは出ない)
 
 ### OI-186 iOS の `back()` が自前の「戻る」を押さず、戻らないまま緑になる
 - 状態: 再現済み

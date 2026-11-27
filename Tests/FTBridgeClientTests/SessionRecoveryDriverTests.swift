@@ -24,11 +24,13 @@ private final class FakeAppDriver: AppDriver {
     }
     func install(packagePath: String) async throws -> String? { nil }
     func uninstall(bundleID: String) async throws {}
-    func isAppForeground(bundleID: String) async throws -> Bool { false }
+    var foreground = false
+    func isAppForeground(bundleID: String) async throws -> Bool { foreground }
     func launch(bundleID: String) async throws {}
     func activate(bundleID: String) async throws { activateCalls.append(bundleID) }
     func openAppSwitcher() async throws {}
     func home() async throws {}
+    func openURL(_ url: String, bundleID: String?) async throws {}
 
     private static let sessionLost = DriverError.badResponse(status: 409, body: "セッションがありません")
 
@@ -168,6 +170,38 @@ final class SessionRecoveryDriverTests: XCTestCase {
         }
         XCTAssertEqual(fake.activateCalls, [], "アプリを起動し直してはいけない")
         XCTAssertEqual(fake.snapshotCallCount, 1, "再試行してはいけない")
+    }
+
+    /// terminate の後の openURL は OS がアプリを起こす。前面に居ると観測できたら張り直して読む(張らないと「launch せよ」で赤になり、従うと
+    /// 着地した画面を捨てる = 探索 11/27 phys F1・SE3 の実機)。前面に居ない(URL が別のアプリへ開いた)・宛先が無いなら張り直す相手を作らない
+    func testOpenURLAfterTerminateReattachesToTheDestinationApp() async throws {
+        let fake = FakeAppDriver()
+        fake.foreground = true
+        let driver = SessionRecoveryDriver(base: fake)
+        try await driver.launch(bundleID: "com.example.app")
+        try await driver.terminate()
+        try await driver.openURL("myapp://x?tag=cold", bundleID: "com.example.app")
+        fake.snapshotShouldFail = [true, false]
+        _ = try await driver.snapshot()
+        XCTAssertEqual(fake.activateCalls, ["com.example.app"])
+
+        let bare = FakeAppDriver()
+        let unnamed = SessionRecoveryDriver(base: bare)
+        try await unnamed.launch(bundleID: "com.example.app")
+        try await unnamed.terminate()
+        try await unnamed.openURL("https://example.com", bundleID: nil)
+        bare.snapshotShouldFail = [true, false]
+        do { _ = try await unnamed.snapshot(); XCTFail("宛先の無い openURL の後に張り直した") } catch {}
+        XCTAssertEqual(bare.activateCalls, [])
+
+        let elsewhere = FakeAppDriver()  // foreground = false: Safari 等が前面
+        let other = SessionRecoveryDriver(base: elsewhere)
+        try await other.launch(bundleID: "com.example.app")
+        try await other.terminate()
+        try await other.openURL("https://example.com", bundleID: "com.example.app")
+        elsewhere.snapshotShouldFail = [true, false]
+        do { _ = try await other.snapshot(); XCTFail("前面に居ないアプリへ張り直した(冷間起動になる)") } catch {}
+        XCTAssertEqual(elsewhere.activateCalls, [])
     }
 
     /// terminate が 409 で失敗しても(アプリが既に落ちていた)回復対象から外す。残すと次の snapshot の回復が

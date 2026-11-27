@@ -38,7 +38,7 @@ final class BackAndOpenURLNoteTests: XCTestCase {
         func terminate() async throws {}
     }
 
-    private func run(platform: String, driver: ScriptedDriver, overlays: [String] = [],
+    private func run(platform: String, driver: ScriptedDriver, overlays: [String] = [], processEvidence: [String] = [],
                      _ body: () -> Void) -> [ScenarioEvent] {
         var events: [ScenarioEvent] = []
         let core = FTDriveCore(driver: driver, platform: platform, app: "com.example.app",
@@ -49,6 +49,7 @@ final class BackAndOpenURLNoteTests: XCTestCase {
                                    .appendingPathComponent("ft-back-openurl-note-test.json"),
                                emit: { events.append($0) })
         core.foregroundOverlays = { _ in overlays }
+        if !processEvidence.isEmpty { core.appProcessEvidence = { _ in processEvidence } }
         FTRuntime.bootstrap(core: core, dslThread: Thread.current)
         defer { FTRuntime.tearDown() }
         body()
@@ -83,6 +84,18 @@ final class BackAndOpenURLNoteTests: XCTestCase {
                       "\(logs)")
         // 理由を付けない(最初の画面とは限らない)・back の後に何も送っていないので「吸われた」と言わない
         XCTAssertFalse(logs.contains { $0.contains("first screen") }, "\(logs)")
+        XCTAssertFalse(logs.contains { $0.contains("may have been swallowed") }, "\(logs)")
+    }
+
+    /// アプリのプロセスが居ない失敗では手前の窓に「吸われた」と言わない(窓はアプリが居なくなって出ただけ。外から止めた 4/4 で
+    /// 「nothing was sent」の直後に「吸われたかも」と並んだ = 探索 11/27 amax F1)
+    func testAppProcessGoneDoesNotSayTheWindowSwallowedInput() {
+        let events = run(platform: "android", driver: ScriptedDriver(), overlays: ["com.android.launcher"],
+                         processEvidence: ["process not running"]) {
+            launchApp(); tap("#b"); exist("#gone", waitSeconds: 0)
+        }
+        let logs = events.filter { $0.kind == "log" }.compactMap(\.message)
+        XCTAssertTrue(logs.contains { $0.contains("Another window is in front") }, "\(logs)")
         XCTAssertFalse(logs.contains { $0.contains("may have been swallowed") }, "\(logs)")
     }
 
