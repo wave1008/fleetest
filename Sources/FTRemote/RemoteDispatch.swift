@@ -46,6 +46,9 @@ public enum RemoteDispatchError: Error, LocalizedError {
 /// 取り違えないための専用の値。124 = timeout(1) の慣例(打ち切り)
 public enum RemoteDispatchExit {
     public static let runUnconfirmed: Int32 = 124
+    /// 適合チェックで断られた(run は始めていない)。そのマシンはこの run の間ずっと同じ理由で断る = 複数対象の配り手は
+    /// 1と取り違えず(1 = テストの失敗)、そのマシンへ以後配らない。125 = 起こした側の失敗を表す慣例の隣の値
+    public static let incompatible: Int32 = 125
 }
 
 public struct RemoteHostSpec: Equatable, Sendable {

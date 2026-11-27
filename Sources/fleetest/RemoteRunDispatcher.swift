@@ -124,7 +124,7 @@ struct RemoteRunDispatcher {
                   localJUnitPath: String?,
                   remoteTimeoutSeconds: Int?, runGroup: String? = nil,
                   variantNames: [String] = [], deviceTraitsJSON: String? = nil) async throws -> Int32 {
-        try await performDispatch(
+        try await Self.refusalAsExit { try await performDispatch(
             project: project, profile: profile, scenarioCount: scenarios.count, runGroup: runGroup,
             linkedToParent: workQueue || runMemoLink, setOverrides: setOverrides,
             lockSocket: lockSocket, lockControlSocket: lockControlSocket,
@@ -139,7 +139,7 @@ struct RemoteRunDispatcher {
                 runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockRemotePath,
                 remoteJUnitPath: remoteJUnitPath, reportDir: remoteReportDir, workspace: remoteWorkspace,
                 runGroup: runGroup, variantNames: variantNames, deviceTraitsJSON: deviceTraitsJSON)
-        }
+        } }
     }
 
     /// `fleetest api run --runner`: dispatch と同じ流れ(レイアウト解決→適合チェック→転送→実行→回収)
@@ -156,7 +156,7 @@ struct RemoteRunDispatcher {
                      lockSocket: String? = nil, lockControlSocket: String? = nil,
                      remoteTimeoutSeconds: Int?, runGroup: String? = nil,
                      variantNames: [String] = [], deviceTraitsJSON: String? = nil) async throws -> Int32 {
-        try await performDispatch(
+        try await Self.refusalAsExit { try await performDispatch(
             project: project, profile: profile, scenarioCount: scenarios.count, runGroup: runGroup,
             linkedToParent: workQueue || runMemoLink, setOverrides: setOverrides,
             lockSocket: lockSocket, lockControlSocket: lockControlSocket,
@@ -171,6 +171,16 @@ struct RemoteRunDispatcher {
                 runMemoLink: runMemoLink, fleetEntry: fleetEntry, lockSocket: lockRemotePath,
                 reportDir: remoteReportDir, workspace: remoteWorkspace, runGroup: runGroup,
                 variantNames: variantNames, deviceTraitsJSON: deviceTraitsJSON)
+        } }
+    }
+
+    /// 適合チェックの拒否(`.incompatible`)だけを専用の終了コードへ写す。他の失敗は投げ直す(= 従来どおり 1)。
+    /// 文言は `Error: ` 付きで stderr へ出す(投げたときに ArgumentParser が出すものと同じ形)
+    static func refusalAsExit(_ body: () async throws -> Int32) async throws -> Int32 {
+        do { return try await body() } catch let error as RemoteDispatchError {
+            guard case .incompatible = error else { throw error }
+            ConsoleOut.err("Error: \(error.localizedDescription)")
+            return RemoteDispatchExit.incompatible
         }
     }
 

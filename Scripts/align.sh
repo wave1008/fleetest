@@ -93,8 +93,10 @@ if [ -n "$BUSY" ]; then
   exit 1
 fi
 
-LOGDIR="$(mktemp -d)"
-trap 'rm -rf "$LOGDIR"' EXIT
+# 各機の出力は直近1回ぶんを残す(「プレビルドを入れた」等の行を後から確かめる。次の実行で置き換わる)
+LOGDIR="$PWD/.fleetest/align/last"
+rm -rf "$LOGDIR"
+mkdir -p "$LOGDIR"
 
 # **ここが要点**: 全機を同時に起こし、待つのは最後にまとめて。1機ずつ待たない
 echo "==> align $(echo "$MACHINES" | tr '\n' ' ')(並列)"
@@ -109,12 +111,13 @@ FAILED=0
 for m in $MACHINES; do
   code=$(cat "$LOGDIR/$m.code" 2>/dev/null || echo 1)
   # `|| true` は必須 —— grep が 1 件も拾えないと(errexit + pipefail で)この代入が失敗し、
-  # 集計を出す前にスクリプトごと落ちて EXIT trap が LOGDIR を消す = ログが失われる
+  # 集計を出す前にスクリプトごと落ちて最後のログの場所の案内が出ない
   line=$(grep -E "aligned to|❌|error" "$LOGDIR/$m.log" | tail -1 || true)
   if [ "$code" = 0 ]; then echo "  ✅ $m: ${line:-(出力なし)}"
-  else echo "  ❌ $m: ${line:-(出力なし)} (exit=$code / log: $LOGDIR/$m.log)"; FAILED=1
-       cp "$LOGDIR/$m.log" "/tmp/align-$m.log"; echo "     ログを /tmp/align-$m.log に残した"; fi
+  else echo "  ❌ $m: ${line:-(出力なし)} (exit=$code / log: $LOGDIR/$m.log)"; FAILED=1; fi
 done
+
+echo "==> 各機のログ: $LOGDIR/<machine>.log"
 
 # **align の成功報告だけで終わらせない**: 中身が揃ったことは各機の revisionCompatible と digestMatches で確かめる
 echo "==> verify"

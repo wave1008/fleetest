@@ -500,7 +500,7 @@ enum MultiTargetRunner {
         }
         let coordinator = MultiTargetCoordinator(
             units: specs, machineCount: machineLabels.count, overheadMs: overheadByMachine,
-            nowMs: clock, lpt: !noLPT, launch: launch, log: { FleetRunner.log($0) })
+            nowMs: clock, lpt: !noLPT, machineLabels: machineLabels, launch: launch, log: { FleetRunner.log($0) })
         // catchUp: ロックの取得中(DispatchPrelock の購読が受けた)の中断も、ここで配り手へ伝える
         let relay = InterruptRelay.observing(catchUp: true) { coordinator.interrupt() }
         defer { relay.stop() }
@@ -728,15 +728,18 @@ final class MultiTargetCoordinator: Sendable {
     private let timer: DynamicDispatcher.Timer
     private let launch: Launch
     private let log: @Sendable (String) -> Void
+    /// ログに出すマシン名(添字で引く。無ければ `#添字`)
+    private let machineLabels: [String]
     /// false = `--no-lpt`(未着手の対象を宣言の順に試す)
     private let lpt: Bool
 
     init(units: [TargetUnit], machineCount: Int, overheadMs: [Double],
          nowMs: @escaping @Sendable () -> Double = DynamicDispatcher.monotonicClock(),
          timer: @escaping DynamicDispatcher.Timer = DynamicDispatcher.dispatchTimer,
-         lpt: Bool = true,
+         lpt: Bool = true, machineLabels: [String] = [],
          launch: @escaping Launch, log: @escaping @Sendable (String) -> Void = { _ in }) {
         self.lpt = lpt
+        self.machineLabels = machineLabels
         self.units = Dictionary(units.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         self.overheadMs = overheadMs
         self.nowMs = nowMs
@@ -810,7 +813,10 @@ final class MultiTargetCoordinator: Sendable {
                 s.status[machine] = .idle
             }
         }
-        if exitCode != 0 && exitCode != 1 {
+        let name = machineLabels.indices.contains(machine) ? machineLabels[machine] : "#\(machine)"
+        if exitCode == RemoteDispatchExit.incompatible {
+            log("⚠️ machine \(name) refused the dispatch of \(unit) (remote host is not compatible); it stays out for the rest of this run and the remaining targets go elsewhere")
+        } else if exitCode != 0 && exitCode != 1 {
             log("⚠️ machine #\(machine) ended abnormally (exit \(exitCode)) while running \(unit); no further work goes to it")
         }
         reconsider()

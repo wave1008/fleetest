@@ -292,8 +292,10 @@ public enum ScenarioHost {
     /// `--product` は1回に1つしか効かない(複数渡すと最後の1つだけ)ので、必要な製品だけをまとめる口は無い。
     /// **ランナー機の子へ広げない** —— ランナー機の作業フォルダは利用者側のパッケージで、無関係の壊れたプロジェクトがあり、
     /// まとめたビルドが毎回失敗して1本ずつに戻った(PT-8.1)
-    public static func prebuildTogether(projects: [TestProject], log: ((String) -> Void)? = nil) {
-        guard let root = packageRoot() else { return }
+    /// 戻り値: まとめたビルドを起こして失敗したときだけ false(要らない・起こせない回は true)
+    @discardableResult
+    public static func prebuildTogether(projects: [TestProject], log: ((String) -> Void)? = nil) -> Bool {
+        guard let root = packageRoot() else { return true }
         let stale: [(project: TestProject, fingerprint: BuildFingerprint.Snapshot?)] = projects.compactMap { project in
             let fingerprint = BuildFingerprint.snapshot(repoRoot: root, scenariosDir: project.scenariosDir)
             return buildNeeded(fingerprint: fingerprint?.digest, project: project, root: root) ? (project, fingerprint) : nil
@@ -311,8 +313,10 @@ public enum ScenarioHost {
                 }
             } else {
                 log?("→ The combined build failed; building each project on its own")
+                return false
             }
         }
+        return true
     }
 
 

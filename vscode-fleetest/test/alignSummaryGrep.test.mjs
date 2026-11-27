@@ -1,12 +1,11 @@
 // align.sh の集計ループ(機械ごとの ✅/❌ 行)が、ログに 1 件も拾える行が無くても最後まで走る契約。
 //
 // `line=$(grep … | tail -1)` は `set -euo pipefail` の下で grep が 0 件だと代入ごと失敗し、
-// 集計を出す前にスクリプトが落ちて EXIT trap が LOGDIR を消していた(ログが失われる)。
+// 集計を出す前にスクリプトが落ちていた(最後のログの場所の案内が出ない)。
 // 守るのは `|| true` の 1 つだけなので、ループ本体を align.sh から抜き出してそのまま実行する
 // (実装の写しを置かない —— 写すと本体だけ直したときにテストが古い実装を守り続ける)。
 //
-// 注意: ループは失敗した機械のログを `/tmp/align-<machine>.log` へ写す(本体の仕様)。
-// テストは一意な機械名を使い、finally で消す。
+// ログは LOGDIR(本体では `.fleetest/align/last`)に残るだけで、ループは写しを作らない。
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -58,7 +57,6 @@ function runLoop(snippet, machines) {
     return { stdout: res.stdout, status: res.status };
   } finally {
     rmSync(dir, { recursive: true, force: true });
-    for (const name of names) rmSync(`/tmp/align-${name}.log`, { force: true });
   }
 }
 
@@ -78,6 +76,12 @@ test("grep が 0 件の機械があっても集計は最後まで出る(✅ も 
   assert.match(stdout, new RegExp(`✅ ${silent}: \\(出力なし\\)`), "0 件のときの (出力なし) 行が出ていない");
   assert.match(stdout, new RegExp(`❌ ${failed}: \\(出力なし\\) \\(exit=255`));
   assert.match(stdout, /^SUMMARY_DONE FAILED=1$/m, "集計の後ろまで到達していない");
+});
+
+test("失敗した機械の行はログの場所を示し、/tmp へ写さない(ログは .fleetest/align/last に残る)", () => {
+  const source = readFileSync(ALIGN_SH, "utf8");
+  assert.match(source, /LOGDIR="\$PWD\/\.fleetest\/align\/last"/);
+  assert.doesNotMatch(source, /rm -rf "\$LOGDIR"'? EXIT|\/tmp\/align-/, "ログを消す trap か /tmp への写しが残っている");
 });
 
 test("破壊確認: `|| true` を外すと 0 件の機械で集計が止まる(テスト自体の生存確認)", () => {

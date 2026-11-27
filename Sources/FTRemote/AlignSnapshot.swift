@@ -20,9 +20,10 @@ public enum AlignSnapshot {
     /// 要約から外すトップレベルの名前。TestProjects/<P> は run のたびに rsync で届く(RR-13)ので、
     /// ここを含めるとシナリオを直しただけでディスパッチが止まる
     public static let excludedTopLevel = "TestProjects"
-    /// 判定用の要約だけが更に外す直下の名前(run のディスパッチはこれらを読まない。実行時に docs を読むのは手元の MCP だけ)。
+    /// 判定用の要約だけが更に外す直下の名前(run のディスパッチはこれらを読まない。実行時に docs を読むのは手元の MCP だけ。
+    /// `vscode-fleetest` は VSCode 拡張のソースで、ランナーの run はビルドも実行も読まない = 回帰中に拡張を直すとランナーが断っていた)。
     /// 直下の `.md` ファイルも外す(名前の一覧にしない)。ランナー側の awk と同じ規則
-    public static let runDigestExcludedTopLevel: [String] = ["docs", ".claude"]
+    public static let runDigestExcludedTopLevel: [String] = ["docs", ".claude", "vscode-fleetest"]
     /// コミットの作者・日時を固定する名前(同じ中身から同じ SHA = align.sh が全機へ並列に作っても揃う)
     static let authorName = "fleetest"
     static let authorEmail = "fleetest@localhost"

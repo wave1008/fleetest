@@ -4,6 +4,7 @@
 import XCTest
 import ArgumentParser
 import FTCore
+import FTRemote
 @testable import fleetest
 
 final class MultiTargetRunnerTests: XCTestCase {
@@ -239,6 +240,35 @@ final class MultiTargetRunnerTests: XCTestCase {
         h.finish("A", 0, code: 1)
         XCTAssertEqual(h.launched, ["A@0", "B@0"], "シナリオの失敗(1)でマシンを外さない")
         XCTAssertTrue(h.coordinator.deadMachines.isEmpty)
+    }
+
+    /// 適合チェックの拒否(全対象で同じ理由)は1回で見切り、そのマシンへ以後配らない。残りは別のマシンが取る
+    func testCompatibilityRefusalRetiresTheMachineAfterOneAttempt() {
+        let ids = (0..<6).map { "T\($0)" }
+        let h = Harness(machines: 2, lanes: Dictionary(uniqueKeysWithValues: ids.map { ($0, Set([0, 1])) }),
+                        scenarios: Dictionary(uniqueKeysWithValues: ids.map { ($0, 1) }), order: ids)
+        h.coordinator.start()
+        let refused = h.launches.withLock { $0.first { $0.machine == 0 }! }
+        h.finish(refused.unit, 0, code: RemoteDispatchExit.incompatible, drain: false)
+        XCTAssertTrue(h.coordinator.deadMachines.contains(0))
+        XCTAssertEqual(h.launched.filter { $0.hasSuffix("@0") }.count, 1, "拒否したマシンに続けて配った: \(h.launched)")
+    }
+
+    func testRefusalExitCodeIsNotAScenarioFailureCode() {
+        XCTAssertEqual(RemoteDispatchExit.incompatible, 125)
+        XCTAssertNotEqual(RemoteDispatchExit.incompatible, 1)
+        XCTAssertNotEqual(RemoteDispatchExit.incompatible, RemoteDispatchExit.runUnconfirmed)
+    }
+
+    func testRefusalAsExitMapsOnlyIncompatible() async throws {
+        let code = try await RemoteRunDispatcher.refusalAsExit { throw RemoteDispatchError.incompatible(["git revision: x"]) }
+        XCTAssertEqual(code, RemoteDispatchExit.incompatible)
+        let passed = try await RemoteRunDispatcher.refusalAsExit { 1 }
+        XCTAssertEqual(passed, 1)
+        do {
+            _ = try await RemoteRunDispatcher.refusalAsExit { throw RemoteDispatchError.remoteSetupFailed("x") }
+            XCTFail("他の失敗は投げ直す")
+        } catch {}
     }
 
     // MARK: - CLI の口

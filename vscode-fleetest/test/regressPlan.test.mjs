@@ -133,3 +133,11 @@ test('fleetest run の引数: 対象ごとに --target・回帰は録画しな�
   assert.deepEqual(args, ['run', '--target', 'E2E-CMP:ios-inapp-boost', '--target', 'E2E-CMP:android',
     '--set', 'record=false'])
 })
+
+test('シナリオのまとめビルドは対象のプロジェクトを重複なく順に並べる', () => {
+  const args = py('m.prebuild_args(m.build_targets(["e2e"], True))')
+  assert.deepEqual(args.slice(1, 3), ['api', 'prebuild-scenarios'])
+  const projects = args.filter((_, i) => args[i - 1] === '--project')
+  assert.equal(new Set(projects).size, projects.length)
+  assert.ok(projects.includes('E2E-CMP'))
+})

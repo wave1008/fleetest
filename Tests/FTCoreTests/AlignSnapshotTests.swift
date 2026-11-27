@@ -99,7 +99,7 @@ final class AlignSnapshotTests: XCTestCase {
         XCTAssertNil(state?.runDigest)
     }
 
-    /// 判定用の要約: docs・直下の .md・.claude の変更では変わらず(全体の要約は変わる)、Sources・直下のその他のファイル・入れ子の .md では変わる。
+    /// 判定用の要約: docs・直下の .md・.claude・vscode-fleetest の変更では変わらず(全体の要約は変わる)、Sources・直下のその他のファイル・入れ子の .md では変わる。
     /// 手元(Swift)とランナー(awk。sh / zsh)が同じ値を出す。
     /// 変異: 除外を外す(docs / .md / .claude のどれか)→ 「変わらない」側が落ちる / 常に全体と同じ要約を返す → 「全体は違う」側が落ちる /
     /// 除外を広げる(Sources まで除く)→ 「変わる」側が落ちる / 片側(Swift か awk)だけ変える → 等価の assert が落ちる
@@ -110,6 +110,7 @@ final class AlignSnapshotTests: XCTestCase {
         try write("CLAUDE.md", "x\n")
         try write("AGENTS.md", "x\n")
         try write(".claude/rules/a.md", "x\n")
+        try write("vscode-fleetest/src/ext.ts", "export const a = 1\n")
         let docsOnly = try AlignSnapshot.localTree(repoRoot: repo, includeTestProjects: false)
         XCTAssertEqual(docsOnly.runDigest, before.runDigest)
         XCTAssertNotEqual(docsOnly.digest, before.digest, "the whole-tree digest still sees docs")

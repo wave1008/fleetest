@@ -228,6 +228,39 @@ def record_machine_states(fleet, run_dir, stage):
         print(f"   {stage} {row['machine']}: {facts}")
 
 
+def prebuild_args(targets):
+    """段2の親の先行ビルド(ScenarioHost.prebuildTogether)と同じ対象を、段1と並行に手元で作る内部口。重複は口の側でも外す"""
+    args = [FLEETEST, "api", "prebuild-scenarios"]
+    for project in dict.fromkeys(p for _, p, _ in targets):
+        args += ["--project", project]
+    return args
+
+
+def start_scenario_prebuild(targets, run_dir, env):
+    """手元のシナリオのまとめビルドを背景で起こす。戻り値は join 用のスレッドと結果の入れ物。
+    失敗しても回帰は止めない(段2の親が1本ずつ作る)。段2の前に必ず join する = SwiftPM のロックを段2と取り合わない"""
+    result = {}
+
+    def work():
+        began = time.time()
+        try:
+            code = run_logged(prebuild_args(targets), os.path.join(run_dir, "prebuild-scenarios.log"), env)
+        except OSError as e:
+            code = f"起こせませんでした: {e}"
+        result["code"] = code
+        result["seconds"] = time.time() - began
+    thread = threading.Thread(target=work)
+    thread.start()
+    return thread, result
+
+
+def finish_scenario_prebuild(thread, result):
+    thread.join()
+    code = result.get("code")
+    state = "完了" if code == 0 else f"失敗({code}。段2が1本ずつ作ります)"
+    print(f"   シナリオのまとめビルド: {state} {result.get('seconds', 0):.0f}s(prebuild-scenarios.log)")
+
+
 def run_logged(cmd, log_path, env):
     with open(log_path, "w") as log:
         return subprocess.run(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env).returncode
@@ -314,6 +347,7 @@ def main():
     if opts.dry_run:
         for suite, project, profile in targets:
             print(f"{suite}: {project}:{profile}")
+        print("+ 段1と並行: " + " ".join(shlex.quote(a) for a in prebuild_args(targets)))
         print(" ".join(shlex.quote(a) for a in run_args(targets, opts.record)))
         if witness:
             print(f"+ in-app の証人: {WITNESS[0]} / {WITNESS[1]}")
@@ -366,6 +400,16 @@ def run_stages(opts, fleet, targets, suts, suites, witness, run_dir, env):
     print(f"==> マシン: {', '.join(m for m, _ in fleet)} / 対象: {len(targets)} / ログ: {run_dir}")
     record_machine_states(fleet, run_dir, "start")
 
+    # 段2の親が最初にやるシナリオのまとめビルドを、段1(SUT の鮮度確認)と並行に先に済ませる(手元だけ)
+    prebuild = start_scenario_prebuild(targets, run_dir, env)
+    try:
+        return run_stages_after_prebuild(opts, fleet, targets, suts, suites, witness, run_dir, env, started, prebuild)
+    finally:
+        if prebuild[0].is_alive():
+            finish_scenario_prebuild(*prebuild)
+
+
+def run_stages_after_prebuild(opts, fleet, targets, suts, suites, witness, run_dir, env, started, prebuild):
     if not opts.skip_build:
         print("==> 段 1: 全マシンで SUT の鮮度を確かめ、要ればビルドします")
         failed = prebuild_all(fleet, suites, suts, run_dir, env)
@@ -378,6 +422,7 @@ def run_stages(opts, fleet, targets, suts, suites, witness, run_dir, env):
             record_machine_states(fleet, run_dir, "end")
             return 1
 
+    finish_scenario_prebuild(*prebuild)
     # 配信は止めてから回す(ユーザー決定 2026-11-11。配信ありの回帰は手元の Android が白紙・固まりで赤になり、
     # 止めて回し直すと通った = 11/1・11/11)。止めた分は終わり・中断のどちらでも finally で戻す
     signal.signal(signal.SIGINT, _on_signal)
