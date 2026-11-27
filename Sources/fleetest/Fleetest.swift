@@ -1187,6 +1187,12 @@ struct RunScenarios: AsyncParsableCommand {
     /// (SSH 到達可能な fleetest clone)に丸ごとディスパッチする
     /// (RR-3・RR-7・Phase 1)。デバイス割当競合を避けるためリモート1本での
     /// 実行のみサポートし、ローカル専用オプションは併用不可にする
+    /// 親(機械分担)から受けた台の性質を、向こうの run へ中継する形(検査して素の JSON のまま。受けていなければ nil)
+    private func deviceTraitsToRelay() throws -> String? {
+        _ = try childTraits.decoded()
+        return childTraits.raw
+    }
+
     private func dispatchToRemoteHost(_ dispatch: EffectiveDispatchTarget) async throws {
         guard let profile = common.profile else {
             throw ValidationError("--runner requires --profile")
@@ -1226,7 +1232,7 @@ struct RunScenarios: AsyncParsableCommand {
             runMemoLink: common.runMemoLink, fleetEntry: common.fleetEntry,
             lockSocket: common.lockSocket, lockControlSocket: common.lockControlSocket,
             localJUnitPath: junit, remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup,
-            variantNames: common.variantNames)
+            variantNames: common.variantNames, deviceTraitsJSON: try deviceTraitsToRelay())
         if exitCode != 0 {
             throw ExitCode(exitCode)
         }

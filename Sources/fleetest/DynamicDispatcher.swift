@@ -41,6 +41,9 @@ final class DynamicDispatcher: Sendable {
 
     private struct State {
         var pending: [DynamicSplit.Scenario]
+        /// 台の条件(DR-237): そのエントリの台がその単位を走らせうるか(合う台か読めない台がある)。**false のエントリは、その単位を試した扱い**
+        /// (`isExcluded`)—— 配らない・保留の根拠にも数えない・対象外の判定では試した側に入る
+        let entryCandidate: @Sendable (ScenarioUnitKey, Int) -> Bool
         var notApplicable: [ScenarioUnitKey: NotApplicableRecord] = [:]
         /// 要求を出したことのあるレーンだけ(供給中のレーンを空きと数えない)。値 nil = 空いて返事待ち
         var lanes: [DynamicSplit.Lane: Busy?] = [:]
@@ -90,6 +93,7 @@ final class DynamicDispatcher: Sendable {
          timer: @escaping Timer = DynamicDispatcher.dispatchTimer,
          lpt: Bool,
          entryPlatforms: [Int: Set<String>] = [:],
+         entryCandidate: @escaping @Sendable (ScenarioUnitKey, Int) -> Bool,
          entryLabel: @escaping @Sendable (Int) -> String = { "entry \($0)" },
          log: @escaping @Sendable (String) -> Void = { _ in },
          entryKinds: @escaping @Sendable (_ platform: String) -> [Int: Set<String>],
@@ -99,7 +103,7 @@ final class DynamicDispatcher: Sendable {
         self.entryLabel = entryLabel
         self.log = log
         self.entryKindsResolver = entryKinds
-        state = LockedValue(State(pending: scenarios))
+        state = LockedValue(State(pending: scenarios, entryCandidate: entryCandidate))
         scenariosByUnit = Dictionary(scenarios.map { ($0.unitKey, $0) }, uniquingKeysWith: { first, _ in first })
         self.estimateMs = estimateMs
         self.nowMs = nowMs
@@ -158,8 +162,10 @@ final class DynamicDispatcher: Sendable {
                 .union(s.lanes.keys.filter { $0.platform == na.platform }.map(\.entry))
                 .union(record.tried)
             let left = known.intersection(s.exited)
+            // 条件に合う台の無い機械は、この単位を試した扱い(DR-237。回し直す先に数えない)
+            let notCandidates = known.filter { !s.entryCandidate(unit, $0) }
             verdict = NotApplicableHandoff.decide(
-                tried: Set(record.tried.map(String.init)),
+                tried: Set(record.tried.union(notCandidates).map(String.init)),
                 live: Set(known.subtracting(left).map(String.init)),
                 departed: Set(left.map(String.init)).union(record.departedInChild ? ["child-local"] : []),
                 kinds: Self.kinds(of: record.platform, s), evidence: record.evidence)
@@ -199,6 +205,7 @@ final class DynamicDispatcher: Sendable {
     /// **配る側(`reachable`・`triedBy`・`mayReceiveHandBack`)は全部ここを通す** —— 判定が割れると、覆ったエントリへ単位を渡して
     /// 子を起こすだけの空振りになる
     private static func isExcluded(entry: Int, unit: ScenarioUnitKey, _ s: State) -> Bool {
+        if !s.entryCandidate(unit, entry) { return true }
         guard let record = s.notApplicable[unit] else { return false }
         return record.tried.contains(entry)
             || NotApplicableHandoff.covered(String(entry), tried: Set(record.tried.map(String.init)),
@@ -327,9 +334,14 @@ final class DynamicDispatcher: Sendable {
         }
 
         // 対象外の記帳は見直しの中で変わらない(1回の drain で1回だけ作る)
-        let triedBy = s.notApplicable.reduce(into: [ScenarioUnitKey: Set<Int>]()) { result, element in
-            let entries = Set((s.entryKinds[element.value.platform] ?? [:]).keys)
-            result[element.key] = element.value.tried.union(entries.filter { Self.isExcluded(entry: $0, unit: element.key, s) })
+        // 台の条件に合わないエントリ(DR-237)は宣言のある単位ごとに試した扱いなので、対象外の記帳が無い単位も数える
+        let allEntries = Set(entryPlatforms.keys)
+        var triedBy: [ScenarioUnitKey: Set<Int>] = [:]
+        for unit in Set(s.pending.map(\.unitKey)).union(s.notApplicable.keys) {
+            let record = s.notApplicable[unit]
+            let entries = Set((record.flatMap { s.entryKinds[$0.platform] } ?? [:]).keys).union(allEntries)
+            let tried = (record?.tried ?? []).union(entries.filter { Self.isExcluded(entry: $0, unit: unit, s) })
+            if !tried.isEmpty { triedBy[unit] = tried }
         }
         var progressed = true
         while progressed {

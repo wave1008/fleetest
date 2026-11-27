@@ -49,7 +49,6 @@ final class LimitingDevicesWiringTests: XCTestCase {
 
     /// 空の条件を渡してよい呼び出し(ファイル → 件数と理由)。**理由が書けないものは足さない** —— 書けないなら条件を渡す
     private static let emptyConditionCalls: [String: (count: Int, reason: String)] = [
-        "ProfileRunner.swift": (1, "機械分担の親の前段の確認(lease)。機械をまたぐ run の台の観測は別の段で、ここは従来の絞り込み"),
         "ProfileRunner+Supply.swift": (1, "`preListingSupplyStart` の試算(一覧の前 = 宣言を知らない。台が減るかだけを見る)"),
         "ApiRunCommand.swift": (1, "一覧の前の仮の絞り込み(lease・開始スクリプトの台の一覧用。待たない回はこの結果で供給する = 宣言の文字列が無いか台を外さない)"),
     ]

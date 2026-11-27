@@ -229,16 +229,46 @@ enum FleetRunner {
             }
         }
 
+        // 台の条件(DR-237): 宣言があるときだけ、エントリごとに台の性質を観測して候補を決める。台の条件に合うエントリが無い単位は
+        // 割り当てない(対象外 = 緑)。子は自分の台を自分で観測する(--fleet の子へは運ばない)
+        var candidates: [ScenarioUnitKey: Set<Int>] = [:]
+        var runnable = split.runnable
+        if DeviceRequirementFanout.declares(selected) {
+            let entries = fleet.runs.map {
+                ProfileResolver.runDeviceEntries(project: project, runProfileName: $0.profile, overrides: setOverrides)
+            }
+            let jobs = fleet.runs.enumerated().map { index, entry in
+                DeviceRequirementFanout.Job(
+                    key: String(index), machine: entry.host == DeviceMachineGrouping.localDisplayName ? nil : entry.host,
+                    profile: entry.profile, entries: entries[index])
+            }
+            let observed = DeviceRequirementFanout.observe(
+                project: project.name, jobs: jobs, remote: DeviceRequirementFanout.liveFetch,
+                local: { DeviceTraitsObserver.observe(entries: $0) }, log: { log($0) })
+            let requirements = Dictionary(selected.compactMap { info in info.deviceRequirements.map { (info.id, $0) } },
+                                          uniquingKeysWith: { first, _ in first })
+            let platforms = Dictionary(selected.map { ($0.id, $0.platform) }, uniquingKeysWith: { first, _ in first })
+            let candidacy = DeviceRequirementFanout.candidacy(
+                units: runnable.map { ScenarioUnitKey(id: $0.id, variant: $0.variant) }, requirements: requirements,
+                platformOf: { platforms[$0.id] ?? nil },
+                entryDevices: fleet.runs.indices.map { Array((observed[String($0)] ?? [:]).values) })
+            let unmetIDs = Set(candidacy.unmet.map(\.id))
+            let unmet = selected.filter { unmetIDs.contains($0.id) }
+            for line in DeviceRequirementFanout.unmetLines(unmet) { log(line) }
+            runnable = runnable.filter { !unmetIDs.contains($0.id) }
+            candidates = candidacy.entries
+        }
+
         let buckets: [FleetSplit.Bucket]
         let basis: [FleetSplit.EstimateBasis]
         do {
             (buckets, basis) = try FleetSplit.plan(
-                scenarios: split.runnable,
+                scenarios: runnable,
                 durations: durations, entryPlatforms: entryPlatforms, unknownDurationMs: unknownDurationMs,
                 // 実績ゼロ = unknownDurationMs が単位重みのときは context を落とす(ms の offset が
                 // 重み1.0を支配して全シナリオが local へ寄る。FleetSplit.machineContext の宣言)
                 machineContext: FleetSplit.machineContext(machineContext, ifHistoryExists: durations),
-                groups: DynamicDispatcher.groups(of: selected, variant: nil))
+                groups: DynamicDispatcher.groups(of: selected, variant: nil), candidates: candidates)
         } catch let error as FleetSplit.FleetSplitError {
             throw ValidationError("fleet \"\(fleetName)\" --split: \(error.localizedDescription)")
         }
@@ -508,9 +538,10 @@ enum FleetRunner {
             if let remoteTimeout { args += ["--remote-timeout", String(remoteTimeout)] }
         } else {
             args += ["--runner", "local"]
-            // 親の観測を運ぶ(子は観測し直さない。空 = 宣言が無い・観測していない)。リモートの機械の子へは中継しない(別の段)
-            args += ChildDeviceTraits.args(deviceTraits)
         }
+        // 親の観測を運ぶ(子は観測し直さない。空 = 宣言が無い・観測していない)。リモートの機械の子(中継役)も受け、
+        // `RemoteRunArgs` が向こうの run へ中継する
+        args += ChildDeviceTraits.args(deviceTraits)
         if !deviceNames.isEmpty { args += ["--device"] + deviceNames }
         // **ホストも渡す** —— 一意なのは (host, name) なので、名前だけだと子が別の機械の
         // 同名デバイスまで掴む(実走で確認。RunProfile.filteringDevices の宣言)

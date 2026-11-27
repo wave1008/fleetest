@@ -35,6 +35,7 @@ final class DynamicDispatcherTests: XCTestCase {
                 return {}
             },
             lpt: lpt,
+            entryCandidate: { _, _ in true },
             entryKinds: { _ in [:] },
             send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
         return Harness(dispatcher: dispatcher, clock: clock, sent: sent, timers: timers, fires: fires)

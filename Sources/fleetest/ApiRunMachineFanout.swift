@@ -66,6 +66,9 @@ enum ApiRunMachineFanout {
         let listedHooksClass = LockedValue<String?>(nil)
         // 配るシナリオの scenarioTimeout(ロックの待ちの上限を求める材料。RR-8.5)
         let listedScenarioTimeouts = LockedValue<[Int?]>([])
+        // 台の条件(DR-237): 親が観測した機械ごとの性質(子へ運ぶ)と、単位ごとの候補エントリ。宣言が無い run は空 = 今までと同一
+        let observedTraits = LockedValue<MachineDeviceTraits>([:])
+        let candidacyBox = LockedValue<DeviceRequirementFanout.Candidacy>(.unconstrained)
         guard let (held, built) = try MachineFanoutFrontHalf.run(
             settings: .init(
                 mode: .apiRun, remoteDir: options.remoteDir, forceLock: false, waitLock: options.waitLock,
@@ -107,8 +110,19 @@ enum ApiRunMachineFanout {
                         project: project, runName: profileName, overrides: options.setOverrides),
                     log: { logStderr($0) })
 
+                // 台の条件(DR-237。DeviceMachineRunner.run と同じ): 宣言があるときだけ観測し、子へ運ぶ・候補を絞る
+                if DeviceRequirementFanout.declares(selected) {
+                    observedTraits.value = DeviceRequirementFanout.observe(
+                        project: project, profileName: profileName, groups: groups, overrides: options.setOverrides,
+                        log: { logStderr($0) })
+                    candidacyBox.value = DeviceRequirementFanout.candidacy(
+                        selected: selected, plan: plan, groups: groups, observed: observedTraits.value,
+                        defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
+                }
+                let candidacy = candidacyBox.value
                 // 動的な割り振り(RR-8.1。DeviceMachineRunner.run と同じ分岐。FT_STATIC_SPLIT=1 で静的へ戻る)
                 let notApplicable: [ScenarioInfo]
+                let unmet: [ScenarioInfo]
                 let active: [(index: Int, group: DeviceMachineRunner.Group, ids: [ScenarioUnitKey])]
                 var dynamicPlan: (scenarios: [DynamicSplit.Scenario],
                                   estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double)?
@@ -118,11 +132,14 @@ enum ApiRunMachineFanout {
                         project: project, runName: profileName, overrides: options.setOverrides)) {
                     let split = DeviceMachineRunner.splitApplicable(selected: selected, groups: groups, plan: plan)
                     notApplicable = split.notApplicable
+                    let (runnable, unmetNow) = candidacy.split(split.runnable)
+                    unmet = unmetNow
                     let resolved = DynamicDispatcher.resolve(
-                        split.runnable, plan: plan,
+                        runnable, plan: plan,
                         defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
                     active = groups.indices.compactMap { index in
                         let ids = DynamicDispatcher.candidateUnits(for: groups[index], in: resolved)
+                            .filter { candidacy.isCandidate($0, entry: index) }
                         return ids.isEmpty ? nil : (index, groups[index], ids)
                     }
                     if !active.isEmpty {
@@ -131,10 +148,11 @@ enum ApiRunMachineFanout {
                         dynamicPlan = (resolved, DeviceMachineRunner.dynamicEstimator(inputs: inputs, groups: groups))
                     }
                 } else {
-                    let (buckets, basis, notApplicableStatic) = try DeviceMachineRunner.assign(
+                    let (buckets, basis, notApplicableStatic, unmetStatic) = try DeviceMachineRunner.assign(
                         project: project, groups: groups, selected: selected, plan: plan,
-                        lptHistoryRuns: options.lptHistoryRuns)
+                        lptHistoryRuns: options.lptHistoryRuns, candidacy: candidacy)
                     notApplicable = notApplicableStatic
+                    unmet = unmetStatic
                     active = groups.indices.compactMap { index in
                         let ids = buckets[index].units
                         return ids.isEmpty ? nil : (index, groups[index], ids)
@@ -146,6 +164,7 @@ enum ApiRunMachineFanout {
                     }
                 }
                 for line in DeviceMachineRunner.notApplicableLines(notApplicable, groups: groups) { logStderr(line) }
+                for line in DeviceRequirementFanout.unmetLines(unmet) { logStderr(line) }
                 // 全部が宣言 platform の対象外なら単機の run と同じく 0/0 で終える(正しく緑)。
                 // それ以外で全滅(= 対象外でもないのに割り当て 0)は FleetSplit.partition が設定ミスとして
                 // throw 済みなので、ここへは来ない
@@ -166,13 +185,15 @@ enum ApiRunMachineFanout {
                     }
                 }
 
-                totalScenarios.withLock { $0 = plan.units(of: selected).count - plan.units(of: notApplicable).count }
+                totalScenarios.withLock { $0 = plan.units(of: selected).count - plan.units(of: notApplicable + unmet).count }
                 var leaseChecks: [MachineFanoutFrontHalf.LeaseCheck] = []
                 if let local = active.first(where: { $0.group.machine == nil }) {
                     let ids = Set(local.ids)
                     leaseChecks.append(.init(
                         project: project, profileName: profileName, localDeviceNames: local.group.deviceNames,
-                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: selected), broadcast: false))
+                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: selected), broadcast: false,
+                        deviceTraits: DeviceRequirementCandidacy.childTraits(
+                            observedTraits.value, machine: nil, deviceNames: local.group.deviceNames)))
                 }
                 return ((active, dynamicPlan), .init(
                     leaseChecks: leaseChecks, machines: active.map { $0.group.machineLabel }, prelockProject: project))
@@ -225,6 +246,7 @@ enum ApiRunMachineFanout {
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !options.noLPT,
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
+                              entryCandidate: { candidacyBox.value.isCandidate($0, entry: $1) },
                               entryLabel: { groups[$0].machineLabel }, log: { logStderr($0) },
                               entryKinds: { _ in IOSDeviceKindResolver.entryKinds(
                                   project: project, profileName: profileName, groups: groups, overrides: options.setOverrides) },
@@ -263,7 +285,9 @@ enum ApiRunMachineFanout {
                         project: project.name, profileName: profileName, group: group,
                         units: ids, options: options, runGroup: runGroup,
                         workQueue: dispatcher != nil, runMemoLink: true,
-                        lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control)
+                        lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control,
+                        deviceTraits: DeviceRequirementCandidacy.childTraits(
+                            observedTraits.value, machine: group.machine, deviceNames: group.deviceNames))
                     let childLink = ChildLink(relay: memoRelay, dispatcher: dispatcher, entry: groupIndex,
                                               writer: writers[groupIndex])
                     let start = Date()
@@ -377,8 +401,6 @@ enum ApiRunMachineFanout {
             args += ["--skip-build"]
             // 発行元のロックのサーバー(RR-8.5): 手元の子はその待ち受けへ直接つなぐ
             if let lockSocket { args += ["--lock-socket", lockSocket] }
-            // 親の観測を運ぶ(子は観測し直さない。空 = 宣言が無い・観測していない)。リモートの機械の子へは中継しない(別の段)
-            args += ChildDeviceTraits.args(deviceTraits)
         } else {
             // リモートの機械(ssh 越し)の子 = 中継役へ: その機械の待ち受け(ssh の `-R` の転送先)と、終わりの知らせ用の手元の待ち受け
             if let lockSocket, let lockControlSocket {
@@ -410,6 +432,8 @@ enum ApiRunMachineFanout {
         if machineLabel == DeviceMachineGrouping.localDisplayName, let reportDir = options.reportDir {
             args += ["--report-dir", reportDir]
         }
+        // 親の観測を運ぶ(子は観測し直さない。空 = 宣言が無い・観測していない)。リモートの機械の子(中継役)も受け、`RemoteRunArgs` が向こうへ中継する
+        args += ChildDeviceTraits.args(deviceTraits)
         args += ["--run-group", runGroup]
         return args
     }

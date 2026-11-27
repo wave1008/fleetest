@@ -104,6 +104,7 @@ final class NotApplicableMutualHandOnTests: XCTestCase {
             scenarios: ids.map { DynamicSplit.Scenario(id: $0, variant: nil, platform: "ios") },
             estimateMs: { _, _ in 1000 }, lpt: true,
             entryPlatforms: [0: ["ios"], 1: ["ios"]],
+            entryCandidate: { _, _ in true },
             entryKinds: { _ in [:] },
             send: { entry, reply in bridges[entry].deliver(reply) })
         for bridge in bridges { bridge.dispatcher.withLock { $0 = dispatcher } }

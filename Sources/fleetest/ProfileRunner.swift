@@ -147,7 +147,7 @@ enum ProfileRunner {
     static func rejectIfLocalDevicesLeasedBeforeDispatch(
         project: TestProject, profileName: String, setOverrides: [String: RunProfileSetValue],
         localDeviceNames: [String], localScenarios: [ScenarioInfo], broadcast: Bool,
-        waitLock: Int? = nil, interruptCheck: () -> Bool,
+        deviceTraits: [String: DeviceTraits] = [:], waitLock: Int? = nil, interruptCheck: () -> Bool,
         leaseStateDir: URL? = (try? RepoRoot.find())?.appendingPathComponent(".fleetest"),
         log: (String) -> Void = { _ in },
         emitWaiting: ((_ elapsedSeconds: Int, _ limitSeconds: Int?) -> Void)? = nil,
@@ -161,10 +161,12 @@ enum ProfileRunner {
             names: localDeviceNames, deviceMachine: DeviceMachineGrouping.localDisplayName)
         guard !full.devices.isEmpty else { return }
         let counts = full.scenarioCounts(localScenarios)
-        // 機械分担の親は台の観測を持たない(機械をまたぐ run の観測は別の段)ので、台の条件は渡さない = 従来の絞り込み
+        // 台の条件(DR-237): 子が使う台と同じ台を調べる(条件のあるシナリオに合う台を残す)。`deviceTraits` = 親が観測したこの機械のぶん
+        // (素の台の名前。宣言が無い run は空 = 従来の絞り込みと同一)
         let (resolved, _) = limitingDevicesAvoidingMCP(
             full, iosScenarios: counts.ios, androidScenarios: counts.android,
-            requirements: [], traits: [:], trim: !broadcast, leaseStateDir: leaseStateDir)
+            requirements: localScenarios.compactMap(\.deviceRequirements).filter { !$0.isEmpty },
+            traits: deviceTraits, trim: !broadcast, leaseStateDir: leaseStateDir)
         var elapsed = 0
         let stage = { "the check of the local device(s) (waited \(elapsed)s)" }
         while true {

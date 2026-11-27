@@ -850,6 +850,12 @@ struct ApiRunCommand: AsyncParsableCommand {
     /// (--debug)・ローカル専用系(--dry-run 等)はリモートでは意味を持たない/中継されないため
     /// 併用不可にする。--profile は既存の platform/port/serial 排他チェックで担保済みなので
     /// ここでは個別に確認しない
+    /// 親(機械分担)から受けた台の性質を、向こうの run へ中継する形(検査して素の JSON のまま。受けていなければ nil)
+    private func deviceTraitsToRelay() throws -> String? {
+        _ = try childTraits.decoded()
+        return childTraits.raw
+    }
+
     private func dispatchToRemoteHost(_ dispatch: EffectiveDispatchTarget, project: TestProject) async throws {
         guard let profile = common.profile else {
             throw ValidationError("--runner requires --profile")
@@ -898,7 +904,7 @@ struct ApiRunCommand: AsyncParsableCommand {
             runMemoLink: common.runMemoLink, fleetEntry: common.fleetEntry,
             lockSocket: common.lockSocket, lockControlSocket: common.lockControlSocket,
             remoteTimeoutSeconds: common.remoteTimeout, runGroup: common.runGroup,
-            variantNames: common.variantNames)
+            variantNames: common.variantNames, deviceTraitsJSON: try deviceTraitsToRelay())
         if exitCode != 0 {
             throw ExitCode(exitCode)
         }

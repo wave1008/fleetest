@@ -90,6 +90,9 @@ enum MultiTargetRunner {
         let estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double
         let healCollection: HealSourceWriteBack.Collection
         let infos: [ScenarioInfo]
+        /// 台の条件(DR-237): 親が観測した機械ごとの性質(子へ運ぶ)と、単位ごとの候補エントリ。宣言が無い対象は空 = 今までと同一
+        let traits: MachineDeviceTraits
+        let candidacy: DeviceRequirementFanout.Candidacy
     }
 
     private static func writerKey(_ unit: String, _ entry: Int) -> String { "\(unit)\u{1}\(entry)" }
@@ -271,12 +274,25 @@ enum MultiTargetRunner {
                             project: target.project, profile: target.profile, overrides: setOverrides,
                             variantNames: variantNames, selectors: [])
                     } catch { throw ValidationError("[\(id)] \(error.localizedDescription)") }
-                    let (runnable, notApplicable) = DeviceMachineRunner.splitApplicable(
+                    let (platformRunnable, notApplicable) = DeviceMachineRunner.splitApplicable(
                         selected: all, groups: target.groups, plan: plan)
-                    if !notApplicable.isEmpty { FleetRunner.log("==> \(id)") }
+                    // 台の条件(DR-237): 宣言があるときだけ、対象ごとに機械の台の性質を観測する
+                    var traits: MachineDeviceTraits = [:]
+                    var candidacy = DeviceRequirementFanout.Candidacy.unconstrained
+                    if DeviceRequirementFanout.declares(platformRunnable) {
+                        traits = DeviceRequirementFanout.observe(
+                            project: target.project, profileName: target.profile, groups: target.groups,
+                            overrides: setOverrides, log: { FleetRunner.log("[\(id)] " + $0) })
+                        candidacy = DeviceRequirementFanout.candidacy(
+                            selected: platformRunnable, plan: plan, groups: target.groups, observed: traits,
+                            defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: target.groups))
+                    }
+                    let (runnable, unmet) = candidacy.split(platformRunnable)
+                    if !notApplicable.isEmpty || !unmet.isEmpty { FleetRunner.log("==> \(id)") }
                     for line in DeviceMachineRunner.notApplicableLines(notApplicable, groups: target.groups) {
                         FleetRunner.log(line)
                     }
+                    for line in DeviceRequirementFanout.unmetLines(unmet) { FleetRunner.log(line) }
                     if ProfileResolver.declaresResponseMeasurement(
                         project: target.project, runName: target.profile, overrides: setOverrides),
                        let message = ClassPlacementRules.measurementError(runnable) {
@@ -295,8 +311,12 @@ enum MultiTargetRunner {
                     }
                     var entryByMachine: [Int: Int] = [:]
                     for (index, group) in target.groups.enumerated() {
+                        // 条件のあるシナリオしか残っていない対象で、台が1つも候補にならない機械は子を起こさない(配るものが無い)
+                        guard DynamicDispatcher.candidateUnits(for: group, in: resolved)
+                            .contains(where: { candidacy.isCandidate($0, entry: index) }) else { continue }
                         if let machine = machineLabels.firstIndex(of: group.machineLabel) { entryByMachine[machine] = index }
                     }
+                    let targetCandidacy = candidacy
                     let inputs = DeviceMachineRunner.estimationInputs(
                         project: target.project, groups: target.groups, lptHistoryRuns: lptHistoryRuns)
                     let estimate = DeviceMachineRunner.dynamicEstimator(inputs: inputs, groups: target.groups)
@@ -305,6 +325,7 @@ enum MultiTargetRunner {
                     let dispatcher = DynamicDispatcher(
                         scenarios: resolved, estimateMs: estimate, nowMs: clock, lpt: !noLPT,
                         entryPlatforms: DynamicDispatcher.entryPlatforms(groups: targetGroups),
+                        entryCandidate: { targetCandidacy.isCandidate($0, entry: $1) },
                         entryLabel: { targetGroups[$0].machineLabel },
                         log: { FleetRunner.log("[\(targetID)] " + $0) },
                         entryKinds: { [project = target.project, profile = target.profile] _ in
@@ -320,7 +341,7 @@ enum MultiTargetRunner {
                         entryByMachine: entryByMachine, resolved: resolved, dispatcher: dispatcher, memoHub: memoHub,
                         estimate: estimate,
                         healCollection: healByProject[target.project.name] ?? HealSourceWriteBack.Collection(),
-                        infos: runnable))
+                        infos: runnable, traits: traits, candidacy: candidacy))
                 }
                 guard !units.isEmpty else {
                     FleetRunner.log("==> no target has a scenario to run; nothing to run")
@@ -330,10 +351,14 @@ enum MultiTargetRunner {
                 var leaseChecks: [MachineFanoutFrontHalf.LeaseCheck] = []
                 for unit in units {
                     guard let local = unit.groups.first(where: { $0.machine == nil }) else { continue }
-                    let ids = Set(DynamicDispatcher.candidateUnits(for: local, in: unit.resolved))
+                    let localEntry = unit.groups.firstIndex(where: { $0.machine == nil }) ?? 0
+                    let ids = Set(DynamicDispatcher.candidateUnits(for: local, in: unit.resolved)
+                        .filter { unit.candidacy.isCandidate($0, entry: localEntry) })
                     leaseChecks.append(.init(
                         project: unit.project, profileName: unit.profile, localDeviceNames: local.deviceNames,
-                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: unit.infos), broadcast: false))
+                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: unit.infos), broadcast: false,
+                        deviceTraits: DeviceRequirementCandidacy.childTraits(
+                            unit.traits, machine: nil, deviceNames: local.deviceNames)))
                 }
                 return ((units, healByProject), .init(
                     leaseChecks: leaseChecks,
@@ -433,13 +458,16 @@ enum MultiTargetRunner {
             let args = DeviceMachineRunner.childArgs(
                 project: unit.project.name, host: group.machineLabel, profile: unit.profile,
                 deviceNames: group.deviceNames, deviceMachine: group.machineLabel,
-                scenarios: DynamicDispatcher.candidateUnits(for: group, in: unit.resolved).map(\.description), folders: [],
+                scenarios: DynamicDispatcher.candidateUnits(for: group, in: unit.resolved)
+                    .filter { unit.candidacy.isCandidate($0, entry: entry) }.map(\.description), folders: [],
                 setOverrides: setOverrides, noLPT: noLPT, lptHistoryRuns: lptHistoryRuns,
                 performanceMode: performanceMode, forceLock: forceLock,
                 remoteDir: remoteDir, remoteTimeout: remoteTimeout, quiet: quiet,
                 junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
                 runGroup: runGroup, reportDir: reportDir, workQueue: true, runMemoLink: true,
-                lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control)
+                lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control,
+                deviceTraits: DeviceRequirementCandidacy.childTraits(
+                    unit.traits, machine: group.machine, deviceNames: group.deviceNames))
             let dispatcher = unit.dispatcher
             let memoHub = unit.memoHub
             let marker = lockMarkers[group.machineLabel]

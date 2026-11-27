@@ -6,15 +6,19 @@ import Foundation
 public enum DeviceRequirementTrim {
     /// 台の性質。観測(`traits`。鍵 = プロファイルの台の名前 = 1機械の中で一意)は**この機械の台にだけ**効かせる
     /// (別の機械の同名の台に手元の観測を当てない)。無ければ platform と physical だけ確定・残りは読めなかった。
-    /// 別の機械の台の観測を足すのは、ここ1箇所を直す
+    /// 機械をまたぐ観測は親が `MachineDeviceTraits` で持ち、子へは自分の機械のぶんだけ運ぶ(`DeviceRequirementCandidacy.childTraits`)。
+    /// 子の中の台は全部この機械のものなので、ここは素の名前で引く
     public static func traits(of device: ResolvedDevice, observed: [String: DeviceTraits]) -> DeviceTraits {
         if MachineDispatch.normalize(device.spec.machine) == nil, let known = observed[device.name] { return known }
         return DeviceTraits(platform: device.platform, physical: device.spec.isPhysical)
     }
 
+    /// 機械の鍵(手元 = "local"。機械をまたぐ観測 `MachineDeviceTraits` の外側の鍵)
+    public static func machineKey(_ machine: String?) -> String { MachineDispatch.normalize(machine) ?? "local" }
+
     /// 識別子(機械 + 名前。同着の決め方 = 辞書順の最小に使う)
     static func id(of device: ResolvedDevice) -> String {
-        "\(MachineDispatch.normalize(device.spec.machine) ?? "local")/\(device.name)"
+        "\(machineKey(device.spec.machine))/\(device.name)"
     }
 
     private static func lanes(_ devices: [ResolvedDevice], observed: [String: DeviceTraits]) -> [DeviceRequirementMatch.Device] {

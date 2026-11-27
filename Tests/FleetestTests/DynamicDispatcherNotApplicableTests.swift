@@ -17,6 +17,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
             estimateMs: { _, _ in 1000 },
             lpt: true,
             entryPlatforms: Dictionary(uniqueKeysWithValues: (0..<entries).map { ($0, Set(["ios"])) }),
+            entryCandidate: { _, _ in true },
             entryKinds: kinds,
             send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
     }
@@ -84,6 +85,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
         let d = DynamicDispatcher(
             scenarios: [iosFold, androidFold], estimateMs: { _, _ in 1000 }, lpt: true,
             entryPlatforms: [0: ["ios", "android"], 1: ["ios", "android"]],
+            entryCandidate: { _, _ in true },
             entryKinds: { _ in [0: ["pro"], 1: ["pro"]] }, send: { _, _ in })
         XCTAssertEqual(d.handle(want(1, lane: "pro"), fromEntry: 0), .init(req: 1, unit: ScenarioUnitKey(id: "Fold.S1", variant: nil)))
         XCTAssertEqual(d.handleNotApplicable(na(2, id: "Fold.S1", lane: "pro", kinds: ["pro"]), fromEntry: 0), .init(req: 2, verdict: .skipped),
@@ -260,6 +262,7 @@ final class DynamicDispatcherNotApplicableTests: XCTestCase {
             timer: { _, _ in {} },
             lpt: false,
             entryPlatforms: [0: ["ios"], 1: ["ios"], 2: ["ios"]],
+            entryCandidate: { _, _ in true },
             entryKinds: { _ in [:] },
             send: { entry, reply in sent.withLock { $0.append("\(entry):\(WorkQueueProtocol.encode(reply))") } })
         XCTAssertEqual(d.handle(want(1, lane: "x"), fromEntry: 0), .init(req: 1, unit: keyA))

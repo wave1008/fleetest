@@ -125,6 +125,9 @@ enum DeviceMachineRunner {
         let listedHooksClass = LockedValue<String?>(nil)
         // 配るシナリオの scenarioTimeout(@Test の指定。ロックの待ちの上限 = 最長の実効値を求める材料。RR-8.5)
         let listedScenarioTimeouts = LockedValue<[Int?]>([])
+        // 台の条件(DR-237): 親が観測した機械ごとの性質(子へ運ぶ)と、単位ごとの候補エントリ。宣言が無い run は空 = 今までと同一
+        let observedTraits = LockedValue<MachineDeviceTraits>([:])
+        let candidacyBox = LockedValue<DeviceRequirementFanout.Candidacy>(.unconstrained)
         guard let (held, built) = try MachineFanoutFrontHalf.run(
             settings: .init(
                 mode: .cliRun, remoteDir: remoteDir, forceLock: forceLock, waitLock: waitLock,
@@ -178,6 +181,18 @@ enum DeviceMachineRunner {
                         project: project, runName: profileName, overrides: setOverrides),
                     log: { FleetRunner.log($0) })
 
+                // 台の条件(DR-237): 宣言があるときだけ、機械ごとに台の性質を観測する(リモートは remote exec)。
+                // --broadcast は分けない(各台が自分で判定する)ので候補の絞り込みはしないが、子へ性質は運ぶ
+                if DeviceRequirementFanout.declares(selected) {
+                    observedTraits.value = DeviceRequirementFanout.observe(
+                        project: project, profileName: profileName, groups: groups, overrides: setOverrides)
+                    if !broadcast {
+                        candidacyBox.value = DeviceRequirementFanout.candidacy(
+                            selected: selected, plan: plan, groups: groups, observed: observedTraits.value,
+                            defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
+                    }
+                }
+                let candidacy = candidacyBox.value
                 let active: [(Int, Group, [ScenarioUnitKey])]
                 // 動的な割り振りのときだけ入る(RR-8.1)
                 var dynamicPlan: (scenarios: [DynamicSplit.Scenario], estimate: @Sendable (DynamicSplit.Scenario, Int) -> Double)?
@@ -194,12 +209,15 @@ enum DeviceMachineRunner {
                     broadcast: broadcast,
                     measuresResponse: ProfileResolver.declaresResponseMeasurement(
                         project: project, runName: profileName, overrides: setOverrides)) {
-                    let (runnable, notApplicable) = splitApplicable(selected: selected, groups: groups, plan: plan)
+                    let (platformRunnable, notApplicable) = splitApplicable(selected: selected, groups: groups, plan: plan)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
+                    let (runnable, unmet) = candidacy.split(platformRunnable)
+                    for line in DeviceRequirementFanout.unmetLines(unmet) { FleetRunner.log(line) }
                     let resolved = DynamicDispatcher.resolve(
                         runnable, plan: plan, defaultPlatform: DynamicDispatcher.undeclaredPlatform(groups: groups))
                     active = groups.indices.compactMap { index -> (Int, Group, [ScenarioUnitKey])? in
                         let ids = DynamicDispatcher.candidateUnits(for: groups[index], in: resolved)
+                            .filter { candidacy.isCandidate($0, entry: index) }
                         return ids.isEmpty ? nil : (index, groups[index], ids)
                     }
                     guard !active.isEmpty else {
@@ -211,9 +229,11 @@ enum DeviceMachineRunner {
                     FleetRunner.log("==> dynamic split: \(resolved.count) scenario(s) across \(active.count) machine(s)"
                         + " — each free device takes the next scenario")
                 } else {
-                    let (buckets, basis, notApplicable) = try assign(
-                        project: project, groups: groups, selected: selected, plan: plan, lptHistoryRuns: lptHistoryRuns)
+                    let (buckets, basis, notApplicable, unmet) = try assign(
+                        project: project, groups: groups, selected: selected, plan: plan, lptHistoryRuns: lptHistoryRuns,
+                        candidacy: candidacy)
                     for line in notApplicableLines(notApplicable, groups: groups) { FleetRunner.log(line) }
+                    for line in DeviceRequirementFanout.unmetLines(unmet) { FleetRunner.log(line) }
                     active = groups.indices.compactMap { index -> (Int, Group, [ScenarioUnitKey])? in
                         let ids = buckets[index].units
                         return ids.isEmpty ? nil : (index, groups[index], ids)
@@ -238,7 +258,9 @@ enum DeviceMachineRunner {
                     let ids = Set(local.2)
                     leaseChecks.append(.init(
                         project: project, profileName: profileName, localDeviceNames: local.1.deviceNames,
-                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: selected), broadcast: broadcast))
+                        localScenarios: DeviceMachineRunner.infos(forUnits: ids, from: selected), broadcast: broadcast,
+                        deviceTraits: DeviceRequirementCandidacy.childTraits(
+                            observedTraits.value, machine: nil, deviceNames: local.1.deviceNames)))
                 }
                 return ((active, dynamicPlan), .init(
                     leaseChecks: leaseChecks, machines: active.map { $0.1.machineLabel }, prelockProject: project))
@@ -281,6 +303,7 @@ enum DeviceMachineRunner {
         let dispatcher: DynamicDispatcher? = dynamicPlan.map { plan in
             DynamicDispatcher(scenarios: plan.scenarios, estimateMs: plan.estimate, lpt: !noLPT,
                               entryPlatforms: DynamicDispatcher.entryPlatforms(groups: groups),
+                              entryCandidate: { candidacyBox.value.isCandidate($0, entry: $1) },
                               entryLabel: { groups[$0].machineLabel }, log: { FleetRunner.log($0) },
                               entryKinds: { _ in IOSDeviceKindResolver.entryKinds(
                                   project: project, profileName: profileName, groups: groups, overrides: setOverrides) },
@@ -309,7 +332,9 @@ enum DeviceMachineRunner {
                         junitPath: FleetRunner.entryJUnitPath(tempDir: junitTempDir, index: index),
                         broadcast: broadcast, runGroup: runGroup, reportDir: reportDir,
                         workQueue: dispatcher != nil, runMemoLink: true,
-                        lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control)
+                        lockSocket: lockSockets?.lockSocket, lockControlSocket: lockSockets?.control,
+                        deviceTraits: DeviceRequirementCandidacy.childTraits(
+                            observedTraits.value, machine: group.machine, deviceNames: group.deviceNames))
                     let start = Date()
                     let exitCode = await FleetRunner.runEntry(
                         binary: binary, args: args, hostLabel: group.machineLabel, ticket: ticket,
@@ -591,11 +616,15 @@ enum DeviceMachineRunner {
     /// 外して返す(単機の ProfileRunner と同じ規律。FleetSplit.applicability の宣言)。呼び手は
     /// 単機と同じ文言でスキップを出す。子 run には渡さない —— api 経路の MachineFanoutMultiplexer は
     /// 子に渡した ID のうちイベントが来なかったものを failed に合成するため、渡すと赤になる
+    /// **台の条件(DR-237)で配れないシナリオ(`unmet`)も同じく割り当てから外して返す**(対象外 = 緑。子へ渡さない理由は同じ)。
+    /// 条件のあるシナリオは候補のエントリにだけ割り当てる(`candidacy`。既定値なし = 渡し忘れをコンパイルで止める)
     static func assign(project: TestProject, groups: [Group],
-                       selected: [ScenarioInfo], plan: RunVariantPlan, lptHistoryRuns: Int?)
+                       selected: [ScenarioInfo], plan: RunVariantPlan, lptHistoryRuns: Int?,
+                       candidacy: DeviceRequirementFanout.Candidacy)
         throws -> (buckets: [FleetSplit.Bucket], basis: [FleetSplit.EstimateBasis],
-                   notApplicable: [ScenarioInfo]) {
-        let (runnable, notApplicable) = splitApplicable(selected: selected, groups: groups, plan: plan)
+                   notApplicable: [ScenarioInfo], unmet: [ScenarioInfo]) {
+        let (platformRunnable, notApplicable) = splitApplicable(selected: selected, groups: groups, plan: plan)
+        let (runnable, unmet) = candidacy.split(platformRunnable)
         let inputs = estimationInputs(project: project, groups: groups, lptHistoryRuns: lptHistoryRuns)
         do {
             let plan = try FleetSplit.plan(
@@ -605,8 +634,9 @@ enum DeviceMachineRunner {
                 unknownDurationMs: inputs.unknownDurationMs,
                 entryCapacities: groups.map { Double($0.deviceNames.count) },
                 machineContext: inputs.machineContext,
-                groups: DynamicDispatcher.groups(of: runnable, plan: plan))
-            return (plan.buckets, plan.basis, notApplicable)
+                groups: DynamicDispatcher.groups(of: runnable, plan: plan),
+                candidates: candidacy.entries)
+            return (plan.buckets, plan.basis, notApplicable, unmet)
         } catch let error as FleetSplit.FleetSplitError {
             throw ValidationError("profile \"\(project.name)\": \(error.localizedDescription)")
         }

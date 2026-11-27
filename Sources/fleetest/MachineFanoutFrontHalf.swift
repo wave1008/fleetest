@@ -62,6 +62,8 @@ enum MachineFanoutFrontHalf {
         let localDeviceNames: [String]
         let localScenarios: [ScenarioInfo]
         let broadcast: Bool
+        /// 親が観測したこの機械の台の性質(素の台の名前。DR-237。宣言が無ければ空)
+        let deviceTraits: [String: DeviceTraits]
     }
 
     /// `build` の答え。配分が確定した後に前段が使う
@@ -166,7 +168,7 @@ enum MachineFanoutFrontHalf {
             try ProfileRunner.rejectIfLocalDevicesLeasedBeforeDispatch(
                 project: check.project, profileName: check.profileName, setOverrides: settings.setOverrides,
                 localDeviceNames: check.localDeviceNames, localScenarios: check.localScenarios,
-                broadcast: check.broadcast, waitLock: deadline.remaining(),
+                broadcast: check.broadcast, deviceTraits: check.deviceTraits, waitLock: deadline.remaining(),
                 interruptCheck: parentInterrupt.isSet, log: log, emitWaiting: settings.emitLocalDevicesWaiting)
         }
 

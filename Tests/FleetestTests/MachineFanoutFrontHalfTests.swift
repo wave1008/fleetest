@@ -46,7 +46,7 @@ final class MachineFanoutFrontHalfTests: XCTestCase {
         // ビルドの後の段は、ビルドにかかった時間を外した期限から残りを取る(上限は待ちの合計 = 利用者向けの docs)
         XCTAssertTrue(text.contains("let deadline = deadlineAtEntry.excluding(Date().timeIntervalSince(buildStart))"),
                       "ビルドの時間を待ちの期限に数えている")
-        XCTAssertTrue(text.contains("broadcast: check.broadcast, waitLock: deadline.remaining(),"),
+        XCTAssertTrue(text.contains("deviceTraits: check.deviceTraits, waitLock: deadline.remaining(),"),
                       "手元のデバイスの使用中の待ちが残りを渡していない")
         XCTAssertTrue(text.contains("waitLockProvider: { deadline.remaining() },"),
                       "機械ごとの Prelock が残りを渡していない")

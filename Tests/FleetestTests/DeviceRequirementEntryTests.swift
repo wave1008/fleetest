@@ -121,8 +121,8 @@ final class DeviceRequirementEntryTests: XCTestCase {
         XCTAssertNil(try RunScenarios.parse(["--profile", "p"]).childTraits.decoded())
     }
 
-    /// 子の引数の組み立て: 手元の子だけに載る・空なら載らない
-    func testLocalChildArgsCarryTheTraitsOnly() {
+    /// 子の引数の組み立て: 手元の子にも中継役(リモートの機械の子)にも載る・空なら載らない
+    func testChildArgsCarryTheTraitsForLocalAndRemote() {
         let with = FleetRunner.buildArgs(
             project: "p", host: "local", profile: "r", fleetEntry: false, scenarios: [], folders: [],
             noLPT: false, lptHistoryRuns: nil, performanceMode: false, forceLock: false, remoteDir: nil,
@@ -135,11 +135,11 @@ final class DeviceRequirementEntryTests: XCTestCase {
             noLPT: false, lptHistoryRuns: nil, performanceMode: false, forceLock: false, remoteDir: nil,
             remoteTimeout: nil, quiet: false, junitPath: nil)
         XCTAssertFalse(without.contains("--device-traits"))
-        // リモートの機械の子(中継役)へは載せない(別の段)
+        // リモートの機械の子(中継役)へも載せる(`RemoteRunArgs` が向こうの run へ中継する = U6)
         let remote = FleetRunner.buildArgs(
             project: "p", host: "M1", profile: "r", fleetEntry: false, scenarios: [], folders: [],
             noLPT: false, lptHistoryRuns: nil, performanceMode: false, forceLock: false, remoteDir: nil,
             remoteTimeout: nil, quiet: false, junitPath: nil, deviceTraits: sample)
-        XCTAssertFalse(remote.contains("--device-traits"))
+        XCTAssertTrue(remote.contains("--device-traits"))
     }
 }

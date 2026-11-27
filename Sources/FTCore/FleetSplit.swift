@@ -179,6 +179,8 @@ public enum FleetSplit {
     /// - groups: シナリオ ID → 寄せる属性のクラス(RR-8.3)。同じクラスのメンバーは1つの塊(1ジョブ)として、
     ///   メンバー全部の platform を回せるエントリへ丸ごと置く。重さ = メンバーの見積りの和(台数で割るのは今までと同じ)。
     ///   空(既定)なら今までと同じ割り当て
+    /// - candidates: 単位 → 受けてよいエントリ番号(台の条件 = DR-237。`DeviceRequirementCandidacy`)。**載っていない単位は全エントリ**。
+    ///   塊はメンバー全部が受けられるエントリだけ。空(既定)なら今までと同じ割り当て
     /// - machineContext: 機械ごとの速度差・ディスパッチ固定費を見積りへ反映する(リモート実行)。
     ///   **投入順(降順ソート)は machineContext の有無によらず混合見積りで決める**
     ///   (機械非依存 = 決定的。エントリごとに順序が割れない)。nil(既定)は
@@ -190,11 +192,12 @@ public enum FleetSplit {
         unknownDurationMs: Double,
         entryCapacities: [Double]? = nil,
         machineContext: MachineContext? = nil,
-        groups: [ScenarioUnitKey: DynamicSplit.Group] = [:]
+        groups: [ScenarioUnitKey: DynamicSplit.Group] = [:],
+        candidates: [ScenarioUnitKey: Set<Int>] = [:]
     ) throws -> [Bucket] {
         try plan(scenarios: scenarios, durations: durations, entryPlatforms: entryPlatforms,
                  unknownDurationMs: unknownDurationMs, entryCapacities: entryCapacities,
-                 machineContext: machineContext, groups: groups).buckets
+                 machineContext: machineContext, groups: groups, candidates: candidates).buckets
     }
 
     /// partition と同じ割り当てに、見積りの根拠(EstimateBasis)を添えて返す。
@@ -207,7 +210,8 @@ public enum FleetSplit {
         unknownDurationMs: Double,
         entryCapacities: [Double]? = nil,
         machineContext: MachineContext? = nil,
-        groups: [ScenarioUnitKey: DynamicSplit.Group] = [:]
+        groups: [ScenarioUnitKey: DynamicSplit.Group] = [:],
+        candidates: [ScenarioUnitKey: Set<Int>] = [:]
     ) throws -> (buckets: [Bucket], basis: [EstimateBasis]) {
         let capacities = entryCapacities ?? [Double](repeating: 1, count: entryPlatforms.count)
         precondition(capacities.count == entryPlatforms.count,
@@ -265,6 +269,7 @@ public enum FleetSplit {
             // 塊はメンバー全部の platform を回せるエントリだけ
             let fitting = entryPlatforms.indices.filter { index in
                 unit.allSatisfy { scenario in
+                    if let allowed = candidates[keyOf(scenario)], !allowed.contains(index) { return false }
                     guard let platform = scenario.platform else { return !entryPlatforms[index].isEmpty }
                     return entryPlatforms[index].contains(platform)
                 }

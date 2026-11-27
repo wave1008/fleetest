@@ -21,6 +21,7 @@ final class DynamicDispatcherClassPlacementTests: XCTestCase {
         let dispatcher = DynamicDispatcher(
             scenarios: scenarios, estimateMs: { _, _ in 1000 }, nowMs: { 0 },
             timer: { _, _ in {} }, lpt: true, entryPlatforms: platforms,
+            entryCandidate: { _, _ in true },
             entryLabel: { "M\($0)" }, log: { line in logs.withLock { $0.append(line) } },
             entryKinds: { _ in [:] },
             send: { _, _ in })
