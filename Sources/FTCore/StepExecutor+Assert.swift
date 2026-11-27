@@ -231,7 +231,7 @@ extension StepExecutor {
             // in-app の木では立つ)。MCP の一致なしの断り(`hiddenOrOffscreenHint`)と同じ判定 `KeyboardWait.isShown` で「消えうる」と言う
             guard KeyboardWait.isShown(snapshot) else { return "" }
             return " (the soft keyboard is up. If this app shrinks its window above it (Compose Multiplatform does), what sat"
-                + " below it is gone from the tree: close it first (hideKeyboard()) and retry. If the element is still missing"
+                + " below it drops out of the tree: close it first (hideKeyboard()) and retry. If the element is still missing"
                 + " with the keyboard closed, it is not on this screen.)"
         }
         return " (the soft keyboard is up at (\(Int(saturating: kb.x)),\(Int(saturating: kb.y))"

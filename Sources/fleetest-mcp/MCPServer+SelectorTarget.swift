@@ -45,7 +45,7 @@ extension MCPServer {
                     + " ft_hide_keyboard and look again."
             }
             return " The soft keyboard is up. If this app shrinks its window above it (Compose Multiplatform does), what sat"
-                + " below it is gone from the tree: close it with ft_hide_keyboard and look again (still missing = not on this screen)."
+                + " below it drops out of the tree: close it with ft_hide_keyboard and look again (still missing = not on this screen)."
         }
         return " If it is outside the visible part of a list, ft_scroll_to it first, then act on it."
     }
