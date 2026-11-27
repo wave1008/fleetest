@@ -331,12 +331,22 @@ public struct BridgeProvisioner: Sendable {
                 })
         }
         let results = await Self.runWithLaunchSlots(
-            zip(plans, slotted).map { (item: $0, slotted: $1) }, width: Self.launchSlotWidth) { plan in
+            zip(plans, slotted).map { (item: (plan: $0, slotted: $1), slotted: $1) },
+            width: Self.launchSlotWidth) { entry in
+            let plan = entry.plan
             do {
-                return Result<ProvisionedIOSDevice, Error>.success(try await self.executeDevice(
-                    plan: plan, bundleID: bundleID,
-                    preinstallAppPath: preinstallAppPath,
-                    claimBarrier: claimBarrier, lockHold: lockHold, log: safeLog))
+                // 枠に並ぶ台は機械全体の枠(別の run・子プロセスと合算で同時2台)も取る
+                let execute = {
+                    try await self.executeDevice(
+                        plan: plan, bundleID: bundleID,
+                        preinstallAppPath: preinstallAppPath,
+                        claimBarrier: claimBarrier, lockHold: lockHold, log: safeLog)
+                }
+                let device = entry.slotted
+                    ? try await InAppLaunchSlots.shared.withSlot(
+                        owner: plan.sim.udid, what: "an in-app launch", log: safeLog, execute)
+                    : try await execute()
+                return Result<ProvisionedIOSDevice, Error>.success(device)
             } catch {
                 return .failure(error)
             }
@@ -806,8 +816,9 @@ public struct BridgeProvisioner: Sendable {
         launchesInApp || launchesColdSimulator
     }
 
-    /// 枠に並ぶ台を同時に起動する数(ユーザー決定の「一括起動は同時2台」)
-    static let launchSlotWidth = 2
+    /// 1プロセス内で枠に並ぶ台を同時に起動する数。機械全体の枠(`InAppLaunchSlots`)と同じ値で、
+    /// 枠の取得を待つ台でタスクを溢れさせないための手前の絞り
+    static let launchSlotWidth = InAppLaunchSlots.concurrency
 
     /// `slotted` の項目は同時 `width` 個まで(1つ終わるたびに次を起こす)、それ以外は最初から全部走らせる。結果は items の順
     static func runWithLaunchSlots<Item: Sendable, Output: Sendable>(
