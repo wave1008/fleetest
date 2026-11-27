@@ -63,7 +63,7 @@ final class ClearAppDataContractTests: XCTestCase {
     }
 
     /// **cfprefsd を起こし直す撃ち方を Sources のどこにも書かない**(コメントは除く)。起こし直すと SpringBoard の外観の部品が
-    /// 以後の外観の変更を受け取れなくなる(外観が届かない件 = docs/verification/resolved.md。clearAppData と AppleSimulatorWipe の2か所にあった)
+    /// 以後の外観の変更を受け取れなくなる(外観が届かない件 = docs/verification/resolved.md)
     func testNoSourceRestartsCfprefsd() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root.appendingPathComponent("Sources"), includingPropertiesForKeys: nil))

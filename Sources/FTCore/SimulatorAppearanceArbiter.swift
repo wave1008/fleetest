@@ -1,6 +1,6 @@
 // シミュレータの SpringBoard が外観の変更をアプリへ届けられる状態かを、XCUITest ランナーを起こす前に1回確かめる。
-// 届けられない SpringBoard は、外観の部品(`UserInterfaceStyleArbiter`)が変更を受けない(cfprefsd を起こし直すと以後ずっとそうなる =
-// clearAppData がそうしていた。今は撃たない = FTBridgeClient の SimulatorPreferencesFlush。他の経路で起きたときの守りとして残す)。
+// 届けられない SpringBoard は、外観の部品(`UserInterfaceStyleArbiter`)が変更を受けない(cfprefsd を起こし直すと以後ずっとそうなる。
+// ツールは起こし直さない = FTBridgeClient の SimulatorPreferencesFlush。利用者の手作業など他の経路で起きたときの守り)。
 // 起こし直せば直る(15 回中 15 回)。
 // 確かめ方: ①今の SpringBoard(pid)の部品の起動の行を統合ログで見つける(起こし直した直後なら立ち上がるまで待つ。見つからなければ
 // 確かめない = OS の更新でログの文言が変わっても、反応なしと読んで起こし直さない)②外観を反対へ1度変えて元へ戻し、その pid の部品が

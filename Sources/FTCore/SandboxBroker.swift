@@ -146,23 +146,23 @@ public enum SimctlPolicy {
     }
 
     /// `defaults delete` してよいドメインのパス = レーンの Simulator の `data/Containers/{Data/Application,Shared/AppGroup}/<容器>/Library/Preferences/<ドメイン>`。
-    /// 別の Simulator・容器の外・ホストの設定は断る(パスは正規化してから比べる = symlink と `..` で外へ出さない)
+    /// 別の Simulator・容器の外・ホストの設定は断る(容器の中の symlink で外へ出る形は `SimulatorPreferencesPath.isDomain` が断る)
     static func preferencesDomain(_ path: String, context: Context) -> Refusal? {
         let refusal = Refusal(reason: "simctl spawn defaults delete is only allowed for a preferences domain inside"
             + " this lane's app containers: \(path)")
-        guard let udid = context.udid, !path.contains("/../"), !path.hasSuffix("/..") else { return refusal }
-        let domain = (path as NSString).lastPathComponent
-        let preferencesDir = (path as NSString).deletingLastPathComponent
-        guard isBundleID(domain), preferencesDir.hasSuffix("/Library/Preferences") else { return refusal }
-        let container = ScenarioSandbox.canonicalPath(((preferencesDir as NSString).deletingLastPathComponent as NSString)
-            .deletingLastPathComponent)
-        let root = ScenarioSandbox.canonicalPath(FileManager.default.homeDirectoryForCurrentUser.path
-            + "/Library/Developer/CoreSimulator/Devices/\(udid)/data/Containers")
-        for kind in ["/Data/Application/", "/Shared/AppGroup/"] where container.hasPrefix(root + kind) {
-            let rest = container.dropFirst(root.count + kind.count)
-            if !rest.isEmpty, !rest.contains("/") { return nil }
+        guard let udid = context.udid else { return refusal }
+        let container = (((path as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent as NSString)
+            .deletingLastPathComponent
+        let root = FileManager.default.homeDirectoryForCurrentUser.path
+            + "/Library/Developer/CoreSimulator/Devices/\(udid)/data/Containers"
+        let realContainer = ScenarioSandbox.canonicalPath(container)
+        let realRoot = ScenarioSandbox.canonicalPath(root)
+        let inLane = ["/Data/Application/", "/Shared/AppGroup/"].contains { kind in
+            guard realContainer.hasPrefix(realRoot + kind) else { return false }
+            let name = realContainer.dropFirst(realRoot.count + kind.count)
+            return !name.isEmpty && !name.contains("/")
         }
-        return refusal
+        return inLane && SimulatorPreferencesPath.isDomain(path, inContainer: container) ? nil : refusal
     }
 
     private static func shape(_ verb: String) -> Refusal {

@@ -92,10 +92,13 @@ public enum AppleSimulatorWipe {
             throw DriverError.badResponse(status: 500, body: "could not resolve the data container for \(bundleID)")
         }
         // 設定のキャッシュは空にする前に cfprefsd に消させる(group の分は下で同じく。理由と順序は SimulatorPreferencesFlush 冒頭)
-        // symlink の容器は辿らない(下の emptyContents が断る。その前に先の設定を消させない)
+        // symlink の容器・設定の置き場は辿らない(下の emptyContents が容器を断る。その前に先の設定を消させない)
         func flushUnlessLinked(_ container: String) -> [(path: String, detail: String)] {
-            (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil ? []
-                : SimulatorPreferencesFlush.flush(udid: udid, domainPaths: SimulatorPreferencesFlush.domainPaths(container: container))
+            if (try? FileManager.default.destinationOfSymbolicLink(atPath: container)) != nil { return [] }
+            guard let domains = SimulatorPreferencesFlush.domainPaths(container: container) else {
+                return [(container + "/Library/Preferences", "a symbolic link — refusing to clear the preferences it points to")]
+            }
+            return SimulatorPreferencesFlush.flush(udid: udid, domainPaths: domains)
         }
         var unflushed = flushUnlessLinked(dataPath)
         guard let dataWipe = emptyContents(of: dataPath) else {

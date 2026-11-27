@@ -480,7 +480,12 @@ public final class BridgeClient: AppDriver, Sendable {
         // **ファイルを消しただけでは NSUserDefaults が戻ってくる**: cfprefsd がドメインをメモリに抱えており、次の起動で
         // 消したはずの値を配って plist を書き直す(消して起動を3回で launch_count が 2→3→4)。空にする前に、ドメインを
         // パスで名指しして cfprefsd に消させる。**cfprefsd を起こし直さない**(SpringBoard の外観の部品が壊れる = SimulatorPreferencesFlush 冒頭)
-        let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: SimulatorPreferencesFlush.domainPaths(container: path))
+        guard let domains = SimulatorPreferencesFlush.domainPaths(container: path) else {
+            throw DriverError.badResponse(status: 500,
+                body: "Library/Preferences in the data container of \(bundleID) is a symbolic link — refusing to clear"
+                    + " the preferences it points to")
+        }
+        let unflushed = SimulatorPreferencesFlush.flush(udid: target, domainPaths: domains)
         guard unflushed.isEmpty else {
             throw DriverError.badResponse(status: 500,
                 body: "could not clear the cached preferences of \(bundleID) before clearing its data"
