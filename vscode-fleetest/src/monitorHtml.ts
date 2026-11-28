@@ -231,6 +231,17 @@ function renderDashboardPanel(): string {
       <div id="runs-compare" class="runs-compare" style="display: none;">
         <h3 id="runs-compare-heading"></h3>
         <div id="runs-compare-note" class="perf-summary-note" style="display: none;"></div>
+        <div id="runs-compare-hostload" style="display: none;">
+          <h4>${t("exploreHeal.dashboard.hostLoadHeading")}</h4>
+          <div class="dash-table-scroll">
+          <table id="table-runs-hostload" class="dash-table">
+            <thead>
+              <tr><th></th><th>${t("exploreHeal.dashboard.hostLoadColMachine")}</th><th class="num">${t("exploreHeal.dashboard.hostLoadColCpuMedian")}</th><th class="num">${t("exploreHeal.dashboard.hostLoadColCpuPeak")}</th><th class="num">${t("exploreHeal.dashboard.hostLoadColGpuMedian")}</th><th class="num">${t("exploreHeal.dashboard.hostLoadColGpuPeak")}</th><th class="num">${t("exploreHeal.dashboard.hostLoadColMem")}</th></tr>
+            </thead>
+            <tbody id="table-runs-hostload-body"></tbody>
+          </table>
+          </div>
+        </div>
         <div id="runs-compare-status" class="section-empty" style="display: none;"></div>
         <div class="dash-table-scroll">
         <table id="table-runs-compare" class="dash-table" style="display: none;">

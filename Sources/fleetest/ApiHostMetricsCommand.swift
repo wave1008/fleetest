@@ -5,7 +5,7 @@
 // doc コメントは Sources/FTCore/HostMetricsSampler.swift 参照(失敗時はクラッシュさせず該当
 // フィールドを null にし、stderr ログはサンプラー毎に初回1回だけ)。
 // --log 指定時は各サンプルを NDJSON ファイルへも追記する(16MiB で .1 へ1世代ローテ・行アトミック追記)。
-// 集計は api host-metrics-summary。
+// 集計は RunHostLoad(api results-compare の hostLoad)。
 // fmCalls/fmFailures/fmTotalMs はこのプロセス自身の実測ではない —— FM を実際に呼ぶのは
 // 各シナリオランナー(FTFoundationModels)で、このコマンドは FMUsageLedger の控えを毎 tick
 // 読むだけ(Sources/FTCore/FMUsageLedger.swift 参照)。visionCalls/visionFailures/visionTotalMs も同じ

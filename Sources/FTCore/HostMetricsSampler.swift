@@ -2,7 +2,7 @@
 // ホストMac負荷(CPU/GPU/メモリ)のサンプラー群+NDJSON行の型(HostMetricsSample)+
 // run 単位の 1Hz 記録器(HostMetricsRecorder)。
 // NDJSON の hostMetrics 行形(フィールド一覧)は vscode-fleetest/src/monitorProcessManager.ts の
-// isHostMetricsEvent/HostMetricsRawEvent と Sources/fleetest/ApiHostMetricsSummaryCommand.swift の
+// isHostMetricsEvent/HostMetricsRawEvent と Sources/FTCore/RunHostLoad.swift の
 // パーサーが読む契約。フィールドを増減したら両方も更新すること(一覧はここに1箇所、重複させない)。
 
 import Foundation

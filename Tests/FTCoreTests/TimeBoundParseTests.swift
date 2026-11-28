@@ -50,11 +50,8 @@ final class TimeBoundParseTests: XCTestCase {
         XCTAssertNotNil(RunResultsQuery.parseSince("90s", referenceDate: now))
     }
 
-    /// 旧 host-metrics-summary の --since/--until 解釈(現在は fleetest 側から
-    /// TimeBoundParse.parse を直接呼ぶ。FTCoreTests は fleetest モジュールに依存しないため
-    /// コマンド型は直接は呼べないが、判定の実装はここに一本化されているので確認になる)は
-    /// "<num>[smhd]" と epoch のみを受理し、"YYYY-MM-DD" を拒否していた
-    func testHostMetricsSummaryNowAcceptsAbsoluteDate() {
+    /// 以前は "<num>[smhd]" と epoch のみを受理し "YYYY-MM-DD" を拒否する実装があった(今は唯一の実装がこれ)
+    func testNowAcceptsAbsoluteDate() {
         XCTAssertEqual(
             TimeBoundParse.parse("2026-09-01", now: now),
             ISO8601DateFormatter().date(from: "2026-09-01T00:00:00Z"))

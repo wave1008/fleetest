@@ -473,7 +473,7 @@ export class MonitorDashboardController {
         postError(t("exploreHeal.dashboard.compareFetchFailed", { detail }));
         return;
       }
-      this.deps.post({ type: "compareRuns", previousRunIDs, latestRunIDs, comparison: result.json.comparison });
+      this.deps.post({ type: "compareRuns", previousRunIDs, latestRunIDs, comparison: result.json.comparison, hostLoad: result.json.hostLoad });
     } catch (error) {
       postError(t("exploreHeal.dashboard.fetchFailedError", { error: errorMessage(error) }));
     } finally {

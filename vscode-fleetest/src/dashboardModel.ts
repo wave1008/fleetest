@@ -317,6 +317,51 @@ export interface PerfScenarioDelta {
   readonly deltaPct: number;
 }
 
+/** results-compare の hostLoad 1件(メンバー runID ごと。`RunHostLoad`)。欠測は null(キー省略ではない)。samples 0 = 記録なし。 */
+export interface RunHostLoadEntry {
+  readonly runID: string;
+  readonly machine: string | null;
+  readonly samples: number;
+  readonly cpu: { readonly median: number | null; readonly peak: number | null };
+  readonly gpu: { readonly median: number | null; readonly peak: number | null };
+  readonly memPeakUsedBytes: number | null;
+  readonly memTotalBytes: number | null;
+}
+
+export interface ApiResultsCompareHostLoad {
+  readonly previous: readonly RunHostLoadEntry[];
+  readonly latest: readonly RunHostLoadEntry[];
+}
+
+function isNumberOrNullStrict(value: unknown): value is number | null {
+  return value === null || typeof value === "number";
+}
+
+function isHostLoadStat(value: unknown): boolean {
+  return isRecord(value) && isNumberOrNullStrict(value.median) && isNumberOrNullStrict(value.peak);
+}
+
+function isRunHostLoadEntry(value: unknown): value is RunHostLoadEntry {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.runID === "string" &&
+    (value.machine === null || typeof value.machine === "string") &&
+    typeof value.samples === "number" &&
+    isHostLoadStat(value.cpu) &&
+    isHostLoadStat(value.gpu) &&
+    isNumberOrNullStrict(value.memPeakUsedBytes) &&
+    isNumberOrNullStrict(value.memTotalBytes)
+  );
+}
+
+function isApiResultsCompareHostLoad(value: unknown): value is ApiResultsCompareHostLoad {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.previous) && value.previous.every(isRunHostLoadEntry) &&
+    Array.isArray(value.latest) && value.latest.every(isRunHostLoadEntry)
+  );
+}
+
 /** `fleetest api results` の performance キー(--performance run の集計)。 */
 export interface PerformanceReport {
   /** 有効な --performance run(新しい順)。空配列あり。 */
@@ -460,7 +505,7 @@ export type DashboardToWebviewMessage =
   /** 前回比の取得失敗(webview は前回比を畳むだけで文言は出さない)。 */
   | { readonly type: "headlineDiffError" }
   /** compareRuns の応答。IDs は依頼をそのまま返す(webview が古い応答を捨てる鍵)。 */
-  | { readonly type: "compareRuns"; readonly previousRunIDs: readonly string[]; readonly latestRunIDs: readonly string[]; readonly comparison: readonly PerfScenarioDelta[] }
+  | { readonly type: "compareRuns"; readonly previousRunIDs: readonly string[]; readonly latestRunIDs: readonly string[]; readonly comparison: readonly PerfScenarioDelta[]; readonly hostLoad: ApiResultsCompareHostLoad }
   | { readonly type: "compareRunsError"; readonly previousRunIDs: readonly string[]; readonly latestRunIDs: readonly string[]; readonly message: string }
   /** モニターを起動し直した(MonitorProcessManager.startMonitorProcess)。押した「ストレージ使用を更新」の要求は
    * 新しいモニターに届いていないので、進捗と「押せない」を解く(解かないと受け取られない要求を待ち続ける) */
@@ -787,6 +832,7 @@ export interface ApiResultsComparePayload {
   readonly previousRunIDs: readonly string[];
   readonly latestRunIDs: readonly string[];
   readonly comparison: readonly PerfScenarioDelta[];
+  readonly hostLoad: ApiResultsCompareHostLoad;
 }
 
 export function isApiResultsComparePayload(value: unknown): value is ApiResultsComparePayload {
@@ -797,7 +843,8 @@ export function isApiResultsComparePayload(value: unknown): value is ApiResultsC
     isStringArray(value.previousRunIDs) &&
     isStringArray(value.latestRunIDs) &&
     Array.isArray(value.comparison) &&
-    value.comparison.every(isPerfScenarioDelta)
+    value.comparison.every(isPerfScenarioDelta) &&
+    isApiResultsCompareHostLoad(value.hostLoad)
   );
 }
 

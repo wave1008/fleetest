@@ -1,7 +1,7 @@
 // TimeBoundParse.swift
 // "--since"/"--until" のような時刻境界オプションの文字列を Date へ変換する唯一の実装。
 // fleetest results / fleetest api results(RunResultsQuery.parseSince)と
-// fleetest api host-metrics-summary が共有する(呼び出し元を増やすときもここへ集約すること)。
+// MCP(ft_results の since)が共有する(呼び出し元を増やすときもここへ集約すること)。
 
 import Foundation
 

@@ -219,6 +219,13 @@ export const exploreHealStrings = {
     ja: "デバイス稼働率",
     en: "Device utilisation",
   },
+  "exploreHeal.dashboard.hostLoadHeading": { ja: "ホストの負荷", en: "Host load" },
+  "exploreHeal.dashboard.hostLoadColMachine": { ja: "マシン", en: "Machine" },
+  "exploreHeal.dashboard.hostLoadColCpuMedian": { ja: "CPU 中央値", en: "CPU median" },
+  "exploreHeal.dashboard.hostLoadColCpuPeak": { ja: "CPU 最大", en: "CPU peak" },
+  "exploreHeal.dashboard.hostLoadColGpuMedian": { ja: "GPU 中央値", en: "GPU median" },
+  "exploreHeal.dashboard.hostLoadColGpuPeak": { ja: "GPU 最大", en: "GPU peak" },
+  "exploreHeal.dashboard.hostLoadColMem": { ja: "メモリ最大 / 総量", en: "Memory peak / total" },
   "exploreHeal.dashboard.colMaxScenario": {
     ja: "最長1本",
     en: "Longest scenario",

@@ -15,6 +15,8 @@ import { formatDurationHuman, formatLocalDateTime } from './format.js';
 const blockEl = document.getElementById('runs-compare');
 const headingEl = document.getElementById('runs-compare-heading');
 const noteEl = document.getElementById('runs-compare-note');
+const hostLoadEl = document.getElementById('runs-compare-hostload');
+const hostLoadBodyEl = document.getElementById('table-runs-hostload-body');
 const statusEl = document.getElementById('runs-compare-status');
 const tableEl = document.getElementById('table-runs-compare');
 const bodyEl = document.getElementById('table-runs-compare-body');
@@ -55,6 +57,7 @@ function update() {
   if (selected.length < 2) {
     pendingKey = null;
     blockEl.style.display = 'none';
+    hostLoadEl.style.display = 'none';
     return;
   }
   // 開始の古い側を「前回」にする(選んだ順ではない)
@@ -64,6 +67,7 @@ function update() {
   noteEl.textContent = differs ? t('wvDashboard.perf.selectedConfigDiffers') : '';
   noteEl.style.display = differs ? 'block' : 'none';
   blockEl.style.display = 'block';
+  hostLoadEl.style.display = 'none';
   showStatus(t('wvDashboard.perf.selectedLoading'), false);
   pendingKey = requestKey(previous.runIDs, latest.runIDs);
   vscode.postMessage({ type: 'compareRuns', previousRunIDs: previous.runIDs, latestRunIDs: latest.runIDs });
@@ -107,8 +111,50 @@ export function syncRunsSelectionProject(project) {
   update();
 }
 
-export function showRunsCompare(previousRunIDs, latestRunIDs, comparison) {
+/** cpu/gpu は 0〜1 の比(HostMetricsSample。モニターの hostCharts.js と同じ単位) */
+function formatPct(ratio) {
+  return ratio === null ? '–' : (ratio * 100).toFixed(1) + '%';
+}
+
+function formatGB(bytes) {
+  return bytes === null ? '–' : (bytes / 1024 ** 3).toFixed(1);
+}
+
+/** 数字だけを並べる(原因の解釈は書かない)。samples 0 は「記録なし」(事実)。 */
+function hostLoadRows(hostLoad) {
+  const rows = [];
+  const sides = [
+    [t('wvDashboard.perf.hostLoadSidePrevious'), hostLoad.previous],
+    [t('wvDashboard.perf.hostLoadSideLatest'), hostLoad.latest],
+  ];
+  for (const [sideLabel, entries] of sides) {
+    for (const entry of entries) {
+      const tr = document.createElement('tr');
+      if (entry.samples === 0) {
+        const notRecorded = td(t('wvDashboard.perf.hostLoadNotRecorded'));
+        notRecorded.colSpan = 5;
+        tr.append(td(sideLabel), td(entry.machine ?? '–'), notRecorded);
+      } else {
+        tr.append(
+          td(sideLabel),
+          td(entry.machine ?? '–'),
+          tdNum(formatPct(entry.cpu.median)),
+          tdNum(formatPct(entry.cpu.peak)),
+          tdNum(formatPct(entry.gpu.median)),
+          tdNum(formatPct(entry.gpu.peak)),
+          tdNum(formatGB(entry.memPeakUsedBytes) + ' / ' + formatGB(entry.memTotalBytes) + ' GB'),
+        );
+      }
+      rows.push(tr);
+    }
+  }
+  return rows;
+}
+
+export function showRunsCompare(previousRunIDs, latestRunIDs, comparison, hostLoad) {
   if (requestKey(previousRunIDs, latestRunIDs) !== pendingKey) return;
+  syncChildren(hostLoadBodyEl, hostLoadRows(hostLoad));
+  hostLoadEl.style.display = 'block';
   if (comparison.length === 0) {
     syncChildren(bodyEl, []);
     showStatus(t('wvDashboard.perf.selectedEmpty'), false);

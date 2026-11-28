@@ -6,7 +6,7 @@ private let testEffectiveSettings = EffectiveSettingsRecord(
     heal: false, fmTextVisibilityCheck: false, screenLooksLike: true, ocrTextVisibilityCheck: true)
 
 /// HostMetricsRecorder(run 単位のホスト負荷採取器)と RunRecorder への配線の検証。
-/// NDJSON `kind:"hostMetrics"` の契約(monitorProcessManager.ts / host-metrics-summary と同期)も守る。
+/// NDJSON `kind:"hostMetrics"` の契約(monitorProcessManager.ts / RunHostLoad と同期)も守る。
 final class HostMetricsRecorderTests: XCTestCase {
     var tmpRoot: URL!
 

@@ -10,7 +10,8 @@ struct ApiResultsCompareCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "results-compare",
         abstract: "Compare scenario durations between two runs (each given as all its member runIDs)"
-            + " and print the per-scenario deltas as JSON on stdout (diagnostics on stderr only)")
+            + " and print the per-scenario deltas plus each member's host load (CPU/GPU/memory) as JSON on stdout"
+            + " (diagnostics on stderr only)")
 
     @Option(help: "Test project name (defaults to the only one in TestProjects/, or the default project)")
     var project: String?
@@ -50,9 +51,13 @@ struct ApiResultsCompareCommand: AsyncParsableCommand {
         let comparison = RunResultsQuery.scenarioDurationDeltas(
             records: records, latestRunIDs: Set(latestRunIDs), previousRunIDs: Set(previousRunIDs))
 
+        func hostLoad(_ ids: [String]) -> [RunHostLoad] {
+            ids.map { RunHostLoad.load(runDir: RunResultsStore.runDir(resultsDir: resultsDir, runID: $0), runID: $0) }
+        }
         let output = ApiResultsCompareOutput(
-            schemaVersion: 1, project: testProject.name,
-            previousRunIDs: previousRunIDs, latestRunIDs: latestRunIDs, comparison: comparison)
+            schemaVersion: 2, project: testProject.name,
+            previousRunIDs: previousRunIDs, latestRunIDs: latestRunIDs, comparison: comparison,
+            hostLoad: ApiResultsCompareHostLoad(previous: hostLoad(previousRunIDs), latest: hostLoad(latestRunIDs)))
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(output)
@@ -68,4 +73,11 @@ private struct ApiResultsCompareOutput: Encodable {
     let previousRunIDs: [String]
     let latestRunIDs: [String]
     let comparison: [RunResultsQuery.PerfScenarioDelta]
+    let hostLoad: ApiResultsCompareHostLoad
+}
+
+/// メンバー runID ごとに1件(指定順)。run 間の時間帯・マシンが違うと中央値の意味が変わるので数字だけを並べる
+private struct ApiResultsCompareHostLoad: Encodable {
+    let previous: [RunHostLoad]
+    let latest: [RunHostLoad]
 }

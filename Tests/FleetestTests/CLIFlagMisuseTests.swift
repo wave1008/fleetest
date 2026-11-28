@@ -1,9 +1,7 @@
 // 指定したのに黙って効かない形を作らない(CLAUDE.md「効かせられないなら名指しでエラーにする」):
 // ①`doctor --fm-only --roots-only` は run() が --roots-only を先に見て抜け、--fm-only が黙って効かなかった
-// ②`api host-metrics-summary --log <無いファイル>` は空の集計を exit 0 で返していた(run から解決した場所に
-//   無いのは「記録していない」= 標本 0 の事実なので、そちらは従来どおり)
-// ③`run --dry-run --junit` は JUnit を黙って書かなかった
-// ④`api dsl-commands --category` の help の分類一覧が手書きで `id` を欠いていた(索引から導出する)
+// ②`run --dry-run --junit` は JUnit を黙って書かなかった
+// ③`api dsl-commands --category` の help の分類一覧が手書きで `id` を欠いていた(索引から導出する)
 
 import XCTest
 import ArgumentParser
@@ -22,13 +20,6 @@ final class CLIFlagMisuseTests: XCTestCase {
     func testDoctorStillAcceptsEachAlone() throws {
         XCTAssertNoThrow(try Doctor.parse(["--fm-only"]))
         XCTAssertNoThrow(try Doctor.parse(["--roots-only"]))
-    }
-
-    func testHostMetricsSummaryRejectsAMissingExplicitLog() throws {
-        let command = try ApiHostMetricsSummaryCommand.parse(["--log", "/nonexistent-\(UUID().uuidString).ndjson"])
-        XCTAssertThrowsError(try command.run()) { error in
-            XCTAssertTrue("\(error)".contains("--log file not found"), "\(error)")
-        }
     }
 
     func testRunRejectsJUnitWithDryRun() {

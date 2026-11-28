@@ -656,11 +656,17 @@ test("isApiResultsComparePayload: results-compare の出力を受理し、欄の
   const valid = {
     schemaVersion: 1, project: "P", previousRunIDs: ["a"], latestRunIDs: ["b"],
     comparison: [{ scenarioID: "Foo.S0010", platform: "ios", latestMs: 2, previousMs: 1, deltaPct: 100 }],
+    hostLoad: {
+      previous: [{ runID: "a", machine: "M1", samples: 3, cpu: { median: 30, peak: 90 }, gpu: { median: null, peak: null }, memPeakUsedBytes: 1000, memTotalBytes: null }],
+      latest: [{ runID: "b", machine: null, samples: 0, cpu: { median: null, peak: null }, gpu: { median: null, peak: null }, memPeakUsedBytes: null, memTotalBytes: null }],
+    },
   };
   assert.equal(isApiResultsComparePayload(valid), true);
   assert.equal(isApiResultsComparePayload({ ...valid, comparison: [] }), true);
   assert.equal(isApiResultsComparePayload({ ...valid, comparison: undefined }), false);
   assert.equal(isApiResultsComparePayload({ ...valid, latestRunIDs: undefined }), false);
+  assert.equal(isApiResultsComparePayload({ ...valid, hostLoad: undefined }), false);
+  assert.equal(isApiResultsComparePayload({ ...valid, hostLoad: { ...valid.hostLoad, latest: [{ ...valid.hostLoad.latest[0], cpu: { median: 1 } }] } }), false);
   assert.equal(isApiResultsComparePayload({ ...valid, comparison: [{ ...valid.comparison[0], deltaPct: "100" }] }), false);
 });
 

@@ -145,8 +145,8 @@ swift Scripts/bench.swift --project SampleApp --profile ios --iterations 3 \
   として流れるので、レポート/拡張からも参照できる
 - `bench-results/` は .gitignore 済み。比較対象のベースラインは削除しないこと
 - run ごとに `TestProjects/<project>/results/runs/<YYYY-MM>/<runID>/host-metrics.ndjson`(1Hz NDJSON)
-  へホスト負荷を採取し、`fleetest api host-metrics-summary --project <p> --run latest`(既定 latest)
-  で直近実行の avg/peak を JSON で読み戻せる(「あの実行は CPU 律速か」を実行後に確認できる)
+  へホスト負荷を採取し、`fleetest api results-compare` の `hostLoad`(ダッシュボードの2件比較に並ぶ)
+  で run ごとの CPU/GPU の中央値・最大とメモリ最大を読み戻せる(「あの実行は CPU 律速か」を実行後に確認できる)
 
 ### PT-4.1 ストリーミング vs ポーリングのキャプチャ負荷ベンチ
 

@@ -111,8 +111,7 @@ guarded だけで上限を超えたときは他のカテゴリと同じく**事�
 
 ## `--since` / `--until` の文法
 
-`fleetest results *` / `fleetest api results` の `--since`、`fleetest api host-metrics-summary` の
-`--since` / `--until` が共有する唯一の実装は `Sources/FTCore/TimeBoundParse.swift`。
+`fleetest results *` / `fleetest api results` の `--since` と MCP `ft_results` の `since` が共有する唯一の実装は `Sources/FTCore/TimeBoundParse.swift`。
 受理するのは3形だけ:
 
 | 形 | 例 | 意味 |

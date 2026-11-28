@@ -1041,9 +1041,16 @@ test("直近の実行: 2件を選ぶと古い側を previous にして compareRu
   sendToWebview({ type: "dashboard", message: {
     type: "compareRuns", previousRunIDs: [RUN_OLD.runID], latestRunIDs: [RUN.runID],
     comparison: [{ scenarioID: "Foo.S0010", platform: "ios", latestMs: 3000, previousMs: 2000, deltaPct: 50 }],
+    hostLoad: {
+      previous: [{ runID: RUN_OLD.runID, machine: "M1", samples: 0, cpu: { median: null, peak: null }, gpu: { median: null, peak: null }, memPeakUsedBytes: null, memTotalBytes: null }],
+      latest: [{ runID: RUN.runID, machine: "M2", samples: 5, cpu: { median: 0.3474, peak: 0.9 }, gpu: { median: null, peak: 0.12 }, memPeakUsedBytes: 8 * 1024 ** 3, memTotalBytes: 64 * 1024 ** 3 }],
+    },
   } });
   assert.equal(doc.getElementById("table-runs-compare").style.display, "table");
   assert.equal(doc.querySelector("#table-runs-compare-body tr").children[0].textContent, "Foo.S0010");
+  const loadRows = [...doc.querySelectorAll("#table-runs-hostload-body tr")].map((tr) => [...tr.children].map((c) => c.textContent));
+  assert.deepEqual(loadRows[0], ["前回", "M1", "記録なし"]);
+  assert.deepEqual(loadRows[1], ["今回", "M2", "34.7%", "90.0%", "–", "12.0%", "8.0 / 64.0 GB"]);
 
   check(boxes()[2]);
   assert.deepEqual(boxes().map((b) => b.checked), [false, true, true], "最初に選んだものを外す");
@@ -1054,6 +1061,7 @@ test("直近の実行: 2件を選ぶと古い側を previous にして compareRu
   sendToWebview({ type: "dashboard", message: {
     type: "compareRuns", previousRunIDs: [RUN_OLD.runID], latestRunIDs: [RUN.runID],
     comparison: [{ scenarioID: "Stale", platform: "ios", latestMs: 1, previousMs: 1, deltaPct: 0 }],
+    hostLoad: { previous: [], latest: [] },
   } });
   assert.equal(doc.getElementById("table-runs-compare").style.display, "none");
 

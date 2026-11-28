@@ -229,7 +229,7 @@ export function handleDashboardMessage(message) {
       renderHeadlineDiff(computeHeadlineDiff(message.latest, message.previous), message.latest);
       break;
     case 'compareRuns':
-      showRunsCompare(message.previousRunIDs, message.latestRunIDs, message.comparison);
+      showRunsCompare(message.previousRunIDs, message.latestRunIDs, message.comparison, message.hostLoad);
       break;
     case 'compareRunsError':
       showRunsCompareError(message.previousRunIDs, message.latestRunIDs, message.message);

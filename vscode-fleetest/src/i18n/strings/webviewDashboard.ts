@@ -29,6 +29,9 @@ export const webviewDashboardStrings = {
     ja: "profile または machine が違う2件です(デバイス構成・マシンの性能の差が所要に混ざります)。",
     en: "The 2 runs differ in profile or machine (differences in devices and machine performance mix into the durations).",
   },
+  "wvDashboard.perf.hostLoadNotRecorded": { ja: "記録なし", en: "Not recorded" },
+  "wvDashboard.perf.hostLoadSidePrevious": { ja: "前回", en: "Previous" },
+  "wvDashboard.perf.hostLoadSideLatest": { ja: "今回", en: "Latest" },
   "wvDashboard.perf.selectTitle": { ja: "計測の比較に使う(2件まで)", en: "Use for comparing measurements (up to 2)" },
   "wvDashboard.perf.invalidCountNote": { ja: "計測無効で除外 {count} 件", en: "{count} excluded as invalid measurements" },
 
