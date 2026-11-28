@@ -50,7 +50,7 @@ final class TimeBoundParseTests: XCTestCase {
         XCTAssertNotNil(RunResultsQuery.parseSince("90s", referenceDate: now))
     }
 
-    /// 以前は "<num>[smhd]" と epoch のみを受理し "YYYY-MM-DD" を拒否する実装があった(今は唯一の実装がこれ)
+    /// "YYYY-MM-DD" は UTC の 0 時として受理する
     func testNowAcceptsAbsoluteDate() {
         XCTAssertEqual(
             TimeBoundParse.parse("2026-09-01", now: now),

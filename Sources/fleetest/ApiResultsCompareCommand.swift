@@ -51,17 +51,21 @@ struct ApiResultsCompareCommand: AsyncParsableCommand {
         let comparison = RunResultsQuery.scenarioDurationDeltas(
             records: records, latestRunIDs: Set(latestRunIDs), previousRunIDs: Set(previousRunIDs))
 
-        func hostLoad(_ ids: [String]) -> [RunHostLoad] {
-            ids.map { RunHostLoad.load(runDir: RunResultsStore.runDir(resultsDir: resultsDir, runID: $0), runID: $0) }
-        }
         let output = ApiResultsCompareOutput(
             schemaVersion: 2, project: testProject.name,
             previousRunIDs: previousRunIDs, latestRunIDs: latestRunIDs, comparison: comparison,
-            hostLoad: ApiResultsCompareHostLoad(previous: hostLoad(previousRunIDs), latest: hostLoad(latestRunIDs)))
+            hostLoad: Self.hostLoad(resultsDir: resultsDir, previous: previousRunIDs, latest: latestRunIDs))
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(output)
         ConsoleOut.out(String(data: data, encoding: .utf8)!)
+    }
+
+    static func hostLoad(resultsDir: URL, previous: [String], latest: [String]) -> ApiResultsCompareHostLoad {
+        func load(_ ids: [String]) -> [RunHostLoad] {
+            ids.map { RunHostLoad.load(runDir: RunResultsStore.runDir(resultsDir: resultsDir, runID: $0), runID: $0) }
+        }
+        return ApiResultsCompareHostLoad(previous: load(previous), latest: load(latest))
     }
 }
 
@@ -77,7 +81,7 @@ private struct ApiResultsCompareOutput: Encodable {
 }
 
 /// メンバー runID ごとに1件(指定順)。run 間の時間帯・マシンが違うと中央値の意味が変わるので数字だけを並べる
-private struct ApiResultsCompareHostLoad: Encodable {
+struct ApiResultsCompareHostLoad: Encodable {
     let previous: [RunHostLoad]
     let latest: [RunHostLoad]
 }

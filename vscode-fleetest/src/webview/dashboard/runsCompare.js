@@ -142,7 +142,7 @@ function hostLoadRows(hostLoad) {
           tdNum(formatPct(entry.cpu.peak)),
           tdNum(formatPct(entry.gpu.median)),
           tdNum(formatPct(entry.gpu.peak)),
-          tdNum(formatGB(entry.memPeakUsedBytes) + ' / ' + formatGB(entry.memTotalBytes) + ' GB'),
+          tdNum(entry.memPeakUsedBytes === null ? '–' : formatGB(entry.memPeakUsedBytes) + ' / ' + formatGB(entry.memTotalBytes) + ' GB'),
         );
       }
       rows.push(tr);
