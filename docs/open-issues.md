@@ -44,12 +44,12 @@
 - 確認: 05f53a121(2026-11-27。907252fa2 = clearAppData で cfprefsd を起こし直さない直しを含む)
 - 属性: 要測定
 - 運用: ①inapp-boost: 再実行で吸収 — `setAppearance` が「did not reach the app」で赤 → SpringBoard の起こし直し → 回し直しで緑 ②xcuitest モード(MCP の `ft_run_scenario` を含む): 要注意 — `setAppearance` は緑のまま。アプリの表示で外観を確かめるシナリオなら赤にできる。確かめないシナリオは light の画面のまま緑
-- 優先度: 中 — ②は操作のステップが緑・後続の確かめで赤
+- 優先度: 中 — 既定の inapp-boost は検知して赤にする。黙って誤るのは既定でない xcuitest モード(と MCP)だけで、外観を確かめるシナリオなら後続で赤
 
 出典: 回帰 `_work/regress-full-xcuitest-20261127/` と、シナリオ作成の評価の作成時の最初の実行(11/22〜11/24c の dc_* / va_* / ip_va_* の 11 本・Flutter / CMP / iPad。`_work/scen-eval-*/logs/<proj>.jsonl`)
 - 観測(回帰・版 05f53a121): E2E の「表示条件を切り替えられること.S0010」が4回赤。①M1Ultra の E2E-iOS・手元の E2E-RN(ios-inapp-boost)は `setAppearance .dark` が `did not reach the app within 5s: appearance: expected dark, the app reports light` で赤 → 回し直しで緑 ②M1Max の E2E-CMP・E2E-Flutter(ios-xcuitest)は `✅ setAppearance .dark — 0.31s` の後 `textIs "#txt_appearance" == "dark"` が `actual "light"`(10 秒)で最後まで赤(例: `TestProjects/E2E-CMP/reports/scenario-20261127-155212-223-…_S0010.md`)
-- 観測(評価): 作成時の `ft_run_scenario`(XCUITest)で、`setAppearance` / `setTextSize` が緑の後の確かめが `dark` → `light`・`UICTContentSizeCategoryXXXL` → `L`。どれも 907252fa2 より前
-- 反対の材料: 翌 11/28 の回帰 5 回(ios-inapp-boost と android だけ)ではこのシナリオが 56 回中 0 回の赤。xcuitest モードは回していない
+- 観測(評価・直しの前 = 題の「直しの後にも出る」の根拠ではない): 作成時の `ft_run_scenario`(XCUITest)で、`setAppearance` / `setTextSize` が緑の後の確かめが `dark` → `light`・`UICTContentSizeCategoryXXXL` → `L`。どれも 907252fa2 より前。xcuitest モードで検知の口が無いことの例として残す
+- 反対の材料: 翌 11/28 の回帰 5 回(ios-inapp-boost と android だけ)ではこのシナリオが 56 回中 0 回の赤。xcuitest モードは回していない(直しの後の xcuitest モードは 11/27 の2回とも赤で頻度が測れていないので、低頻度とはしない)
 - 材料: アプリへ届いたかの確かめは `Sources/FTDSL/CommandsDisplay.swift` の `awaitDisplayReachedApp`(in-app ブリッジのアプリの申告を読む)で、xcuitest モードでは仕様で何もしない(読む口が無い)。`applyDisplaySetting` の読み返しは端末の設定の値で、アプリが受け取ったかは見ない
 - 次の一手: ①直しの後にも届かない事象が出た回の SpringBoard / cfprefsd の状態を測る(907252fa2 の原因 = clearAppData の cfprefsd の起こし直しとは別の入口があるか)②xcuitest モードで反復して頻度を取る(11/27 の M1Max は2本とも赤・11/28 は未測定)。xcuitest モードに検知の口を足すか(アプリの申告を読む手段が要る)は、①②の後で決める
 - 検証の所要(11/28): 評価のログ・回帰のレポート・確かめのコードの照合 約25分
