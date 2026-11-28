@@ -314,10 +314,8 @@ extension StepExecutor {
         let centre = (x: target.frame.x + target.frame.width / 2, y: target.frame.y + target.frame.height / 2)
         let expected = TranscriptMatch.normalize(ownText)
         let candidates: [(element: ElementInfo, text: String)] = elements.compactMap { other in
-            // 同じ id の別の実体は覆いではない(画面の遷移の間、押し出されていく古いページの同じ要素が木に並ぶ。実測: E2EX-RN の xcuitest で
-            // 詳細の「次へ」の直後、新しい `#txt_detail_id`(id=3)の中心に古い `#txt_detail_id`(id=2・左へはみ出し中)が重なり、
-            // 絵にも古いページが写っていて 60 回中ほぼ毎回「覆われている」と読んだ)
-            guard other.ref != target.ref, other.identifier == nil || other.identifier != target.identifier,
+            // 画面の遷移の途中で重なる同じ要素の2つの実体(どちらが対象でも)は覆いではない(OI-387)。id の一致だけで除かない = 使い回しの id の本物の覆いがある
+            guard other.ref != target.ref, !Self.isTransitionTwin(other, of: target, screen: screen),
                   let text = Self.drawnText(of: other),
                   TranscriptMatch.normalize(text) != expected,
                   other.frame.containsClosed(x: centre.x, y: centre.y),
@@ -345,6 +343,18 @@ extension StepExecutor {
             guard !ownTextReadable else { return nil }
             return candidates.first { RegionText.readable(expected: $0.text, lines: reading.lines) }
         }
+    }
+
+    /// 画面の遷移の途中で重なる同じ要素の2つの実体: 同じ id・同じ大きさで、どちらかが画面の縁からはみ出している(滑って出入りする途中)。
+    /// 実測(E2EX-RN の xcuitest・詳細の「次へ」の直後): `select` は最初に一致した古い実体 (-105,132 370x17) を対象にし、新しい実体
+    /// (16,132 370x17) を覆いと読んだ = 対象の側がはみ出していた
+    static func isTransitionTwin(_ other: ElementInfo, of target: ElementInfo, screen: FTRect) -> Bool {
+        guard let id = other.identifier, !id.isEmpty, id == target.identifier,
+              abs(other.frame.width - target.frame.width) <= 1, abs(other.frame.height - target.frame.height) <= 1 else { return false }
+        func outside(_ f: FTRect) -> Bool {
+            f.x < screen.x - 1 || f.y < screen.y - 1 || f.x + f.width > screen.x + screen.width + 1 || f.y + f.height > screen.y + screen.height + 1
+        }
+        return outside(other.frame) || outside(target.frame)
     }
 
     private static func frame(_ outer: FTRect, contains inner: FTRect) -> Bool {

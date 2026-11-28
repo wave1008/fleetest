@@ -123,6 +123,27 @@ final class CoverReadOnScreenNoteTests: XCTestCase {
         XCTAssertFalse(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
     }
 
+    /// 確かめの経路も、押し出されていく同じ要素の別の実体(同じ id・同じ大きさ・画面の左へはみ出し)を覆いと言わない
+    func testOutgoingInstanceIsNotNotedOnVerification() async {
+        var outgoing = row
+        outgoing.ref = 4
+        outgoing.label = "本文 09"
+        outgoing.frame = FTRect(x: -150, y: 300, width: 300, height: 60)
+        let outcome = await exist(read: ["本文 09"], tree: [row, outgoing])
+        XCTAssertFalse(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
+    }
+
+    /// 実測の形: 対象に選ばれたのが押し出されていく古い実体(画面の左へはみ出し)で、新しい実体の文字が読める回も覆いと言わない
+    func testOutgoingTargetWithItsIncomingTwinIsNotNoted() async {
+        var outgoing = row
+        outgoing.ref = 4
+        outgoing.frame = FTRect(x: -150, y: 300, width: 300, height: 60)
+        var incoming = row
+        incoming.label = "本文 11"
+        let outcome = await exist(read: ["本文 11"], tree: [outgoing, incoming])
+        XCTAssertFalse(outcome.notes.contains(.coveredByFrontElementReadOnScreen), "\(outcome.notes)")
+    }
+
     /// 対象を丸ごと含む要素(祖先・容器)は重なりに数えない
     func testContainerIsNotACover() async {
         let list = ElementInfo(ref: 3, type: "scrollView", identifier: "list", label: "一覧", value: nil, placeholder: nil,
@@ -148,11 +169,12 @@ final class TapTargetDrawnOverTests: XCTestCase {
 
     private func tap(read: [String], delivery: TapDelivery? = nil, isAndroid: Bool = true,
                      framework: AppUIFramework = .flutter, inAppPrimary: Bool = false,
-                     log: CallLog = CallLog(), coverID: String? = nil) async -> StepOutcome {
+                     log: CallLog = CallLog(), coverID: String? = nil, coverFrame: FTRect? = nil) async -> StepOutcome {
         RegionText.readRecognizeOverrideForTesting = { _ in read }
         RegionText.modelReadyOverrideForTesting = true
         var cover = field
         cover.identifier = coverID
+        if let coverFrame { cover.frame = coverFrame }
         let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [[option, cover]],
                                    screenshots: [StepExecutorTests.inkedPNG])
         driver.tapDeliveryAnswer = delivery
@@ -195,12 +217,21 @@ final class TapTargetDrawnOverTests: XCTestCase {
         XCTAssertTrue(ownLog.entries.contains { $0.contains(".tap(") }, "\(ownLog.entries)")
     }
 
-    /// 同じ id の別の実体(画面の遷移で押し出されていく古いページの同じ要素)は覆いではない = 読まずに押す
-    func testSameIdentifierInstanceIsNotACover() async {
+    /// 押し出されていく同じ要素の別の実体(同じ id・同じ大きさ・画面の左へはみ出し = 画面の遷移の途中)は覆いではない = 読まずに押す
+    func testOutgoingInstanceOfTheSameElementIsNotACover() async {
         let log = CallLog()
-        let outcome = await tap(read: ["Ja"], isAndroid: false, framework: .swiftUI, log: log, coverID: "auto_opt_japan")
-        guard case .passed = outcome.status else { return XCTFail("同じ id の別の実体で断った: \(outcome.status)") }
+        let outcome = await tap(read: ["Ja"], isAndroid: false, framework: .swiftUI, log: log, coverID: "auto_opt_japan",
+                                coverFrame: FTRect(x: -80, y: 300, width: 200, height: 40))
+        guard case .passed = outcome.status else { return XCTFail("押し出されていく実体で断った: \(outcome.status)") }
         XCTAssertFalse(outcome.notes.contains(.tapTargetDrawnOver), "\(outcome.notes)")
         XCTAssertTrue(log.entries.contains { $0.contains(".tap(") }, "\(log.entries)")
+    }
+
+    /// 反例: 同じ id でも画面の中に収まった覆い(使い回しの id のシートの行・ピン)は今までどおり覆い = 撃たずに断る
+    func testSameIdentifierCoverInsideTheScreenStillRefuses() async {
+        let outcome = await tap(read: ["Ja"], isAndroid: false, framework: .swiftUI, coverID: "auto_opt_japan",
+                                coverFrame: FTRect(x: 20, y: 305, width: 200, height: 40))
+        guard case .failed(let message) = outcome.status else { return XCTFail("同じ id の本物の覆いを見逃した: \(outcome.status)") }
+        XCTAssertTrue(message.contains("did not touch"), message)
     }
 }
