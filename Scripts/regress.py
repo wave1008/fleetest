@@ -125,10 +125,6 @@ def build_targets(suites, xcuitest, suts=None, xcuitest_only=False):
 
 
 MACHINE_STATE_TIMEOUT = 30   # 秒。ssh の接続 + sysctl と台帳の読みだけ。尽きたら読めなかったと記録して回帰は進める
-# 段2の間にマシンの状態を採る間隔(秒。DR-242 の段0 = メモリの逼迫の推移を測る)。根拠: DR-242 の観測(M2Ultra)では空き 3.9GB → 0.1GB・
-# 圧縮器 28 → 44GB が約2分で進んで jetsam になった = 15 秒ならその間に 4〜8 点。1回は ssh 3本 + simctl の一覧(手元で約2秒)。
-# 前の採取が終わっていなければその回は飛ばす(重ねない)
-MACHINE_STATE_SAMPLE_INTERVAL = 15
 
 
 def run_args(targets, record=False):
@@ -193,9 +189,8 @@ def command(host, args):
     return ["ssh", "-tt", "-o", "BatchMode=yes", host, f"zsh -lc {shlex.quote(remote)}"]
 
 
-def record_machine_states(fleet, run_dir, stage, quiet=False):
-    """全マシンの状態(Scripts/machine-state.py)を machine-state.ndjson へ足す。読めないマシンは読めなかった事実を残し、回帰は止めない。
-    quiet = 段2の間の採取(stage "sample")。表示せず書くだけ(まとめは memory_summary が最後に出す)"""
+def record_machine_states(fleet, run_dir, stage):
+    """全マシンの状態(Scripts/machine-state.py)を machine-state.ndjson へ足す。読めないマシンは読めなかった事実を残し、回帰は止めない"""
     def read(machine, host):
         cmd = command(host, ["python3", "Scripts/machine-state.py"])
         try:
@@ -229,8 +224,6 @@ def record_machine_states(fleet, run_dir, stage, quiet=False):
     with open(os.path.join(run_dir, "machine-state.ndjson"), "a") as f:
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
-    if quiet:
-        return
     for row in rows:
         facts = row.get("unread") or " ".join(
             [f"起動 {row['uptimeSeconds'] / 3600:.1f}h" if "uptimeSeconds" in row else "", f"load {row.get('load1', '?')}"]
@@ -239,55 +232,6 @@ def record_machine_states(fleet, run_dir, stage, quiet=False):
     if stage == "start":
         for line in fm_dead_warnings(rows):
             print(line)
-
-
-def start_machine_state_sampler(fleet, run_dir):
-    """段2の間、MACHINE_STATE_SAMPLE_INTERVAL ごとに全マシンの状態を採る(読むだけ・判定しない)。返り値の Event を set すると止まる"""
-    stop = threading.Event()
-
-    def loop():
-        while not stop.wait(MACHINE_STATE_SAMPLE_INTERVAL):
-            record_machine_states(fleet, run_dir, "sample", quiet=True)
-
-    threading.Thread(target=loop, daemon=True).start()
-    return stop
-
-
-PRESSURE_NAMES = {1: "通常", 2: "警告", 4: "危険"}
-
-
-def memory_summary(run_dir):
-    """machine-state.ndjson からマシンごとのメモリの最も逼迫した値を1行ずつ出す(事実だけ・判定しない)"""
-    peaks = {}
-    try:
-        with open(os.path.join(run_dir, "machine-state.ndjson")) as f:
-            rows = [json.loads(line) for line in f if line.strip()]
-    except (OSError, ValueError):
-        return []
-    for row in rows:
-        if "memoryPressureLevel" not in row and "memoryAvailablePercent" not in row:
-            continue
-        peak = peaks.setdefault(row["machine"], {"points": 0})
-        peak["points"] += 1
-        for key, pick in (("memoryPressureLevel", max), ("memoryAvailablePercent", min), ("freeBytes", min),
-                          ("compressedBytes", max), ("bootedSimulators", max), ("runningEmulators", max)):
-            if key in row:
-                peak[key] = pick(peak[key], row[key]) if key in peak else row[key]
-    lines = []
-    for machine, p in peaks.items():
-        facts = [f"{p['points']}点"]
-        if "memoryPressureLevel" in p:
-            facts.append(f"圧の最大 {PRESSURE_NAMES.get(p['memoryPressureLevel'], p['memoryPressureLevel'])}")
-        if "memoryAvailablePercent" in p:
-            facts.append(f"利用可能の最小 {p['memoryAvailablePercent']}%")
-        if "freeBytes" in p:
-            facts.append(f"空きの最小 {p['freeBytes'] / 2**30:.1f}GiB")
-        if "compressedBytes" in p:
-            facts.append(f"圧縮器の最大 {p['compressedBytes'] / 2**30:.1f}GiB")
-        if "bootedSimulators" in p or "runningEmulators" in p:
-            facts.append(f"起動の最大 Simulator {p.get('bootedSimulators', '?')}・Emulator {p.get('runningEmulators', '?')}")
-        lines.append(f"   memory {machine}: {' '.join(facts)}")
-    return lines
 
 
 def fm_dead_warnings(rows):
@@ -594,7 +538,6 @@ def run_stages_after_prebuild(opts, fleet, targets, suts, suites, witness, run_d
                 print(f"   ❌ {machine}: {why}")
             print("❌ SUT をそろえられないマシンがあるので回しません(直すか、設定タブでそのマシンを無効にしてください)")
             record_machine_states(fleet, run_dir, "end")
-            print("\n".join(memory_summary(run_dir)))
             return 1
 
     finish_scenario_prebuild(*prebuild)
@@ -624,11 +567,7 @@ def stage2(opts, fleet, targets, suts, suites, witness, run_dir, env, started, w
         return interrupted_exit(fleet, run_dir)
     print("==> 段 2: fleetest run(空いたマシンが次の対象を取る)")
     run_started = time.time()
-    sampler = start_machine_state_sampler(fleet, run_dir)
-    try:
-        run_ok = run_child(run_args(targets, opts.record), timed_log=os.path.join(run_dir, "stage2.timed.log"), env=env) == 0
-    finally:
-        sampler.set()
+    run_ok = run_child(run_args(targets, opts.record), timed_log=os.path.join(run_dir, "stage2.timed.log"), env=env) == 0
     finish_warmup(warmup, run_started)
     if _interrupted:
         return interrupted_exit(fleet, run_dir)
@@ -660,7 +599,6 @@ def stage2(opts, fleet, targets, suts, suites, witness, run_dir, env, started, w
     for line in memo_unjudged:
         print(f"   ℹ️ run メモのマシン間の共有は判定できませんでした: {line}")
     record_machine_states(fleet, run_dir, "end")
-    print("\n".join(memory_summary(run_dir)))
     print(f"全体の所要: {(time.time() - started) / 60:.1f} 分")
 
     all_green = run_ok and witness_ok and not degraded and not placement and not memo_failures
@@ -718,7 +656,6 @@ def interrupted_exit(fleet, run_dir):
     """中断した回は後段(証人・検証済みの印・推奨・陽性対照)へ進まない。130 = SIGINT で終わった慣例の値"""
     print("\n⛔ 中断しました。後段(証人・検証済みの印・陽性対照)は回しません")
     record_machine_states(fleet, run_dir, "end")
-    print("\n".join(memory_summary(run_dir)))
     return 130
 
 
