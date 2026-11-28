@@ -1224,7 +1224,7 @@ public struct BridgeLauncher: Sendable {
                                         + (physical ? "" : Self.stoppedSpringBoardNote(udid: device)), logPath.path)
     }
 
-    /// 起動の時間切れ・準備前の終了の確定時に、Simulator の状態とログを残す(OI-196 / OI-269 の測る口。Simulator だけ・UDID のときだけ)。
+    /// 起動の時間切れ・準備前の終了の確定時に、Simulator の状態とログを残す(SpringBoard が止まってランナーを起動できない回 = OI-269 の測る口。Simulator だけ・UDID のときだけ)。
     /// 置き場は run の結果フォルダ、無ければ `<repoRoot>/.fleetest`
     private func captureStartupDiagnostics(log: (String) -> Void) async {
         guard !physical, UUID(uuidString: device) != nil else { return }

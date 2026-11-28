@@ -443,7 +443,7 @@ final class BackgroundedAppPreFireTests: XCTestCase {
         XCTAssertGreaterThan(inApp.reads, 0, "従来の経路(in-app の読み)へ渡していない")
     }
 
-    /// openURL の後、前面と答えても in-app が inactive の間は撃たず、背面へ移ったら背面と断る(OI-196: 設定が立ち上がる途中の
+    /// openURL の後、前面と答えても in-app が inactive の間は撃たず、背面へ移ったら背面と断る(設定が立ち上がる途中の
     /// 対象アプリは inactive のまま前面と答え、in-app の tap が届いて押されていた)
     func testWaitsWhileInactiveAfterOpenURLAndRefusesOnceItLeaves() async {
         let (executor, inApp, xcuitest) = make()

@@ -108,7 +108,7 @@ fun buildMapScreen(activity: Activity, parent: ViewGroup): View {
         dragCountView.text = "drag=$dragCount"
     }
 
-    // OI-233 の測る口: 1本のタッチ列(DOWN〜UP)で届いた MOVE の数・DOWN から最初の MOVE までの ms・
+    // 1本指の gesture の後の取りこぼしの測る口: 1本のタッチ列(DOWN〜UP)で届いた MOVE の数・DOWN から最初の MOVE までの ms・
     // GestureDetector の長押しが立った ms・onScroll の回数・UP の ms。DOWN で戻し UP で出す(判定には使わない)
     var traceDownAt = 0L
     var traceMoves = 0

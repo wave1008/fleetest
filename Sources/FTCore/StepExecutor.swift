@@ -385,7 +385,7 @@ public final class StepExecutor {
     }
     /// openURL を配送した後に立てる(DSL の openURL)。立っている間、門は XCUITest が「前面」と答えても in-app が inactive なら
     /// 背面へ移るのをステップの待ちの上限まで待つ: 別のアプリが立ち上がる途中の対象アプリは inactive のまま前面と答え、
-    /// in-app の tap がそのまま届いて押されていた(OI-196・陽性対照 92 の S0070)。測定: 設定アプリが止まっていると openurl の後
+    /// in-app の tap がそのまま届いて押されていた(陽性対照 92 の S0070)。測定: 設定アプリが止まっていると openurl の後
     /// 静かな Simulator で 3.6〜4.2 秒・8台同時で 5.9〜6.7 秒 inactive のまま(InAppDriver の待ちの上限 2 秒を越える)
     public func noteOpenedURL() { openedURLMayStillBeLeaving = true }
     var openedURLMayStillBeLeaving = false

@@ -1600,7 +1600,7 @@ final class BridgeRouter implements BridgeHttpServer.Handler {
             return stoppedForeground == null ? ok() : BridgeHttpServer.Response.json(200,
                     "{\"ok\":true,\"stoppedForeground\":" + JSONObject.quote(stoppedForeground) + "}");
         }
-        // 測った事実を添える(OI-236: 失敗の画面ではアプリが前面に居た回がある = 待ちが負けたのか・何が前面に居たのかを後から読む)
+        // 測った事実を添える(失敗の画面ではアプリが前面に居た回がある = 待ちが負けたのか・何が前面に居たのかを後から読む)
         String after = activePackage();
         throw new BridgeException(500, "the app never came to the foreground: " + bundleID
                 + " (in front before the retry: " + (stuck == null ? "unknown" : stuck)

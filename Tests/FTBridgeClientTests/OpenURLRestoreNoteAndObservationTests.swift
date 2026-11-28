@@ -1,4 +1,4 @@
-// OI-177 ③: 同意の確かめの後の張り戻しの失敗を WebViewDelegatingDriver が写す(確かめが走った回だけ)。
+// 同意の確かめの後の張り戻しの失敗を WebViewDelegatingDriver が写す(確かめが走った回だけ)。
 // OI-186 ②: back() の前後の観測は委譲の待ちを払わない同じ経路(primary の生の木)で読む。
 
 import XCTest

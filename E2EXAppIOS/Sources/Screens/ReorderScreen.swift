@@ -10,7 +10,7 @@ struct ReorderScreen: View {
         VStack(alignment: .leading, spacing: 8) {
             TaggedText(tag: Tags.txtReorderResult, text: "order=" + order.map(String.init).joined(separator: ","))
                 .padding([.horizontal, .top], 16)
-            // OI-221 の測る口(シナリオは検証しない。赤の回の要素一覧に残す)
+            // 長押しからのドラッグの並べ替えが効かない回の測る口(シナリオは検証しない。赤の回の要素一覧に残す)
             TaggedText(tag: Tags.txtTouchTrace, text: trace)
                 .padding(.horizontal, 16)
                 .background(TouchTraceInstaller { trace = $0 })

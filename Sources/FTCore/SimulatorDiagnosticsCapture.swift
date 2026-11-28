@@ -1,4 +1,4 @@
-// iOS Simulator の状態とログを、不具合を検出した時点で1つのテキストへ残す(外観が届かない件 = docs/verification/resolved.md / OI-196 / OI-269 の測る口)。
+// iOS Simulator の状態とログを、不具合を検出した時点で1つのテキストへ残す(外観が届かない件 = docs/verification/resolved.md / OI-269 の測る口)。
 // 統合ログ(unified log)は端末側に履歴として残るので、検出後に `log show --last` で遡れる(常時の録り続けは要らない)。
 // 判定には使わない(記録だけ)。呼び手は**親プロセス**(子はサンドボックスで simctl を直に呼べない)。
 
@@ -24,7 +24,7 @@ public enum SimulatorDiagnosticsCapture {
     /// 書き出す統合ログの末尾の行数。根拠: 1行約 200 バイトで 1 ファイル約 160 KB に収まる
     static let logTailLines = 800
 
-    /// クラッシュレポートを数える窓(秒)。根拠: OI-196 で SpringBoard の最後の .ips が起動の失敗の約 16 分前だった = 統合ログの
+    /// クラッシュレポートを数える窓(秒)。根拠: Duo の起動の時間切れで SpringBoard の最後の .ips が起動の失敗の約 16 分前だった = 統合ログの
     /// 10 分より前の落ちも名前で拾える長さ。名前の上限は、落ち続ける回でもファイルが一覧で埋まらない数(超えた分は件数だけ書く)
     static let reportWindowSeconds: TimeInterval = 3600
     static let reportListLimit = 20

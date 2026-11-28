@@ -107,7 +107,7 @@ final class InputInjector {
      *
      * **Flutter は eventTime ではなくアプリ側の壁時計で測る**(`VelocityTracker`: 最後の MOVE を受けてから
      * UP までが 40ms を超えると速度 0)。最後の MOVE の後の sleep は負荷の下で延びて 40ms を超え、払いの向きを
-     * 速度で読むアプリはどの向きも「止まって離した」と読む(OI-190。UP を 200ms 遅らせた陽性対照で左・上の払いが
+     * 速度で読むアプリはどの向きも「止まって離した」と読む(UP を 200ms 遅らせた陽性対照で左・上の払いが
      * swipe=down)。**liftImmediately = 最後の MOVE の直後に UP を撃つ**(人の指と同じ)。search の非フリングは
      * View/Compose の飛び越し防止が後ろの sleep の遅れに依っているので立てない(呼び手 BridgeRouter.handleSwipe)。
      *

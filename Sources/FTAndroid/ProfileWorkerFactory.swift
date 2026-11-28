@@ -1217,7 +1217,7 @@ public enum ProfileWorkerFactory {
             // 2 段の締切から導く(独立した定数を置かない)
             let budgetSeconds: TimeInterval = device.spec.isPhysical
                 ? 2 * BridgeLauncher.startupTimeoutSeconds : 60
-            // 蘇生の各行に始めてからの経過秒を付ける(OI-234 の測る口: 枠のどこを起動・遅さの測り直し・SpringBoard の
+            // 蘇生の各行に始めてからの経過秒を付ける(蘇生が枠を使い切る回の測る口: 枠のどこを起動・遅さの測り直し・SpringBoard の
             // 起こし直し・再起動が使ったかを後から読む。判定には使わない)
             let reviveClock = ContinuousClock()
             let reviveStart = reviveClock.now

@@ -176,10 +176,10 @@ enum ProfileRunOrchestrator {
                     log(RunnerAccessibilityHealth.reviveRefusedMessage(name: retired.connection.deviceName ?? name))
                     return nil
                 }
-                // SpringBoard が落ち続ける Simulator は蘇生しても使えない(起こし直しも効かない = OI-234 の測定)。止めて、この run では戻さない(DR-200)
+                // SpringBoard が落ち続ける Simulator は蘇生しても使えない(起こし直しも効かない = DR-200 の測定)。止めて、この run では戻さない(DR-200)
                 if !retired.connection.physical, let udid = retired.connection.udid,
                    let spec = resolved.iosDevices.first(where: { $0.name == name })?.spec {
-                    // 蘇生の前に状態とログを残す(外観が届かない件 = docs/verification/resolved.md / OI-196 / OI-269 の測る口。蘇生すると直前の状態が消える)
+                    // 蘇生の前に状態とログを残す(外観が届かない件 = docs/verification/resolved.md / OI-269 の測る口。蘇生すると直前の状態が消える)
                     let captured = await SimulatorDiagnosticsCapture.captureOffCooperativePool(
                         udid: udid, reason: "worker-revive", fallbackDirectory: repoRoot.appendingPathComponent(".fleetest"))
                     captured.messages.forEach { log($0) }

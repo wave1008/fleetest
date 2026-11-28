@@ -1447,7 +1447,7 @@ public struct SwipeRequest: Codable {
     /// アクションで代行できるが、**ジェスチャ目的の swipe を同じ経路へ流すと、画面内の
     /// スクロール可能な親が受理してしまい、ジェスチャ検出パッドに届かないまま 200 を返す**
     /// (実測: E2E-Flutter のジェスチャ画面が黙って空振りした)。②Android ブリッジ: 立っていない(gesture)
-    /// ときは最後の MOVE の直後に離す(`InputInjector.swipe` の liftImmediately。OI-190)。
+    /// ときは最後の MOVE の直後に離す(`InputInjector.swipe` の liftImmediately)。
     /// 旧ブリッジは無視して従来動作(挙動が変わるので handleSwipe 側の変更とセットで版を上げる)
     public var scroll: Bool?
     /// 指の移動距離(画面比)。**Android ブリッジだけが読む**。未指定はブリッジの軸別既定

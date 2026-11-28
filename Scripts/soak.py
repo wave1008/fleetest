@@ -8,7 +8,7 @@
 # 使い方:
 #   Scripts/soak.py --dry-run                                  # 全対象の撃つコマンドだけ出す(デバイスを使わない)
 #   Scripts/soak.py --check                                    # 対象表の project / profile / シナリオの実在だけ確かめる
-#   Scripts/soak.py --targets OI-229,OI-314 --rounds 20        # 手元の Mac で 20 周
+#   Scripts/soak.py --targets OI-315,OI-325 --rounds 20        # 手元の Mac で 20 周
 #   Scripts/soak.py --runner M1Max --hours 8                   # ランナー機へディスパッチして 8 時間(開始前に align.sh <機> を1回)
 # 長時間は成果物で待つ(CLAUDE.md「長時間ジョブ」。プロセスの生死で待たない):
 #   out=~/github/wave1008/_work/soak-$(date +%Y%m%d-%H%M%S); mkdir -p $out
@@ -326,7 +326,7 @@ def prepare_remote(opts):
 def main():
     sys.stdout.reconfigure(line_buffering=True)
     ap = argparse.ArgumentParser(description="低頻度の台帳項目の再現シナリオを回し続けて、赤の出た回の材料を貯める")
-    ap.add_argument("--targets", default="", help="OI の ID をカンマ区切り(例 OI-229,OI-314)。省略で soak-targets.json の全部")
+    ap.add_argument("--targets", default="", help="OI の ID をカンマ区切り(例 OI-315,OI-325)。省略で soak-targets.json の全部")
     ap.add_argument("--hours", type=float, help="この時間を過ぎたら次の周を始めない(走っている周は終える)")
     ap.add_argument("--rounds", type=int, help="周の数")
     ap.add_argument("--runner", default="local", help="実行機 = fleetest remote machines の名前、または local(この Mac。既定)")

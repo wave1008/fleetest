@@ -1,5 +1,5 @@
 // MCP の Android も DSL と同じく、木のアプリの UI フレームワークで塗り順が本物かを決め、覆いの判定(`coveredTouch`)を通す。
-// OI-196: 全開のシートの裏の行 #row_main_05 への ft_batch の tap と ft_tap が、手前のキューの行 #queue_row_14 を押して ok(3/3)。
+// 全開のシートの裏の行 #row_main_05 への ft_batch の tap と ft_tap が、手前のキューの行 #queue_row_14 を押して ok(3/3)。
 // DSL は 36周目の直し(v129 の clickable)で撃つ前に断るが、MCP は Android のフレームワークを持たず `PaintOrder.isReal` が false だった
 
 import XCTest
