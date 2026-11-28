@@ -141,3 +141,33 @@ test('シナリオのまとめビルドは対象のプロジェクトを重複�
   assert.equal(new Set(projects).size, projects.length)
   assert.ok(projects.includes('E2E-CMP'))
 })
+
+test('先に用意する計画: iOS の対象だけを、各マシンの iOS のデバイスを漏れなく覆う最小の回数で撃つ', () => {
+  // 機械の名前はプロファイルの devices[].machine と同じもの(手元は local)。リモートの宛先は計画に効かない
+  const fleet = '[("local", None), ("M1Ultra", "h1"), ("M1Max", "h2"), ("M4Max", "h3")]'
+  const targets = 'm.build_targets(["e2e", "e2ex", "e2ey"], True)'
+  const plan = py(`m.warmup_plan(${targets}, ${fleet})`)
+  // 期待: 各マシンの、全 iOS 対象のデバイス名の和(計画の外で独立に数える)
+  const expected = py(`(lambda fleet: {mc: sorted({d["name"] for _, p, q in ${targets} if q.startswith("ios")
+      for d in json.load(open(f"${ROOT}/TestProjects/{p}/profiles/runs/{q}.json")).get("devices", [])
+      if d.get("platform") == "ios" and d.get("enabled", True) and (d.get("machine") or "local") == mc})
+      for mc, _ in fleet})(${fleet})`)
+  for (const [machine, names] of Object.entries(expected)) {
+    const jobs = plan[machine] ?? []
+    assert.equal(names.length > 0, jobs.length > 0, `${machine}: iOS のデバイスがあるときだけ撃つ`)
+    for (const [, profile] of jobs) assert.ok(profile.startsWith('ios'), `${machine}: Android を先に起こさない(${profile})`)
+    const covered = py(`sorted({d["name"] for p, q in ${JSON.stringify(jobs)}
+      for d in json.load(open(f"${ROOT}/TestProjects/{p}/profiles/runs/{q}.json")).get("devices", [])
+      if d.get("platform") == "ios" and d.get("enabled", True) and (d.get("machine") or "local") == ${JSON.stringify(machine)}})`)
+    assert.deepEqual(covered, names, `${machine}: 計画が覆う iOS のデバイス`)
+  }
+  // 今の SUT のプロファイルは同じ名前の Simulator を共有している = 1マシン1回で足りる(増えたら重複を外せていない)
+  for (const [machine, jobs] of Object.entries(plan)) assert.equal(jobs.length, 1, `${machine}: ${JSON.stringify(jobs)}`)
+})
+
+test('先に用意するコマンド: リモートにも --device-machine を付けない(付けるとランナーが自分のデバイスを外して何も起動しない)', () => {
+  const remote = py('m.warmup_command("M4Max", "h", "E2E-CMP", "ios-inapp-boost")')
+  assert.deepEqual(remote.slice(1), ['remote', 'exec', 'M4Max', '--', 'devices', 'up', '--project', 'E2E-CMP', '--profile', 'ios-inapp-boost'])
+  const local = py('m.warmup_command("local", None, "E2E-CMP", "ios-inapp-boost")')
+  assert.deepEqual(local.slice(1), ['devices', 'up', '--project', 'E2E-CMP', '--profile', 'ios-inapp-boost'])
+})

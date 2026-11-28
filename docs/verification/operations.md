@@ -323,7 +323,10 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
   `fleetest run --target …` の1回に並べる薄い包み(配り方は RR-8.2 = 空いたマシンが次の対象を取り、終わり際はシナリオ単位で手伝う)。
   最初に全マシンで SUT の鮮度確認とビルド(各スクリプトの `--build-only`)を並列に済ませ、run の後で in-app の証人・画像分類器を
   使えなかったシナリオの検査・検証済みの印(全部緑のときだけ)・推奨・陽性対照(`--negative`)を1回。ログは `.fleetest/regress/<時刻>/`
-  (段 1 のビルド)。E2EX / E2EY のプロファイルにもリモートのデバイスがある(スクリプトは `--runner local` で回すので影響しない)。
+  (段 1 のビルド)。段 1 と並行に、各マシンの **iOS の** デバイスとブリッジを `fleetest devices up` で先に用意する(段 2 を待たせない・
+  ログは `warmup@<マシン>.log`・`--no-warmup` で止める)。11/28 の回帰では、最初の iOS 対象の準備(冷えた Simulator の起動・ブリッジの
+  ビルドし直し)が4台で計 約865秒あり、割り当ての見込みはこれを数えていなかった。Android は先に起こさない(Emulator の起動枠はプロセスの
+  中だけなので、段 2 と重なると同時起動が増える)。E2EX / E2EY のプロファイルにもリモートのデバイスがある(スクリプトは `--runner local` で回すので影響しない)。
   `--ios-xcuitest` で xcuitest モードの対象も足す・`--ios-xcuitest-only` で iOS の xcuitest モードの対象だけを回す(xcuitest の印だけを書く。
   `--ios-xcuitest` は inapp-boost の赤1本でも xcuitest の印を書かない)・`--suites` で絞るとそのスイートの印だけを書き、`--suts` で絞った回は印を書かない。`--skip-build` で段 1 を飛ばす・
   `--record` で録画する(既定は `--set record=false`)・`--dry-run` で対象と撃つコマンドだけ出す。SUT をそろえられないマシンがあれば回さない(設定タブでそのマシンを無効にすれば外れる)。
