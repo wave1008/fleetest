@@ -191,7 +191,7 @@ Pay special attention to the ones that go wrong silently (the step stays green w
 
 ### scroll (scrollTo, scrollDown, withScrollDown, scrollFrame, ...)
 
-- [A scroll in iOS inapp-boost mode has no inertia](../commands/scroll.md#notes) — one swipe moves about the container's visible height, so a scrollTo that reached its element while writing (xcuitest, MCP) can use up maxSwipes in the real run; give far elements a larger maxSwipes and close the keyboard first.
+- [A scroll in iOS inapp-boost mode has no inertia](../commands/scroll.md#notes) — one swipe moves less than in xcuitest (MCP), about half on SwiftUI, UIKit and React Native, so a tap or exist written after scrollDown() on the assumption that the element is now visible can differ between the modes; reach it with scrollTo or tap(scroll:) (the search counts distance, so if it reached while writing it reaches in the real run). Close the keyboard first.
 
 ### select, lastElement
 - [`select` never fails by itself](../commands/select.md#notes) — a missing element becomes an empty element; only chained commands such as `.textIs(...)` can fail the step.

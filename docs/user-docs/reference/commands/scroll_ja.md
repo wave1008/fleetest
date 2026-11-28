@@ -43,7 +43,7 @@ withScrollDown {
 
 ## 注意点
 
-- **iOS の inapp-boost モードの送りは慣性を持たず、1回の送りで動くのはコンテナの見えている高さ(幅)ほどです。** xcuitest モード(MCP の確認も同じ)の送りは慣性でもっと先まで進むので、作成時に届いた `scrollTo` が本番で `maxSwipes` を使い切ることがあります。遠い要素へは `maxSwipes:` を大きめにします。キーボードが出ていると一覧が縮んで1回の距離が短くなるので、先に `hideKeyboard()` で閉じます。
+- **iOS の inapp-boost モードの送りは慣性を持たないので、1回の送りで進む距離が xcuitest モード(MCP の確認も同じ)より短くなります**(SwiftUI・UIKit・React Native では約半分)。`scrollTo` と `tap(..., scroll:)` の探索は `maxSwipes` をスワイプした回数ではなく進んだ距離で数える(書いた回数の2倍までスワイプする)ので、作成時に届いた探索は本番でも届きます。`scrollDown()` / `scrollUp()` は1回ぶんしか送らないので、その後に見えている前提で `scroll:` の無い `tap` や `exist` を書くと、モードで結果が割れます。行き先は `scrollTo` か `tap(..., scroll:)` で書きます。キーボードが出ていると一覧が縮んで1回の距離が短くなるので、先に `hideKeyboard()` で閉じます。
 
 ## スクロールさせたい領域: `scrollFrame:`
 

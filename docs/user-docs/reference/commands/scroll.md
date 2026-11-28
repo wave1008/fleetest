@@ -45,7 +45,7 @@ withScrollDown {
 
 ## Notes
 
-- **In iOS inapp-boost mode a scroll has no inertia: one swipe moves about the container's visible height (width).** A swipe in xcuitest mode (and MCP's checks) carries further by inertia, so a `scrollTo` that reached its element while you wrote the scenario can use up `maxSwipes` in the real run. Give a larger `maxSwipes:` for a far element. A keyboard that is up shrinks the list and shortens each swipe, so close it with `hideKeyboard()` first.
+- **In iOS inapp-boost mode a scroll has no inertia, so one swipe moves less than in xcuitest mode (and MCP's checks)** — about half on SwiftUI, UIKit and React Native. The search in `scrollTo` and `tap(..., scroll:)` counts `maxSwipes` by the distance moved rather than by swipes (up to twice the number you wrote), so a search that reached its element while you wrote the scenario also reaches it in the real run. `scrollDown()` / `scrollUp()` send just one swipe, so a later `tap` without `scroll:` or an `exist` that assumes the element is now on screen can give different results in the two modes; reach the element with `scrollTo` or `tap(..., scroll:)` instead. A keyboard that is up shrinks the list and shortens each swipe, so close it with `hideKeyboard()` first.
 
 ## The scrollable region: `scrollFrame:`
 

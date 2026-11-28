@@ -191,7 +191,7 @@
 
 ### スクロール(scrollTo, scrollDown, withScrollDown, scrollFrame, …)
 
-- [iOS の inapp-boost モードの送りは慣性を持たない](../commands/scroll_ja.md#注意点) — 1回の送りはコンテナの見えている高さほどで、作成時(xcuitest・MCP)に届いた scrollTo が本番で maxSwipes を使い切ることがあります。遠い要素は maxSwipes を大きめに、キーボードは先に閉じます。
+- [iOS の inapp-boost モードの送りは慣性を持たない](../commands/scroll_ja.md#注意点) — 1回の送りは xcuitest(MCP)より短く(SwiftUI・UIKit・React Native で約半分)、scrollDown() の後に見えている前提で書いた tap・exist はモードで割れます。行き先は scrollTo か tap(scroll:) で書きます(探索は進んだ距離で数えるので、作成時に届けば本番でも届きます)。キーボードは先に閉じます。
 
 ### select, lastElement
 - [select 単体ではシナリオを失敗させない](../commands/select_ja.md#注意点) — 見つからなければ空要素になるだけです。失敗しうるのはチェーンした検証側です。
