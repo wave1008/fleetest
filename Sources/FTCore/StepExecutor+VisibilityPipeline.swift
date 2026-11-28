@@ -314,7 +314,11 @@ extension StepExecutor {
         let centre = (x: target.frame.x + target.frame.width / 2, y: target.frame.y + target.frame.height / 2)
         let expected = TranscriptMatch.normalize(ownText)
         let candidates: [(element: ElementInfo, text: String)] = elements.compactMap { other in
-            guard other.ref != target.ref, let text = Self.drawnText(of: other),
+            // 同じ id の別の実体は覆いではない(画面の遷移の間、押し出されていく古いページの同じ要素が木に並ぶ。実測: E2EX-RN の xcuitest で
+            // 詳細の「次へ」の直後、新しい `#txt_detail_id`(id=3)の中心に古い `#txt_detail_id`(id=2・左へはみ出し中)が重なり、
+            // 絵にも古いページが写っていて 60 回中ほぼ毎回「覆われている」と読んだ)
+            guard other.ref != target.ref, other.identifier == nil || other.identifier != target.identifier,
+                  let text = Self.drawnText(of: other),
                   TranscriptMatch.normalize(text) != expected,
                   other.frame.containsClosed(x: centre.x, y: centre.y),
                   !Self.frame(other.frame, contains: target.frame), !Self.frame(target.frame, contains: other.frame)

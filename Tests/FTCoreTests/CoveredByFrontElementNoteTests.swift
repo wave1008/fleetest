@@ -148,10 +148,12 @@ final class TapTargetDrawnOverTests: XCTestCase {
 
     private func tap(read: [String], delivery: TapDelivery? = nil, isAndroid: Bool = true,
                      framework: AppUIFramework = .flutter, inAppPrimary: Bool = false,
-                     log: CallLog = CallLog()) async -> StepOutcome {
+                     log: CallLog = CallLog(), coverID: String? = nil) async -> StepOutcome {
         RegionText.readRecognizeOverrideForTesting = { _ in read }
         RegionText.modelReadyOverrideForTesting = true
-        let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [[option, field]],
+        var cover = field
+        cover.identifier = coverID
+        let driver = FakeAppDriver(name: "primary", log: log, snapshotElements: [[option, cover]],
                                    screenshots: [StepExecutorTests.inkedPNG])
         driver.tapDeliveryAnswer = delivery
         let executor = StepExecutor(driver: driver, primaryCaptureOmitsSystemUI: inAppPrimary, occlusionOCRMode: .on,
@@ -191,5 +193,14 @@ final class TapTargetDrawnOverTests: XCTestCase {
         let own = await tap(read: ["Japan"], isAndroid: false, framework: .swiftUI, log: ownLog)
         guard case .passed = own.status else { return XCTFail("自分の文字で断った: \(own.status)") }
         XCTAssertTrue(ownLog.entries.contains { $0.contains(".tap(") }, "\(ownLog.entries)")
+    }
+
+    /// 同じ id の別の実体(画面の遷移で押し出されていく古いページの同じ要素)は覆いではない = 読まずに押す
+    func testSameIdentifierInstanceIsNotACover() async {
+        let log = CallLog()
+        let outcome = await tap(read: ["Ja"], isAndroid: false, framework: .swiftUI, log: log, coverID: "auto_opt_japan")
+        guard case .passed = outcome.status else { return XCTFail("同じ id の別の実体で断った: \(outcome.status)") }
+        XCTAssertFalse(outcome.notes.contains(.tapTargetDrawnOver), "\(outcome.notes)")
+        XCTAssertTrue(log.entries.contains { $0.contains(".tap(") }, "\(log.entries)")
     }
 }
