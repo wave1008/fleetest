@@ -861,20 +861,27 @@ extension MCPServer {
         let fm = await FMDoctor.checkLive()
         // **視覚系も実呼び出しで確かめる**(能力判定では足りない。text と vision は独立に死ぬ)
         let vision = await FMDoctor.visionCheckLive()
-        // OCR も実呼び出しで(FM と独立に死ぬ。判定は RegionText.readerIsAlive の1箇所・CLI の doctor と共有)
-        let ocrSupported = OCRSupport.isSupported
-        let ocrAlive = ocrSupported ? await RegionText.readerIsAlive() : false
+        // OCR も実呼び出しで(FM と独立に死ぬ。判定は OCRReaderCheck の1箇所・CLI の doctor と共有)
+        let ocr = await OCRReaderCheck.run()
+        let ocrLine: String
+        switch ocr {
+        case .unsupported:
+            ocrLine = "⚠️ \(OCRSupport.requirement) — link-text taps, the screen readback of typed text and the OCR stage of the"
+                + " text visibility check are unavailable"
+        case .alive:
+            ocrLine = "✅ On-device OCR (Vision text recognition) read the built-in test image"
+        case .undeterminedInSandbox:
+            ocrLine = "⚠️ On-device OCR (Vision text recognition) not checked — this MCP server runs inside a sandbox, where OCR"
+                + " can read nothing even on a working Mac (run fleetest doctor outside the sandbox to check it)"
+        case .dead:
+            ocrLine = "❌ On-device OCR (Vision text recognition) read nothing from the built-in test image (an image"
+                + " with known text) — while it stays so, link-text taps fail, typed text cannot be read back from the"
+                + " screen, and the OCR stage of the text visibility check cannot read text (rebooting this"
+                + " Mac has cleared this state before)"
+        }
         return text((fm.available ? "✅ " : "❌ ") + fm.detail
             + (fm.available ? "" : "\n   " + FMDoctor.unavailableImpact)
             + "\n" + (vision.available ? "✅ " : FMVisionSupport.isSupported ? "❌ " : "⚠️ ") + vision.detail
-            + "\n" + (!ocrSupported
-                ? "⚠️ \(OCRSupport.requirement) — link-text taps, the screen readback of typed text and the OCR stage of the"
-                    + " text visibility check are unavailable"
-                : ocrAlive
-                ? "✅ On-device OCR (Vision text recognition) read the built-in test image"
-                : "❌ On-device OCR (Vision text recognition) read nothing from the built-in test image (an image"
-                    + " with known text) — while it stays so, link-text taps fail, typed text cannot be read back from the"
-                    + " screen, and the OCR stage of the text visibility check cannot read text (rebooting this"
-                    + " Mac has cleared this state before)"))
+            + "\n" + ocrLine)
     }
 }

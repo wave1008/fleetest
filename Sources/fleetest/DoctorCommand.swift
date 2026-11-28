@@ -175,14 +175,21 @@ struct Doctor: AsyncParsableCommand {
         if !fm.available { problems += 1 }
         if !vision.available, !visionUnsupported { problems += 1 }
         // **OCR も実呼び出しで確かめる**(FM と独立に死ぬ。死んでいると OCR を使う判定が誤った理由で落ちる)。
-        // 判定は RegionText.readerIsAlive の1箇所(ft_doctor と共有)。`--fm-only` には含めない(FM の門)
-        if !OCRSupport.isSupported {
+        // 判定は OCRReaderCheck の1箇所(ft_doctor と共有)。`--fm-only` には含めない(FM の門)
+        switch await OCRReaderCheck.run() {
+        case .unsupported:
             // macOS が対応していないだけ(故障ではない)。FM vision の非対応と同じく警告どまりで problems に数えない
             ConsoleOut.out("⚠️ \(OCRSupport.requirement)")
             ConsoleOut.out("   Link-text taps, the screen readback of typed text and the OCR stage of the text visibility check are unavailable.")
-        } else if await RegionText.readerIsAlive() {
+        case .alive:
             ConsoleOut.out("✅ On-device OCR (Vision text recognition): read the built-in test image")
-        } else {
+        case .undeterminedInSandbox:
+            // 正常な Mac でも中では読めない = 故障の証拠にならないので problems に数えない・再起動を案内しない
+            ConsoleOut.out("⚠️ On-device OCR (Vision text recognition): not checked — this doctor runs inside a sandbox"
+                + " (such as an AI assistant's shell sandbox), where OCR can read nothing even on a working Mac")
+            ConsoleOut.out("   Run fleetest doctor again outside the sandbox to check it. Test runs, the VSCode extension and the"
+                + " MCP server run outside it.")
+        case .dead:
             problems += 1
             ConsoleOut.out("❌ On-device OCR (Vision text recognition): read nothing from the built-in test image"
                 + " (an image with known text)")
