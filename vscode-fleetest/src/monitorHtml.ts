@@ -399,6 +399,8 @@ function renderDevicesPanel(): string {
            ので top は runBoard.js が測ったヘッダの高さ(--rb-head)。飾りではなく掴む相手なので
            role="separator"(向きは縦) -->
       <div id="run-board-split" class="run-board-split" role="separator" aria-orientation="vertical" aria-label="${t("panels.runBoard.splitAriaLabel")}"></div>
+      <!-- 経過の列の右の罫線(ユーザー決定 2026-11-28)。線だけで掴めない(列の幅は中身で決まる) -->
+      <div id="run-board-time-line" class="run-board-time-line" aria-hidden="true"></div>
     </div>
 
     <div id="banner" class="banner"></div>

@@ -915,8 +915,21 @@ body.vscode-dark .tacho-trend-line { filter: url(#tacho-trend-glow); }
 .run-board-split.dragging::before {
   background-color: var(--vscode-focusBorder, #007acc);
 }
+/* 経過の列(.run-board-col-time)の右の罫線(ユーザー決定 2026-11-28)。色・見出し行に掛けないのは境目と同じ。
+   x は境目 + 経過の列の箱の幅(**.run-board-col-time の min-width + padding-left 8px と同じ式**。片方だけ変えない)。
+   掴めない = pointer-events: none(列の幅は中身で決まる) */
+.run-board-time-line {
+  position: absolute;
+  top: var(--rb-head, 28px);
+  bottom: 0;
+  left: calc(8px + var(--rb-left, 25%) + max(5ch + 8px, var(--rb-time, 0px)));
+  width: 1px;
+  background-color: var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
+  pointer-events: none;
+}
 /* 畳んでいる間は列が見えないので掴む相手も無い */
-.run-board[data-collapsed="true"] .run-board-split {
+.run-board[data-collapsed="true"] .run-board-split,
+.run-board[data-collapsed="true"] .run-board-time-line {
   display: none;
 }
 /* ジョブ(run の上の1階層)。数と経過だけを見出しの行(.run-board-header-jobs)に出す */

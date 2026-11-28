@@ -979,6 +979,30 @@ test("マシン名は独立した列に入り、列の幅はいちばん長い�
     "\"local\"(5字)× 9 + 0.4 を切り上げ");
 });
 
+// 経過の列の右の罫線(ユーザー決定 2026-11-28)。線だけで掴めない。x は境目 + 経過の列の箱の幅で、
+// **.run-board-col-time の min-width と padding-left と同じ式**(片方だけ変えると線と列が割れる)。jsdom は CSS を読まないのでテキストで押さえる
+test("経過の列の右に罫線を引き、位置は経過の列の幅と同じ式で決める", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  const line = document.getElementById("run-board-time-line");
+  assert.ok(line, "罫線の要素が無い");
+  assert.equal(line.getAttribute("aria-hidden"), "true", "掴む相手ではない = separator にしない");
+  assert.equal(line.parentElement, document.getElementById("run-board-split").parentElement, "境目と同じ基準で置く");
+  const css = readFileSync(new URL("../src/webview/monitor/style.css", import.meta.url), "utf8");
+  const block = (selector) => {
+    const start = css.indexOf("\n" + selector + " {");
+    assert.notEqual(start, -1, selector + " の宣言が見つからない");
+    return css.slice(start, css.indexOf("}", start));
+  };
+  const lineDecl = block(".run-board-time-line");
+  assert.match(lineDecl, /left:\s*calc\(8px \+ var\(--rb-left, 25%\) \+ max\(5ch \+ 8px, var\(--rb-time, 0px\)\)\)/);
+  assert.match(lineDecl, /pointer-events:\s*none/);
+  const timeDecl = block(".run-board-col-time");
+  assert.match(timeDecl, /min-width:\s*max\(5ch, var\(--rb-time, 0px\) - 8px\)/, "経過の列の幅の式が変わったら罫線の式も直す");
+  assert.match(timeDecl, /padding:\s*0 0 0 8px/, "経過の列の左の余白が変わったら罫線の式も直す");
+  assert.match(css, /\.run-board\[data-collapsed="true"\] \.run-board-time-line/, "畳んでいる間は消す");
+});
+
 test("境目は端まで引き切れない(左右どちらも 80px は残す)", (t) => {
   const { window, document } = createWebview();
   t.after(() => window.close());
