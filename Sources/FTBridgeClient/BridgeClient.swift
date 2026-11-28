@@ -1299,6 +1299,9 @@ public final class BridgeClient: AppDriver, Sendable {
                                edge: intent == .edge ? true : nil),
             timeout: interactionTimeout)
         atEdgeOnLastSwipe = response.atEdge
+        // **送りの応答で必ず書き直す**(注記が無ければ nil)。書かないと、送りの直後に読む `consumeSwipeBridgeNote` が前の tap の
+        // 注記(「activate did not fire -> synthetic touch」)を読み、送りのステップに起きていない事実を残した(RN の inapp-boost で毎回)
+        lastActionNote = response.note
     }
 
     /// 端送りの1本を a11y のスクロール操作で送る(**Android ブリッジだけ**が持つ口。契約は BridgeDTO.ScrollActionRequest)
