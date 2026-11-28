@@ -4,7 +4,7 @@
 # ここが持つのは run の外側だけ:
 #   1. 全マシンで SUT の鮮度を確かめて要ればビルド(各スクリプトの --build-only。マシン間もマシンの中のスイートも並列)。
 #      リモートはアライン済みのランナーのクローンで起こす = **先に Scripts/align.sh(未コミットの変更も送る)**
-#      並行に、各機械の iOS のデバイスとブリッジを `fleetest devices up` で先に用意する(段2を待たせない。--no-warmup で止める)
+#      並行に、各機械の iOS のデバイスとブリッジを手元の `fleetest api start-all-devices` で先に用意する(段2を待たせない。--no-warmup で止める)
 #   2. 回帰の対象の一覧(スイート × SUT × OS/モード)を --target に並べて fleetest run を1回
 #   3. スクリプトが run ごとにしていた後始末: in-app の証人(E2E-CMP)・画像分類器を使えなかったシナリオを赤にする・
 #      全部緑のとき(赤が mark_exclusions.py の表の行だけのときも)検証済みの印・推奨(verification_watch.py stale)・--negative なら陽性対照
@@ -38,7 +38,7 @@ STREAM_TEARDOWN_WAIT = 60
 # 自前で受けるのは、`nohup … &` で起こすと bash が SIGINT を無視に設定して Python へ継がせ、既定の KeyboardInterrupt が無いため
 _interrupted = False
 _child = None
-_warmups = []   # 先に用意する devices up の子(Popen)。中断は段2の子と同じく1回だけ伝える
+_warmups = []   # 先に用意する start-all-devices の子(Popen)。中断は段2の子と同じく1回だけ伝える
 
 
 def _on_signal(signum, _frame):
@@ -310,65 +310,94 @@ def warmup_plan(targets, fleet):
     return plan
 
 
-def warmup_command(machine, host, project, profile):
-    # リモートでも --device-machine を付けない: ランナーは machine が自分の名前の項目を手元として扱い、付けると
-    # 「この機械のデバイス」として外して何も起動しない(M4Max で確認)
-    sub = ["devices", "up", "--project", project, "--profile", profile]
-    return [FLEETEST] + sub if host is None else [FLEETEST, "remote", "exec", machine, "--"] + sub
+def warmup_jobs(plan):
+    """機械ごとの (プロジェクト, プロファイル) を、手元で1回ずつ撃つ順の一覧へ束ねる(同じ組は1回)"""
+    jobs = []
+    for m in sorted(plan):
+        for job in plan[m]:
+            if job not in jobs:
+                jobs.append(job)
+    return jobs
+
+
+def warmup_command(project, profile):
+    # **手元の api start-all-devices を撃つ(リモートで `remote exec <機> -- devices up` を撃たない)** —— remote exec は向こうの
+    # work のプロジェクトのコピーを送り直さずに読むので、前の run が送った古いコピーで台を選ぶ(11/28 の回帰で M1Max が割り当て4台の
+    # ところ6台を起こそうとした。DR-244)。手元から撃てば RemoteDeviceFanout が毎回そのランナーから見た姿へ書き換えて送ってから起こす
+    return [FLEETEST, "api", "start-all-devices", "--project", project, "--profile", profile]
 
 
 def start_warmup(targets, fleet, run_dir, env):
-    """iOS のデバイスとブリッジを機械ごとに背景で用意する(機械の中は順に、機械の間は並列)。段2を待たせない —— 待たせると
-    冷えた Simulator 6台(同時2台・1組 約110秒)の間、全マシンが空く。戻り値は (スレッド, 機械 → 結果) の一覧。失敗しても回帰は止めない
-    (段2の run が自分で用意する)"""
+    """iOS のデバイスとブリッジを背景で用意する(組は順に、各組の中は start-all-devices が機械ごとに並列に起こす)。段2を待たせない ——
+    待たせると冷えた Simulator 6台(同時2台・1組 約110秒)の間、全マシンが空く。戻り値は (スレッド, 機械 → 結果)。失敗しても回帰は止めない
+    (段2の run が自分で用意する)。機械ごとの終わりは、その機械の deviceFinished を最後に受けた時刻"""
     plan = warmup_plan(targets, fleet)
-    hosts = dict(fleet)
-    results = {}
+    jobs = warmup_jobs(plan)
+    results = {"began": time.time(), "codes": [], "machines": {}}
 
-    def work(machine, jobs):
-        began = time.time()
-        codes = []
-        with open(os.path.join(run_dir, f"warmup@{machine}.log"), "w") as log:
+    def note(machine, key, value):
+        results["machines"].setdefault(machine, {"finished": 0, "failed": 0, "ended": None})[key] = value
+
+    def work():
+        with open(os.path.join(run_dir, "warmup.log"), "w") as log:
             for project, profile in jobs:
                 if _interrupted:
                     break
                 try:
-                    proc = subprocess.Popen(warmup_command(machine, hosts[machine], project, profile), cwd=ROOT,
-                                            stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env)
+                    proc = subprocess.Popen(warmup_command(project, profile), cwd=ROOT, stdout=subprocess.PIPE,
+                                            stderr=log, stdin=subprocess.DEVNULL, env=env, text=True, errors="replace")
                 except OSError as e:
-                    codes.append(f"起こせませんでした: {e}")
+                    results["codes"].append(f"起こせませんでした: {e}")
                     continue
                 _warmups.append(proc)
+                for line in proc.stdout:
+                    log.write(line)
+                    try:
+                        event = json.loads(line)
+                    except ValueError:
+                        continue
+                    machine = event.get("machine") or "local"
+                    if event.get("kind") == "deviceFinished":
+                        m = results["machines"].get(machine, {})
+                        note(machine, "finished", m.get("finished", 0) + 1)
+                        note(machine, "ended", time.time())
+                    elif event.get("kind") == "log" and "❌" in event.get("message", ""):
+                        m = results["machines"].get(machine, {})
+                        note(machine, "failed", m.get("failed", 0) + 1)
                 while True:
                     try:
-                        codes.append(proc.wait())
+                        results["codes"].append(proc.wait())
                         break
                     except InterruptedError:
                         continue
-        results[machine] = {"codes": codes, "began": began, "ended": time.time()}
+        results["ended"] = time.time()
 
-    threads = [threading.Thread(target=work, args=(m, jobs)) for m, jobs in plan.items()]
+    threads = [threading.Thread(target=work)] if jobs else []
     for t in threads:
         t.start()
-    if plan:
-        print("==> 段1と並行: iOS のデバイスとブリッジを先に用意します(" + ", ".join(
-            f"{m}: {' '.join(f'{p}:{q}' for p, q in jobs)}" for m, jobs in plan.items()) + ")")
+    if jobs:
+        print("==> 段1と並行: iOS のデバイスとブリッジを先に用意します(" + ", ".join(f"{p}:{q}" for p, q in jobs) + ")")
     return {"threads": threads, "results": results, "done": False}
 
 
 def finish_warmup(warmup, stage2_started=None):
     """背景の用意を待って、機械ごとの所要と、段2の開始から見た終わりの時刻を出す(段2の準備とどれだけ重なったかを読む測る口)。
-    2回目以降は何もしない(段2の後と run_stages の finally の両方から呼ぶ)"""
+    2回目以降は何もしない(段2の後と run_stages の finally の両方から呼ぶ)。失敗の数は start-all-devices が ❌ で言った行"""
     if warmup is None or warmup["done"]:
         return
     warmup["done"] = True
     for t in warmup["threads"]:
         t.join()
-    for machine, r in sorted(warmup["results"].items()):
-        ok = all(c == 0 for c in r["codes"])
-        end = "" if stage2_started is None else f" / 段2の開始から {r['ended'] - stage2_started:+.0f}s で終わり"
-        print(f"   先に用意した iOS: {machine} {'✅' if ok else '⚠️ ' + str(r['codes'])}"
-              f" {r['ended'] - r['began']:.0f}s{end}(warmup@{machine}.log)")
+    r = warmup["results"]
+    if not warmup["threads"]:
+        return
+    ok = all(c == 0 for c in r["codes"])
+    print(f"   先に用意した iOS: {'✅' if ok else '⚠️ ' + str(r['codes'])} {r.get('ended', time.time()) - r['began']:.0f}s(warmup.log)")
+    for machine, m in sorted(r["machines"].items()):
+        end = "" if stage2_started is None or m["ended"] is None else f" / 段2の開始から {m['ended'] - stage2_started:+.0f}s で終わり"
+        failed = f"・失敗 {m['failed']}" if m["failed"] else ""
+        span = "" if m["ended"] is None else f" {m['ended'] - r['began']:.0f}s"
+        print(f"     {machine}: {m['finished']}台{failed}{span}{end}")
 
 
 def run_logged(cmd, log_path, env):
@@ -459,10 +488,8 @@ def main():
         print("+ 段1と並行: " + " ".join(shlex.quote(a) for a in prebuild_args(targets)))
         if not opts.no_warmup:
             fleet = machines()
-            for machine, jobs in warmup_plan(targets, fleet).items():
-                for project, profile in jobs:
-                    print("+ 段1と並行(先に用意): "
-                          + " ".join(shlex.quote(a) for a in warmup_command(machine, dict(fleet)[machine], project, profile)))
+            for project, profile in warmup_jobs(warmup_plan(targets, fleet)):
+                print("+ 段1と並行(先に用意): " + " ".join(shlex.quote(a) for a in warmup_command(project, profile)))
         print(" ".join(shlex.quote(a) for a in run_args(targets, opts.record)))
         if witness:
             print(f"+ in-app の証人: {WITNESS[0]} / {WITNESS[1]}")

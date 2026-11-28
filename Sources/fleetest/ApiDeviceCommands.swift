@@ -286,7 +286,7 @@ struct ApiStartAllDevicesCommand: AsyncParsableCommand {
         do {
             let machineProfile = try DeviceRosterLoad.load(
                 project: project, profile: profile, deviceMachine: deviceMachine,
-                foreign: .dispatchedByCaller,  // RemoteDeviceFanout がこの後その機械へ回す
+                foreign: .dispatchedByCaller, touchesDevices: true,  // RemoteDeviceFanout がこの後その機械へ回す
                 warn: { Self.logStderr($0) })
             let repoRoot = noBridge ? nil : try RepoRoot.find()
             // **リモートのぶんはその機械へ投げる**(手元の起動と同時に走る。RemoteDeviceFanout)。
@@ -386,7 +386,7 @@ struct ApiRestartDevicesCommand: AsyncParsableCommand {
         do {
             let machineProfile = try DeviceRosterLoad.load(
                 project: project, profile: profile, deviceMachine: deviceMachine,
-                foreign: .notHandled,  // restart-devices は分散しない(watchdog 由来で手元専用)
+                foreign: .notHandled, touchesDevices: true,  // restart-devices は分散しない(watchdog 由来で手元専用)
                 warn: { Self.logStderr($0) })
 
             var items: [RestartItem] = []
@@ -543,7 +543,7 @@ struct ApiStopAllDevicesCommand: AsyncParsableCommand {
         do {
             let machineProfile = try DeviceRosterLoad.load(
                 project: project, profile: profile, deviceMachine: deviceMachine,
-                foreign: .dispatchedByCaller,  // RemoteDeviceFanout がこの後その機械へ回す
+                foreign: .dispatchedByCaller, touchesDevices: true,  // RemoteDeviceFanout がこの後その機械へ回す
                 warn: { Self.logStderr($0) })
             // リモートのぶんはその機械へ投げる(起動と同じ分散。RemoteDeviceFanout)
             let machines = RemoteDeviceFanout.remoteMachines(
@@ -784,6 +784,12 @@ enum ApiDeviceOperation {
         setvbuf(stdout, nil, _IOLBF, 0)
 
         let testProject = try ScenarioHost.project(named: project)
+        do {
+            try RunnerCloneProjectCheck.rejectIfRunnerClone(project: testProject, deviceMachine: deviceMachine, explicitLocalRunner: false)
+        } catch let refusal as ValidationError {
+            emitFinished(ok: false, error: refusal.message)
+            throw ExitCode(1)
+        }
         // **台帳の決め方は実行プロファイルの有無で変わる**(監視 = ApiMonitorCommand と同じ規律):
         //   選んでいる: その実行プロファイルの devices(enabled: false も含む)
         //   選んでいない: **台帳を1つに決めない** —— runs/ を全部畳み、手元 +

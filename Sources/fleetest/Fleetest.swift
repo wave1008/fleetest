@@ -613,6 +613,12 @@ struct RunScenarios: AsyncParsableCommand {
         // `--device-machine` を素通しする既存の挙動(下の `if dryRun` 分岐。`--profile` の実在
         // だけ確かめて devices は見ない)のままにする。ロックを取らない dry-run はそもそも
         // 待たせる問題が起きない経路なので、ここで新しい検証を割り込ませない
+        // ランナーのクローンの中で、発行側視点のプロファイルからデバイスを選ばせない(dry-run はデバイスに触れないので通す)
+        if !dryRun {
+            try RunnerCloneProjectCheck.rejectIfRunnerClone(
+                project: try ScenarioHost.project(named: common.project), deviceMachine: common.deviceMachine,
+                explicitLocalRunner: MachineDispatch.isExplicitLocal(runner))
+        }
         var earlyResolution: RunCommonOptions.PreLockProfileResolution?
         if !dryRun { earlyResolution = try validateProfileDevicesBeforeLock() }
         let earlyResolved = earlyResolution?.resolvedAll

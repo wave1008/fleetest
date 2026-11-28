@@ -235,6 +235,8 @@ struct ApiRunCommand: AsyncParsableCommand {
         RunEnvironment.apply(noProfileSettings)
 
         let testProject = try ScenarioHost.project(named: common.project)
+        // ランナーのクローンの中で、発行側視点のプロファイルからデバイスを選ばせない(`run` と同じ判定。dry-run は通す)
+        if !dryRun { try RunnerCloneProjectCheck.rejectIfRunnerClone(project: testProject, deviceMachine: common.deviceMachine, explicitLocalRunner: MachineDispatch.isExplicitLocal(runner)) }
         // 親が送ったビルド済みのシナリオ実行バイナリ(あれば)。ビルド・一覧・実行のどれより前に登録する(stdout は NDJSON 専用)
         prebuilt.install(project: testProject, log: { logStderr($0) })
 

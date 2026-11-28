@@ -43,7 +43,7 @@ struct DevicesCommand: AsyncParsableCommand {
         func run() async throws {
             let machineProfile = try DeviceRosterLoad.load(
                 project: project, profile: profile, deviceMachine: deviceMachine,
-                foreign: .notHandled,  // `devices up` は分散しない(api start-all-devices が分散する側)
+                foreign: .notHandled, touchesDevices: true,  // `devices up` は分散しない(api start-all-devices が分散する側)
                 warn: { ConsoleOut.out($0) })
 
             // iOS はブート完了分をバッチで束ねてブリッジ供給する(bootAll 内。ブートと供給は並行)
@@ -228,7 +228,7 @@ struct DevicesCommand: AsyncParsableCommand {
             do {
                 filtered = try DeviceRosterLoad.load(
                     project: project, profile: profile, deviceMachine: deviceMachine,
-                    foreign: .notHandled,  // --profile 付きの掃討は手元だけ
+                    foreign: .notHandled, touchesDevices: true,  // --profile 付きの掃討は手元だけ
                     warn: { ConsoleOut.out($0) })
             } catch {
                 // プロファイル自体の読み込み失敗は1台も停止を試みていないので「全滅」とは区別し、
@@ -273,10 +273,16 @@ enum DeviceRosterLoad {
         case notHandled
     }
 
+    /// - touchesDevices: 呼び手がこの台帳でデバイスを起動・停止・消去するか。**既定値を置かない**(渡し忘れをコンパイルで止める)。
+    ///   true のときはランナーのクローン自身の TestProjects を断る(`RunnerCloneProjectCheck`)。観測だけの呼び手は false
     static func load(project: String?, profile: String?, deviceMachine: String? = nil,
-                     foreign: ForeignDevices,
+                     foreign: ForeignDevices, touchesDevices: Bool,
                      warn: (String) -> Void) throws -> DeviceRoster {
-        try load(project: try ScenarioHost.project(named: project), profile: profile,
+        let testProject = try ScenarioHost.project(named: project)
+        if touchesDevices {
+            try RunnerCloneProjectCheck.rejectIfRunnerClone(project: testProject, deviceMachine: deviceMachine, explicitLocalRunner: false)
+        }
+        return try load(project: testProject, profile: profile,
                  deviceMachine: deviceMachine,
                  registry: (LocalConfig.load().remoteHosts ?? []).map(\.machine),
                  foreign: foreign, warn: warn)

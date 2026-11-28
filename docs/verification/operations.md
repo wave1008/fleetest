@@ -323,8 +323,8 @@ Flutter と RN の実機用は **Release 構成**(Flutter の Debug は flutter 
   `fleetest run --target …` の1回に並べる薄い包み(配り方は RR-8.2 = 空いたマシンが次の対象を取り、終わり際はシナリオ単位で手伝う)。
   最初に全マシンで SUT の鮮度確認とビルド(各スクリプトの `--build-only`)を並列に済ませ、run の後で in-app の証人・画像分類器を
   使えなかったシナリオの検査・検証済みの印(全部緑のときだけ)・推奨・陽性対照(`--negative`)を1回。ログは `.fleetest/regress/<時刻>/`
-  (段 1 のビルド)。段 1 と並行に、各マシンの **iOS の** デバイスとブリッジを `fleetest devices up` で先に用意する(段 2 を待たせない・
-  ログは `warmup@<マシン>.log`・`--no-warmup` で止める)。11/28 の回帰では、最初の iOS 対象の準備(冷えた Simulator の起動・ブリッジの
+  (段 1 のビルド)。段 1 と並行に、各マシンの **iOS の** デバイスとブリッジを手元の `fleetest api start-all-devices` で先に用意する(段 2 を待たせない・
+  ログは `warmup.log`・`--no-warmup` で止める。リモートで `remote exec <機> -- devices up` を撃たないのは、remote exec が向こうの work のコピーを送り直さずに読み、古いコピーで台を選ぶため = 手元の start-all-devices は毎回ランナーから見た姿へ書き換えて送る。DR-244)。11/28 の回帰では、最初の iOS 対象の準備(冷えた Simulator の起動・ブリッジの
   ビルドし直し)が4台で計 約865秒あり、割り当ての見込みはこれを数えていなかった。Android は先に起こさない(Emulator の起動枠はプロセスの
   中だけなので、段 2 と重なると同時起動が増える)。E2EX / E2EY のプロファイルにもリモートのデバイスがある(スクリプトは `--runner local` で回すので影響しない)。
   `--ios-xcuitest` で xcuitest モードの対象も足す・`--ios-xcuitest-only` で iOS の xcuitest モードの対象だけを回す(xcuitest の印だけを書く。

@@ -240,6 +240,7 @@ extension RemoteCommand {
             }
             if alignmentAlreadyDone(hostSpec: hostSpec, layout: layout, prepared: prepared) {
                 emit("align", .ok, "already aligned (same contents and toolchain; nothing sent or built)")
+                writeRunnerCloneMarker(hostSpec: hostSpec, layout: layout)
             } else {
                 let alignStatus: Int32
                 do {

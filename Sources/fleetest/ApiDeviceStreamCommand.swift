@@ -153,7 +153,7 @@ struct ApiDeviceStreamCommand: AsyncParsableCommand {
     private func rosterHelperArgv() async throws -> [String] {
         let machineProfile = try DeviceRosterLoad.load(
             project: project, profile: profile, deviceMachine: deviceMachine,
-            foreign: .notHandled,  // 1台ぶんの配信。警告は捨てているので表示は変わらない
+            foreign: .notHandled, touchesDevices: false,  // 1台ぶんの配信(観測だけ = 印の検査は掛けない)。警告は捨てているので表示は変わらない
             warn: { _ in })
         let targets = DeviceMachineGrouping.entries(roster: machineProfile).map {
             MonitorTarget(platform: $0.platform, spec: $0.spec)

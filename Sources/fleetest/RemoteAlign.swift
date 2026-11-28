@@ -118,7 +118,23 @@ func sendAndBuildAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepa
             "could not send \(prepared.commit.prefix(7)) to \(hostSpec.sshTarget):\(layout.toolRoot) (git push exited \(push);"
             + " is the runner set up? run `fleetest remote setup`)")
     }
-    return try runRemoteAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared, probe: probe, io: io)
+    let status = try runRemoteAlignment(hostSpec: hostSpec, layout: layout, prepared: prepared, probe: probe, io: io)
+    if status == 0 { writeRunnerCloneMarker(hostSpec: hostSpec, layout: layout, io: io) }
+    return status
+}
+
+/// ランナーのクローンの印を書く(`RunnerCloneProjectGuard`)。**align の成功経路はすべてここを通す**
+/// (`sendAndBuildAlignment` = `remote align` / `remote setup` / `--align`、と「揃っている」で早く返る `RemoteAlign.execute` の分岐)。
+/// 失敗は警告1行(align の成否は変えない)。中身にエイリアスを入れない
+func writeRunnerCloneMarker(hostSpec: RemoteHostSpec, layout: RemoteLayout, io: AlignIO = .stdout) {
+    let directory = RemoteShell.quote(layout.toolRoot + "/.fleetest")
+    let file = RemoteShell.quote(layout.toolRoot + "/" + RunnerCloneProjectGuard.markerRelativePath)
+    let content = RemoteShell.quote(String(decoding: RunnerCloneProjectGuard.markerContent, as: UTF8.self))
+    let result = try? Shell.run(setupSSHBase + [hostSpec.sshTarget, "mkdir -p \(directory) && printf '%s' \(content) > \(file)"])
+    if result?.status != 0 {
+        io.say("warning: could not write the runner-clone marker on \(hostSpec.sshTarget)"
+            + " — commands run inside the runner clone will not be guarded")
+    }
 }
 
 private func runRemoteAlignment(hostSpec: RemoteHostSpec, layout: RemoteLayout, prepared: AlignPrepared,
@@ -311,6 +327,7 @@ enum RemoteAlign {
         if let state, RemoteAlignPlan.isAlreadyAligned(commit: prepared.commit, localDigest: prepared.digest,
                                                        developerDir: prepared.developerDir, state: state) {
             io.say("✅ already aligned to \(prepared.commit.prefix(7)) (same contents and toolchain; nothing sent or built)")
+            writeRunnerCloneMarker(hostSpec: hostSpec, layout: layout, io: io)
             return .alreadyAligned(commit: prepared.commit)
         }
 

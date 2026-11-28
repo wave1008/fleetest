@@ -165,9 +165,14 @@ test('先に用意する計画: iOS の対象だけを、各マシンの iOS の
   for (const [machine, jobs] of Object.entries(plan)) assert.equal(jobs.length, 1, `${machine}: ${JSON.stringify(jobs)}`)
 })
 
-test('先に用意するコマンド: リモートにも --device-machine を付けない(付けるとランナーが自分のデバイスを外して何も起動しない)', () => {
-  const remote = py('m.warmup_command("M4Max", "h", "E2E-CMP", "ios-inapp-boost")')
-  assert.deepEqual(remote.slice(1), ['remote', 'exec', 'M4Max', '--', 'devices', 'up', '--project', 'E2E-CMP', '--profile', 'ios-inapp-boost'])
-  const local = py('m.warmup_command("local", None, "E2E-CMP", "ios-inapp-boost")')
-  assert.deepEqual(local.slice(1), ['devices', 'up', '--project', 'E2E-CMP', '--profile', 'ios-inapp-boost'])
+test('先に用意するコマンド: 手元の api start-all-devices を組ごとに1回撃つ(ランナーで remote exec … devices up を撃たない)', () => {
+  // remote exec は向こうの work のコピーを送り直さずに読む(古いコピーで台を選ぶ)。
+  // 手元の start-all-devices は RemoteDeviceFanout が毎回ランナーから見た姿へ書き換えたプロジェクトを送ってから向こうで起こす
+  const command = py('m.warmup_command("E2E-CMP", "ios-inapp-boost")')
+  assert.deepEqual(command.slice(1), ['api', 'start-all-devices', '--project', 'E2E-CMP', '--profile', 'ios-inapp-boost'])
+  const fleet = '[("local", None), ("M1Ultra", "h1"), ("M1Max", "h2"), ("M4Max", "h3")]'
+  const jobs = py(`m.warmup_jobs(m.warmup_plan(m.build_targets(["e2e", "e2ex", "e2ey"], True), ${fleet}))`)
+  // 同じ組を機械の数だけ撃たない(1回で全機械へ分散する)
+  assert.equal(new Set(jobs.map((j) => j.join(':'))).size, jobs.length)
+  assert.ok(jobs.length >= 1)
 })
