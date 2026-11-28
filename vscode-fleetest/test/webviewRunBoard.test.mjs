@@ -936,6 +936,8 @@ test("境目の既定はいちばん長いラベル + 100px で、ドラッグ�
   sendDevices(window, [{ name: "iPhone 17 Pro-01", udid: "U-1" }]);
   // 16字 × 10 + 端数 0.4 → **切り上げる**(切り捨てるとその行だけ "…" になる)+ 100
   assert.equal(leftWidth(document), "261px", "短い行ではなく長い行に合わせ、端数は切り上げる");
+  sendDevices(window, []);
+  assert.equal(leftWidth(document), "261px", "長い行が消えても縮めない(縮めると run の出入りのたびに境目が動く)");
 
   const split = document.getElementById("run-board-split");
   assert.equal(split.getAttribute("role"), "separator");
@@ -977,6 +979,12 @@ test("マシン名は独立した列に入り、列の幅はいちばん長い�
   assert.equal(cell.nextElementSibling, summary.querySelector(".run-board-scope"), "プロジェクト / 実行プロファイルは列の右");
   assert.equal(document.getElementById("run-board").style.getPropertyValue("--rb-machine"), "46px",
     "\"local\"(5字)× 9 + 0.4 を切り上げ");
+  const machineWidth = () => document.getElementById("run-board").style.getPropertyValue("--rb-machine");
+  post(window, { type: "hostMetricsMachines", machines: ["M1UltraStudio"] });
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1UltraStudio", observed: true, services: [], runs: [] });
+  assert.equal(machineWidth(), "118px", "長い名前の機械が出たら広がる(13字 × 9 + 0.4 を切り上げ)");
+  post(window, { type: "hostMetricsMachines", machines: [] });
+  assert.equal(machineWidth(), "118px", "機械が消えても縮めない(縮めると全行のプロジェクト名が動く)");
 });
 
 // 経過の列の右の罫線(ユーザー決定 2026-11-28)。線だけで掴めない。x は境目 + 経過の列の箱の幅で、
@@ -995,11 +1003,11 @@ test("経過の列の右に罫線を引き、位置は経過の列の幅と同�
     return css.slice(start, css.indexOf("}", start));
   };
   const lineDecl = block(".run-board-time-line");
-  assert.match(lineDecl, /left:\s*calc\(8px \+ var\(--rb-left, 25%\) \+ max\(5ch \+ 8px, var\(--rb-time, 0px\)\)\)/);
+  assert.match(lineDecl, /left:\s*calc\(8px \+ var\(--rb-left, 25%\) \+ max\(5ch \+ 16px, var\(--rb-time, 0px\)\)\)/);
   assert.match(lineDecl, /pointer-events:\s*none/);
   const timeDecl = block(".run-board-col-time");
-  assert.match(timeDecl, /min-width:\s*max\(5ch, var\(--rb-time, 0px\) - 8px\)/, "経過の列の幅の式が変わったら罫線の式も直す");
-  assert.match(timeDecl, /padding:\s*0 0 0 8px/, "経過の列の左の余白が変わったら罫線の式も直す");
+  assert.match(timeDecl, /min-width:\s*max\(5ch, var\(--rb-time, 0px\) - 16px\)/, "経過の列の幅の式が変わったら罫線の式も直す");
+  assert.match(timeDecl, /padding:\s*0 8px;/, "経過の列の左右の余白が変わったら罫線の式も直す");
   assert.match(css, /\.run-board\[data-collapsed="true"\] \.run-board-time-line/, "畳んでいる間は消す");
 });
 
@@ -1227,8 +1235,34 @@ test("run 行の経過 / 残りの左端は、実行中の行と準備中の行�
   const width = document.getElementById("run-board").style.getPropertyValue("--rb-lead");
   assert.ok(parseFloat(width) > 0, "揃える幅が入る");
   assert.equal(width, Math.max(...leads.map((el) => el.textContent.length * 7)) + "px", "いちばん広い行に揃える");
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [] });
+  assert.equal(document.getElementById("run-board").style.getPropertyValue("--rb-lead"), width,
+    "広い行が消えても縮めない(縮めると run の出入りのたびに右の列が動く)");
   const idleLead = [...document.querySelectorAll(".run-board-lead")].find((el) => el.style.display === "none");
   assert.ok(idleLead, "空きの行はまとまりごと畳む(「空き」を押さない)");
+});
+
+test("経過の列の幅は広い行が消えても縮めず、パネルの大きさが変わったときだけ測り直す", (t) => {
+  const { window, document } = createWebview();
+  t.after(() => window.close());
+  // jsdom はレイアウトを持たないので、経過の列の幅を字数 × 8 + 端数 0.4 で作る(切り上げを見る)
+  Object.defineProperty(window.HTMLElement.prototype, "getBoundingClientRect", {
+    configurable: true,
+    value() {
+      const width = this.classList.contains("run-board-col-time") ? this.textContent.length * 8 + 0.4 : 0;
+      return { width, height: 0, left: 0, top: 0, right: width, bottom: 0, x: 0, y: 0 };
+    },
+  });
+  const timeWidth = () => document.getElementById("run-board").style.getPropertyValue("--rb-time");
+  const base = monitorRunsMessage().runs[0];
+  post(window, monitorRunsMessage({ runs: [base] }));   // "4:21"
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [],
+    runs: [{ ...base, pid: 2, runID: "run-2", elapsedSeconds: 6000 }] });   // "100:00"
+  assert.equal(timeWidth(), "49px", "いちばん広い行(「100:00」= 6字 × 8 + 0.4)を切り上げる");
+  post(window, { type: "monitorRuns", jobs: [], machine: "M1Max", observed: true, services: [], runs: [] });
+  assert.equal(timeWidth(), "49px", "広い行が消えても縮めない(縮めると run の出入りのたびに罫線が動く)");
+  window.dispatchEvent(new window.Event("resize"));
+  assert.equal(timeWidth(), "33px", "パネルの大きさが変わったら今の行で測り直す(「4:21」= 4字)");
 });
 
 // ---- サーバー(DS-18.10)-------------------------------------------------------------------------

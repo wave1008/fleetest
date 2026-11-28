@@ -176,18 +176,26 @@ onPlatformFilterChanged(() => render());
 
 // ---- 2カラムの境目(ユーザー決定) ----
 // **px で持つ**(比率ではない) —— ドラッグは px で来るので、比率にすると丸めのたびに境目が滑る。
-// null = まだドラッグされていない = 既定(いちばん長いラベルの幅)を毎回引き直す。
+// null = まだドラッグされていない = 既定(これまでに見たいちばん長いラベルの幅。widestLeftSeen)。
 // **どこにも保存しない**(ユーザー決定)—— 寿命はこのパネルそのもの。タブを閉じたら
 // 解放し、開き直したら既定へ戻す。**この変数だけが持ち主**なので、host へ送る・getState へ書く
 // のどちらも足さない(どちらも閉じても残り、リセットされなくなる)。
 // 隠す/再表示は retainContextWhenHidden で webview が生き続けるため、幅も保たれる。
 let desiredSplit = null;
+// 測った幅(境目の既定・--rb-machine・--rb-lead・--rb-time)は**広げるだけで縮めない**(ユーザー決定)。
+// 測り直すたびに縮めると、run の始まり・終わり・注記の出入り・機械の出入りで境目と列がそのたびに動く。
+// 縮めてよいのはパネルの大きさが変わったとき(ズームを含む。resetWidestSeen)だけ —— 利用者が自分で動かしたときで、
+// 範囲の変更は refreshRunBoardDevices がデバイスの一覧の更新と同じ口なので戻さない。保存しない規律は desiredSplit と同じ
+let widestLeftSeen = 0;
+let widestMachineSeen = 0;
+let widestLeadSeen = 0;
+let widestTimeSeen = 0;
 
 // 左右それぞれに最低これだけは残す(境目を端まで引き切って片方を潰さない)。
 const MIN_COLUMN_WIDTH = 80;
 // 既定は**いちばん長いラベルがちょうど収まる幅 + DEFAULT_SPLIT_EXTRA**(ユーザー決定)。
-// 比率ではないので、機械名・デバイス名の長さで決まる。ドラッグするまでは毎回引き直す
-// (デバイスが増えて名前が伸びたら追従する)。
+// 比率ではないので、機械名・デバイス名の長さで決まる。ドラッグするまでは、より長い名前が出たら広がる
+// (縮めない = widestLeftSeen)。
 function naturalLeftWidth() {
   // 測る間だけ左カラムを中身なりの幅にする(flex-basis が効いたままだと今の幅しか返らない)
   runBoardRows.classList.add('run-board-measuring');
@@ -231,8 +239,12 @@ function renderSplit() {
     return;   // 「デバイスモニター」タブが非表示の間は測れない(splitter.js の panelHidden と同じ規律)
   }
   // マシン名の列は**左カラムを測る前に**決める(列の幅が左カラムの中身なりの幅に入る)
-  runBoard.style.setProperty('--rb-machine', machineColumnWidth() + 'px');
-  const left = clampSplit(desiredSplit ?? naturalLeftWidth() + DEFAULT_SPLIT_EXTRA, content);
+  widestMachineSeen = Math.max(widestMachineSeen, machineColumnWidth());
+  runBoard.style.setProperty('--rb-machine', widestMachineSeen + 'px');
+  if (desiredSplit === null) {
+    widestLeftSeen = Math.max(widestLeftSeen, naturalLeftWidth());
+  }
+  const left = clampSplit(desiredSplit ?? widestLeftSeen + DEFAULT_SPLIT_EXTRA, content);
   runBoard.style.setProperty('--rb-left', left + 'px');
   // 境目は見出し行には掛けない(掴む相手ではないうえ、チェックボックスに重なる)
   runBoard.style.setProperty('--rb-head', runBoardHeader.offsetHeight + 'px');
@@ -278,7 +290,17 @@ runBoardSplit.addEventListener('pointerup', endSplitDrag);
 runBoardSplit.addEventListener('pointercancel', endSplitDrag);
 // **見出し行の開閉へ波及させない**(境目は run ボードの中に居る)
 runBoardSplit.addEventListener('click', (event) => event.stopPropagation());
-window.addEventListener('resize', () => renderSplit());
+function resetWidestSeen() {
+  widestLeftSeen = 0;
+  widestMachineSeen = 0;
+  widestLeadSeen = 0;
+  widestTimeSeen = 0;
+}
+window.addEventListener('resize', () => {
+  resetWidestSeen();
+  renderSplit();
+  renderLeadWidth();
+});
 
 /** デバイスの一覧・モニターの範囲(project/profile)が変わったら main.js から呼ぶ。
  * **run ボードは monitorRuns でしか描き直さない**ので、これが無いとツリーのデバイスが古いまま残る。 */
@@ -1136,20 +1158,20 @@ function render() {
 }
 
 /** run 行の「時刻より前」のまとまりの幅を、いちばん広い行に揃える(--rb-lead)。
- *  自然な幅を測るため一度 0 に戻してから読む(要素は作り直さない)。空きの行は時刻を持たないので対象外 */
+ *  自然な幅を測るため一度 0 に戻してから読む(要素は作り直さない)。空きの行は時刻を持たないので対象外。
+ *  **広げるだけで縮めない**(widestLeadSeen / widestTimeSeen。理由は widestLeftSeen) */
 function renderLeadWidth() {
   runBoard.style.setProperty('--rb-lead', '0px');
   runBoard.style.setProperty('--rb-time', '0px');
-  let widest = 0;
-  let widestTime = 0;
   for (const row of rows.values()) {
     if (row.run) {
-      widest = Math.max(widest, row.leadEl.offsetWidth);
-      widestTime = Math.max(widestTime, row.timeEl.offsetWidth);
+      widestLeadSeen = Math.max(widestLeadSeen, row.leadEl.offsetWidth);
+      // 罫線の位置に効くので矩形の実寸で測り、最後に切り上げる(naturalLeftWidth と同じ理由)
+      widestTimeSeen = Math.max(widestTimeSeen, Math.ceil(row.timeEl.getBoundingClientRect().width));
     }
   }
-  runBoard.style.setProperty('--rb-lead', widest + 'px');
-  runBoard.style.setProperty('--rb-time', widestTime + 'px');
+  runBoard.style.setProperty('--rb-lead', widestLeadSeen + 'px');
+  runBoard.style.setProperty('--rb-time', widestTimeSeen + 'px');
 }
 
 // ---- アクション/秒メーター(見出しの「実行状況」の右。純粋ロジックは actionTachometerModel.ts) ----

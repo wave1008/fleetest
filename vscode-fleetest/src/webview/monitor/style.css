@@ -915,14 +915,14 @@ body.vscode-dark .tacho-trend-line { filter: url(#tacho-trend-glow); }
 .run-board-split.dragging::before {
   background-color: var(--vscode-focusBorder, #007acc);
 }
-/* 経過の列(.run-board-col-time)の右の罫線(ユーザー決定 2026-11-28)。色・見出し行に掛けないのは境目と同じ。
-   x は境目 + 経過の列の箱の幅(**.run-board-col-time の min-width + padding-left 8px と同じ式**。片方だけ変えない)。
+/* 経過の列(.run-board-col-time)の右の罫線(ユーザー決定)。色・見出し行に掛けないのは境目と同じ。
+   x は境目 + 経過の列の箱の幅(**.run-board-col-time の min-width + 左右の padding 8px×2 と同じ式**。片方だけ変えない)。
    掴めない = pointer-events: none(列の幅は中身で決まる) */
 .run-board-time-line {
   position: absolute;
   top: var(--rb-head, 28px);
   bottom: 0;
-  left: calc(8px + var(--rb-left, 25%) + max(5ch + 8px, var(--rb-time, 0px)));
+  left: calc(8px + var(--rb-left, 25%) + max(5ch + 16px, var(--rb-time, 0px)));
   width: 1px;
   background-color: var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
   pointer-events: none;
@@ -1033,11 +1033,11 @@ body.vscode-dark .tacho-trend-line { filter: url(#tacho-trend-glow); }
 }
 .run-board-col-time {
   /* 左右の列の間の、経過だけの列(ユーザー決定)。幅は全行で揃える(--rb-time = runBoard.js の renderLeadWidth)。
-     空きの行・デバイスの行も箱を持つ(右の列の左端を揃えるため)。左の 8px は境目から離すぶん(右の列は自分の padding-left で離れる) */
+     空きの行・デバイスの行も箱を持つ(右の列の左端を揃えるため)。左の 8px は境目から、右の 8px は右の罫線から離すぶん(--rb-time は padding 込みの幅) */
   flex: 0 0 auto;
   box-sizing: content-box;
-  min-width: max(5ch, var(--rb-time, 0px) - 8px);
-  padding: 0 0 0 8px;
+  min-width: max(5ch, var(--rb-time, 0px) - 16px);
+  padding: 0 8px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
