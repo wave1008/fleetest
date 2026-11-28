@@ -1196,6 +1196,11 @@ extension StepExecutor {
                 }
             }
             try await dismissInterruption(in: &snapshot, phase: &phase)
+            // 明示 scrollFrame を XCUITest の木で解く(DR-241)のは、この周の案内(cover.scope)を作る前
+            if attempt == 0 {
+                step = await scrollFrameFromXCUITestTree(step, inApp: snapshot, phase: &phase)
+                searchStep = step
+            }
             cover.hint = Self.coverReportHint(snapshot)
             cover.scope = Self.searchScopeHint(step, snapshot.elements, isAndroid: isAndroid)
             if attempt == 0 { startSnapshot = snapshot }
@@ -1363,7 +1368,7 @@ extension StepExecutor {
                     // **寄せる前にも fail-fast を通す**(未検出側と同じ判定)。ここを飛ばすと
                     // 解決できない明示 scrollFrame のまま viewport が画面全体へ落ち、寄せの1本が
                     // 文書化した「1本も振らない」を素通りして全画面スワイプになる
-                    if Self.scrollFrameUnresolved(step, in: snapshot) {
+                    if await scrollFrameGone(&step, in: snapshot, swipesSent: swipes, phase: &phase) {
                         return ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
                                                   hintJumps: hintJumps, swipes: swipes,
                                                   scrollFrameMissing: true,
@@ -1569,7 +1574,7 @@ extension StepExecutor {
                 // **scrollContainer ではなく Self.scrollFrameUnresolved で判定する**
                 // (scrollContainer は殺しスイッチ時に常に nil を返すため、それをそのまま使うと
                 // legacy 指定時に「セレクタが実在するのに matched nothing」と誤検知する)
-                if Self.scrollFrameUnresolved(step, in: snapshot) {
+                if await scrollFrameGone(&step, in: snapshot, swipesSent: swipes, phase: &phase) {
                     var missing = ScrollSearchResult(found: false, fallback: nil, viaXCUITest: viaXCUITest,
                                                      hintJumps: hintJumps, swipes: swipes,
                                                      scrollFrameMissing: true,
@@ -1578,6 +1583,8 @@ extension StepExecutor {
                     if swipes > 0 { missing.appLeftForeground = await frontAppIfSessionAppLeft(searchBundleID, tree: snapshot) }
                     return missing
                 }
+                // XCUITest の木で引き直した枠(DR-241)は、比べる範囲の側にも写す
+                if scrollFrameViaXCUITestTreeThisStep != nil { searchStep.scrollFrameRect = step.scrollFrameRect }
                 // **探索の途中で画面の大きさが変わった(端末が回った)なら、端とは言わず止める**:
                 // 木の座標系が替わると容器・始点の前提が崩れ、動かないのは端ではなく払いが届かないため
                 if let earlier = previousSnapshot, earlier.screen != snapshot.screen {
@@ -1768,7 +1775,7 @@ extension StepExecutor {
                         result.startedOnOtherApp = startedOnOther.flatMap { owner in launchedBundleID.map { (owner, $0) } }
                         // 未指定の全画面探索が的外れな案内(シート展開・端到達)を出す前に、
                         // 探索方向に合う宣言済みの容器を名指しできないか確かめる
-                        if step.scrollFrame == nil {
+                        if step.scrollFrame == nil, step.scrollFrameRect == nil {
                             result.directionMatchedScrollFrameCandidate =
                                 Self.directionMatchedScrollFrameCandidate(in: confirmed.snapshot,
                                                                           vertical: vertical)
@@ -1892,7 +1899,7 @@ extension StepExecutor {
         exhausted.startedOnOtherApp = startedOnOther.flatMap { owner in launchedBundleID.map { (owner, $0) } }
         // 最後の払いで動いたときだけ(途中で動いて末尾で止まった探索に「端に着いていない」と言わない)
         exhausted.exhaustedWhileMoving = movedByEvidence && lastSwipeMoved
-        if step.scrollFrame == nil, let latest = previousSnapshot {
+        if step.scrollFrame == nil, step.scrollFrameRect == nil, let latest = previousSnapshot {
             exhausted.directionMatchedScrollFrameCandidate =
                 Self.directionMatchedScrollFrameCandidate(in: latest,
                                                           vertical: direction == .up || direction == .down)

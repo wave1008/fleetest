@@ -123,11 +123,12 @@ extension StepExecutor {
         // 静止の確認(静止した画面で2枚・約 130ms)は scrollDown/scrollUp のたび毎回払う
         let settledBefore = try await settledSignature(phase: &phase)
         if settledBefore.changed { noteCodesThisStep.insert(.settledBeforeGesture) }
+        var step = await scrollFrameFromXCUITestTree(step, inApp: settledBefore.snapshot, phase: &phase)
         var latest: SnapshotResponse? = settledBefore.snapshot
         for _ in 0..<times {
             // **明示 scrollFrame が解決できないなら、ここで打ち切る(1本も振らない)**。
             // 黙って全画面スワイプへ退化させない(runScrollSearch の fail-fast と同じ理由)
-            if let latest, Self.scrollFrameUnresolved(step, in: latest) {
+            if let latest, await scrollFrameGone(&step, in: latest, swipesSent: sentSwipes, phase: &phase) {
                 noteCodesThisStep.insert(.scrollFrameMissing)
                 return StepOutcome(status: failed(
                     .notFound,
@@ -193,6 +194,7 @@ extension StepExecutor {
     // 停止だけに消費されて 1 回空振りすることがあり、1 回で打ち切ると途中で止まる
     // (実測: scrollToTop が row_22 付近で停止した)
     func executeDirectScrollToEdge(step: FlowStep, phase: inout PhaseAccumulator) async throws -> StepOutcome {
+        var step = step
         let direction = FTSwipeDirection(rawValue: step.direction ?? "") ?? .up
         var viaXCUITest = false
         var previous: String?
@@ -247,6 +249,13 @@ extension StepExecutor {
         // 送りを始めた時点で木が名乗っていたアプリと、最後に読んだ木(終わりに「前面は対象のままか」を1回だけ引く)
         var edgeBundleID: String?
         var lastEdgeTree: SnapshotResponse?
+        // 明示 scrollFrame を XCUITest の木で解く(DR-241)のは、1周目の比べる範囲(region)を作る前。後で解くと1周目だけ
+        // 別の範囲で比べ、動いていないのに「動いた」と数える。読みは1周目へ持ち越す(読みを足さない)
+        if limit > 0, step.scrollFrame != nil, typeDriver != nil {
+            let first = try await settledSignature(phase: &phase)
+            carried = first
+            step = await scrollFrameFromXCUITestTree(step, inApp: first.snapshot, phase: &phase)
+        }
         for _ in 0..<limit {
             let settled: (signature: String, snapshot: SnapshotResponse, settled: Bool, changed: Bool)
             if let carried {
@@ -314,7 +323,7 @@ extension StepExecutor {
             retryAfterGrace = false
             // **明示 scrollFrame が解決できないなら、ここで打ち切る(1本も振らない)**。
             // 黙って全画面スワイプへ退化させない
-            if Self.scrollFrameUnresolved(step, in: settled.snapshot) {
+            if await scrollFrameGone(&step, in: settled.snapshot, swipesSent: sentSwipes, phase: &phase) {
                 noteCodesThisStep.insert(.scrollFrameMissing)
                 return StepOutcome(status: failed(
                     .notFound,
@@ -456,6 +465,7 @@ extension StepExecutor {
     // TestDriveSwipeExtension.kt 参照)。整定待ちは「swipe」アクションと同じ形で末尾に1回だけ
     // (ランナー側は /swipe を整定対象から外しているため)
     func executeDirectFlick(step: FlowStep, phase: inout PhaseAccumulator) async throws -> StepOutcome {
+        var step = step
         let clock = ContinuousClock()
         guard let kind = FlickKind(rawValue: step.direction ?? "") else {
             return StepOutcome(status: .failed("unknown flick kind: \(step.direction ?? "")"))
@@ -472,6 +482,7 @@ extension StepExecutor {
             let settled = try await settledSignature(phase: &phase)
             if settled.changed { noteCodesThisStep.insert(.settledBeforeGesture) }
             let snapshot = settled.snapshot
+            step = await scrollFrameFromXCUITestTree(step, inApp: snapshot, phase: &phase)
             let container: FTRect?
             if let rect = step.scrollFrameRect {
                 container = rect

@@ -51,6 +51,8 @@ withScrollDown {
 
 `scrollFrame:` に一覧の行(それ自身はスクロールしない要素)を渡し、その行をスクロールする一覧が収めているときは、その一覧の中で送ります(行は中身と一緒に動くためです)。そうしたことは注記で伝えます。
 
+iOS の inapp-boost モードで `scrollFrame:` に一致する要素が見つからないときは、失敗にする前に XCUITest のツリーを1回確かめ、そこで見つかって押せる位置にあるコンテナなら、その枠の中で送ります(注記 `scroll-frame-resolved-via-xcuitest-tree`)。MCP で見た要素の型がモードで違う(`TabView(.page)` は MCP では `collectionView`、inapp-boost モードでは `other`)ときに、型で絞った `scrollFrame:` が本番だけ一致しないのを避けるためです。
+
 `scrollFrame:`(および `startMarginRatio:` / `endMarginRatio:`)は `scroll*` / `scrollToBottom`
 等 / `scrollTo` の引数で、`withScroll*` は `scrollFrame:` のみ取ります。実際にスクロールさせたい
 領域をセレクタ式で指定するもので、画面に複数のスクロール可能領域がある(固定ヘッダ+

@@ -931,6 +931,7 @@ public final class StepExecutor {
         gestureDeliveredThisStep = false
         actsOnFallbackTreeThisStep = false
         noteCodesThisStep = []
+        scrollFrameViaXCUITestTreeThisStep = nil
         rendererAsksThisStep = [:]
         absenceReadWhileStoppedThisStep = nil
         firstFrameBlankObserved = false
@@ -1394,6 +1395,9 @@ public final class StepExecutor {
     /// (scrollSearchNote / observedCheckedThisStep と同じ受け渡し形)。
     /// StepExecutor+Assert.swift からも書くため internal
     var noteCodesThisStep: Set<StepNote> = []
+    /// このステップの明示 scrollFrame を XCUITest の木で解いたときの元のセレクタ(DR-241)。step の側は `scrollFrameRect` に置き換わるので、
+    /// 払うたびの「容器が消えたか」(`scrollFrameGone`)はこれで XCUITest の木を引き直す
+    var scrollFrameViaXCUITestTreeThisStep: FlowLocator?
     /// このステップの失敗の素性。**最初に立てたものを残す**(内側の救済経路が後から
     /// 別の理由で落ちても、読み手が知りたいのは最初に何が起きたか)
     var failureKindThisStep: StepFailureKind?

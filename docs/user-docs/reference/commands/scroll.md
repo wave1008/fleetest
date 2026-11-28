@@ -53,6 +53,8 @@ A `scrollFrame:` that is empty, has a syntax error, or has alternatives (`||` or
 
 When `scrollFrame:` names a row of a list (an element that does not scroll itself) and a scrolling list holds that row, the search swipes inside that list instead (the row moves with the content). A note says so.
 
+In iOS inapp-boost mode, when nothing matches `scrollFrame:`, the tool checks the XCUITest tree once before failing; if the container is there and can be hit at its position, the swipe runs inside its frame (note `scroll-frame-resolved-via-xcuitest-tree`). This covers a `scrollFrame:` narrowed by a type that differs between the modes (`TabView(.page)` is `collectionView` in MCP and `other` in inapp-boost mode).
+
 `scrollFrame:` (also `startMarginRatio:` / `endMarginRatio:`) is an argument on `scroll*` /
 `scrollToBottom` etc. / `scrollTo`, and `withScroll*` takes `scrollFrame:` alone. It names, with a
 selector, the region that should actually be scrolled — needed when a screen has more than one

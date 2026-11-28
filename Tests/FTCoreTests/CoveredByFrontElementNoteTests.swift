@@ -195,12 +195,27 @@ final class TapTargetDrawnOverTests: XCTestCase {
         XCTAssertFalse(outcome.notes.contains(.tapTargetDrawnOver), "\(outcome.notes)")
     }
 
-    /// in-app が activate で押した回は要素へ届くが、画面では覆われている = 「人には押せない物を押した」と言う(塗り順の無い iOS の木)
-    func testActivateDeliverySaysAPersonCouldNotTapIt() async {
-        let outcome = await tap(read: ["Ja"], delivery: .activate, isAndroid: false, framework: .swiftUI, inAppPrimary: true)
+    /// inapp-boost の in-app も撃たずに断る(DR-240)。activate は覆いを素通りして要素へ届く = 押すと人には押せない物を押した緑になる。
+    /// 自分の文字なら in-app でも撃つ
+    func testInAppPrimaryIsAlsoRefusedBeforeTapping() async {
+        let log = CallLog()
+        let outcome = await tap(read: ["Ja"], delivery: .activate, isAndroid: false, framework: .swiftUI, inAppPrimary: true, log: log)
+        guard case .failed(let message) = outcome.status else { return XCTFail("断らなかった: \(outcome.status)") }
+        XCTAssertTrue(message.contains("did not touch") && message.contains("nothing was touched"), message)
         XCTAssertTrue(outcome.notes.contains(.tapTargetDrawnOver), "\(outcome.notes)")
-        XCTAssertTrue(outcome.driverFallback?.contains("a person could not tap it") == true, outcome.driverFallback ?? "nil")
-        XCTAssertFalse(outcome.driverFallback?.contains("may have landed on that element") == true, outcome.driverFallback ?? "nil")
+        XCTAssertFalse(log.entries.contains { $0.contains(".tap(") }, "撃った: \(log.entries)")
+        let ownLog = CallLog()
+        let own = await tap(read: ["Japan"], delivery: .activate, isAndroid: false, framework: .swiftUI, inAppPrimary: true, log: ownLog)
+        guard case .passed = own.status else { return XCTFail("自分の文字で断った: \(own.status)") }
+        XCTAssertTrue(ownLog.entries.contains { $0.contains(".tap(") }, "\(ownLog.entries)")
+    }
+
+    /// Android は断らず、撃ったうえで注記(合否は変えない)
+    func testAndroidStillTapsWithANote() async {
+        let log = CallLog()
+        let outcome = await tap(read: ["Ja"], log: log)
+        guard case .passed = outcome.status else { return XCTFail("Android で合否を変えた: \(outcome.status)") }
+        XCTAssertTrue(log.entries.contains { $0.contains(".tap(") }, "\(log.entries)")
     }
 
     /// XCUITest が座標で押す iOS(xcuitest モード)は、覆いの文字が読めたら撃たずに断る(DR-234)。自分の文字なら撃つ

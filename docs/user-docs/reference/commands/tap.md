@@ -47,13 +47,13 @@ tap(x: 120, y: 640)                    // only when no selector is available
   or scroll the target clear of it first). Fixing it is up to you — look at the failing device's screen to decide.
   On iOS, the tool fails the step without pressing only when the platform answers that the target cannot be hit there; the
   message then tells you to close the sheet or panel in front, or to scroll the list before this step until the target is clear.
-  In iOS xcuitest mode, when another element overlaps the target's centre (and OCR text visibility checking, `ocrTextVisibilityCheck`, is on
+  On iOS (both modes), when another element overlaps the target's centre (and OCR text visibility checking, `ocrTextVisibilityCheck`, is on
   and the target has its own text), the tool first reads the text drawn in the target's
   frame from the screen. If it shows the overlapping element's text instead of the target's own, a press there would land on that
   element, so the step fails without pressing
   (`did not touch <selector>: where its frame is, the screen shows the text of <element> … (nothing was touched)`).
-  In inapp-boost mode and on Android the tool presses and adds a note instead (in inapp-boost, a step whose target was found in the
-  XCUITest tree is pressed by XCUITest at a coordinate, so it fails without pressing as in xcuitest mode).
+  In inapp-boost mode this applies even though the in-app bridge could reach the element through the cover, because a person
+  could not press it. On Android the tool presses and adds a note instead.
 - **When the app has crashed and another app is in front**: if the launched app's process is gone and the screen's tree belongs
   to another app, the step fails without touching or checking anything in that tree (so an element with the same `#id` in
   another app is never operated by mistake).

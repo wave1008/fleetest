@@ -151,14 +151,10 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 覆いのラベルが要る)。答えが無い(release のビルド等)ときは立たない
     case coveredByFrontElementFromSemantics = "covered-by-front-element-from-semantics"
     /// 撃つ前の確かめで、座標で撃った tap の対象の枠に、重なる別の要素の文字が描かれていた(自分の文字は読めなかった)。
-    /// 中心への タッチはその要素に当たったかもしれない。合否は変えない(**新しい検知なので警告から**)。
+    /// 中心への タッチはその要素に当たったかもしれない。注記で合否を変えないのは Android だけ(iOS は撃たずに断る = DR-234・DR-240)。
     /// Flutter の Android のオートコンプリートの候補は木の枠が描画より上にずれ、中心に欄が描かれて押すと欄に当たった(緑のまま選ばれない)
     case tapTargetDrawnOver = "tap-target-drawn-over"
 
-    /// `tapTargetDrawnOver` を in-app の activate で押した回の文(要素には届いたが、画面では覆われている = 人には押せない)
-    public static let tapTargetDrawnOverActivatedText = "where the target's frame is, the screen shows another element's text"
-        + " and not the target's own, so it is covered on screen and a person could not tap it — the in-app bridge pressed it"
-        + " directly (activate)"
     /// 上の確かめ(重なる要素の文字が描かれているか)の OCR が予算を越え、この回は確かめていない(合否は変えない)
     case coverReadBudgetExhausted = "cover-read-budget-exhausted"
     /// 否定の検証(notExist・count 0)が、手前のダイアログが裏を木から隠している木で通った(iOS の in-app の `modalScope`・
@@ -471,6 +467,9 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
     /// 肯定形(countIs・select・送りの探索)のスコープ(`>>`)の容器が in-app の木で子を持たなかったので、要素の解決を
     /// アプリの XCUITest の木で行った(DR-199)。**率が上がったら in-app の木が子を落とす部品の画面が増えている**
     case scopeResolvedViaXCUITestTree = "scope-resolved-via-xcuitest-tree"
+    /// 送り・フリックの明示 scrollFrame が in-app の木で解けなかったので、アプリの XCUITest の木で解いた容器の枠で払った(DR-241)。
+    /// **率が上がったら、型・id の出方が両ブリッジで割れる容器を書いたシナリオが増えている**
+    case scrollFrameResolvedViaXCUITestTree = "scroll-frame-resolved-via-xcuitest-tree"
     /// countIs の一致が、中身が枠の外へ続くスクロール容器の中にあった = 見えている件数が画面の大きさ・向きで変わる(DR-204。判定は変えない)。
     /// **率が上がったら、画面の大きさに依存する数え方のシナリオが増えている**
     case countInScrollingList = "count-in-scrolling-list"
@@ -842,6 +841,8 @@ public enum StepNote: String, Sendable, Codable, CaseIterable {
                 + " so it was not taken as gone"
         case .scopeResolvedViaXCUITestTree:
             return "the in-app tree shows nothing under the scope container, so the element was resolved in the app's XCUITest tree"
+        case .scrollFrameResolvedViaXCUITestTree:
+            return "the scrollFrame matched nothing in the in-app tree, so the swipe used its frame from the app's XCUITest tree"
         case .xcuitestTreeNotConsulted:
             return "not in the in-app tree; the app's XCUITest tree was not consulted because the text visibility check is off"
         case .countInScrollingList:

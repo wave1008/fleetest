@@ -1301,9 +1301,9 @@ extension StepExecutor {
                                                                            paintOrderIsReal: paintOrderIsReal(snapshot.elements)) {
                     centreCoverOnly = true
                 }
-                // 撃つ前の確かめ(DR-233)と、XCUITest が座標で撃つ回の断り(DR-234)。中身と理由は `preTapDrawnCover` / `drawnCoverRefusal`
+                // 撃つ前の確かめ(DR-233)と、iOS の断り(DR-234・DR-240)。中身と理由は `preTapDrawnCover` / `drawnCoverRefusal`
                 let drawnCover = await preTapDrawnCover(element, in: snapshot, phase: &phase)
-                if let refusal = drawnCoverRefusal(drawnCover, step: step, viaFallbackXCUITest: switchedToFallbackDriver) {
+                if let refusal = drawnCoverRefusal(drawnCover, step: step) {
                     return StepOutcome(status: failedWithoutKind(refusal))
                 }
                 do {
@@ -1311,13 +1311,12 @@ extension StepExecutor {
                     let pressedByActivate = actingDriver.lastTapDelivery == .activate
                     if !(centreCoverOnly && pressedByActivate) { adviseCentre() }
                     if let drawnCover {
+                        // ここへ来るのは Android だけ(iOS は上で断る)= 座標で撃った = そちらに当たったかもしれない
                         let name = drawnCover.element.identifier.map { "#\($0)" } ?? "a \(drawnCover.element.type)"
                         noteCodesThisStep.insert(.tapTargetDrawnOver)
-                        // 座標で撃った回 = そちらに当たったかもしれない / activate で押した回 = 要素には届いたが、人には押せない(覆われている)
-                        let fact = pressedByActivate
-                            ? StepNote.tapTargetDrawnOverActivatedText : StepNote.tapTargetDrawnOver.text
-                        driverFallback = Self.joinNotes(driverFallback, fact + " (\(name), which reads \"\(drawnCover.text)\")")
-                        if !pressedByActivate { noteCoverSuspect(name, for: element) }
+                        driverFallback = Self.joinNotes(driverFallback,
+                                                        StepNote.tapTargetDrawnOver.text + " (\(name), which reads \"\(drawnCover.text)\")")
+                        noteCoverSuspect(name, for: element)
                     }
                     // 読むのは ref で撃った直後だけ(座標の経路は tap(ref:) を通らない = 前回の値が残る)
                     if let miss = actingDriver.lastTapHitAreaMiss {

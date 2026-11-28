@@ -148,6 +148,53 @@ extension StepExecutor {
         return found
     }
 
+    /// 明示 scrollFrame が in-app の木で解けず払わずに赤にする直前、アプリの XCUITest の木を1回照会し、解けて **XCUITest が押せる
+    /// (`isHittable`)と答えた**容器なら、その枠(画面の pt = in-app の木と同じ座標)を `scrollFrameRect` にした step を返す(DR-241)。
+    /// 型の出方が両ブリッジで割れる(`TabView(.page)` = XCUITest `collectionView` / in-app `other`)ので、MCP の木で書いた
+    /// `.collectionView#pager_main` が本番だけ「matched nothing」になった。押せるかを聞くのは XCUITest の木がモーダルの裏も残すため
+    /// (裏の容器の枠を払うと手前の物を撃つ)。**払う前(最初の読み)だけ呼ぶ**。払った後は `scrollFrameGone` が毎回引き直す
+    func scrollFrameFromXCUITestTree(_ step: FlowStep, inApp snapshot: SnapshotResponse,
+                                     phase: inout PhaseAccumulator) async -> FlowStep {
+        guard !isAndroid, Self.scrollFrameUnresolved(step, in: snapshot), let locator = step.scrollFrame,
+              let frame = await hittableScrollFrameInXCUITestTree(locator, phase: &phase) else { return step }
+        noteCodesThisStep.insert(.scrollFrameResolvedViaXCUITestTree)
+        scrollFrameViaXCUITestTreeThisStep = locator
+        var resolved = step
+        resolved.scrollFrame = nil
+        resolved.scrollFrameRect = frame
+        return resolved
+    }
+
+    /// 払うたびの「明示 scrollFrame が消えたか」(払わずに赤にする判定)。in-app の木の判定(`scrollFrameUnresolved`)に加え、
+    /// XCUITest の木で解いた容器(DR-241)は払った後に引き直し、無い・押せないなら消えたとする(rect は解決済み扱いなので、
+    /// 引き直さないとシート・モーダルが置き換えた後も古い枠を払い続けて指の下の物を押す)。消えたときは元のセレクタを `step` へ戻す
+    /// (呼び手の失敗文がセレクタを名指す)。引き直せたら枠を今の位置へ更新する。`swipesSent == 0` は解いた直後の読み = 引き直さない
+    func scrollFrameGone(_ step: inout FlowStep, in snapshot: SnapshotResponse, swipesSent: Int,
+                         phase: inout PhaseAccumulator) async -> Bool {
+        if Self.scrollFrameUnresolved(step, in: snapshot) { return true }
+        guard swipesSent > 0, let locator = scrollFrameViaXCUITestTreeThisStep else { return false }
+        guard let frame = await hittableScrollFrameInXCUITestTree(locator, phase: &phase) else {
+            step.scrollFrame = locator
+            step.scrollFrameRect = nil
+            return true
+        }
+        step.scrollFrameRect = frame
+        return false
+    }
+
+    /// XCUITest の木で解け、XCUITest が押せると答えた容器の枠。注記は言える事実だけ: 一致なし = `xcuitest-tree-no-match` /
+    /// 読めない = `xcuitest-tree-unread`(`readAppXCUITestTree`)/ 一致したが押せない・押せるかを答えない = 付けない(セレクタは正しい)
+    private func hittableScrollFrameInXCUITestTree(_ locator: FlowLocator, phase: inout PhaseAccumulator) async -> FTRect? {
+        guard let xcuitest = typeDriver, let bundleID = launchedBundleID,
+              let tree = await readAppXCUITestTree(xcuitest: xcuitest, bundleID: bundleID, phase: &phase) else { return nil }
+        guard let found = ScrollFrameResolution.resolve(locator, in: tree) else {
+            noteCodesThisStep.insert(.xcuitestTreeNoMatch)
+            return nil
+        }
+        guard (try? await xcuitest.hitTest(ref: found.ref)) == .hittable(true) else { return nil }
+        return found.frame
+    }
+
     /// 操作(tap・type 等)の対象が in-app の木で解けなかったとき、キーボードを閉じる・赤にする前にアプリの XCUITest の木を1回照会する。
     /// 見つかって **XCUITest が押せる(`isHittable`)と答えた**ときだけ、その木とドライバで撃つ(XCUITest の木はモーダルの裏の要素も残す =
     /// 見つかっただけでは採らない。押せるかの判定はデバイスの答えに任せる)。標準アプリのリマインダーの新規行の入力欄は in-app の木に

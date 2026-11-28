@@ -165,10 +165,10 @@ extension StepExecutor {
                                     keyboardShown: KeyboardWait.isShown(snapshot), phase: &phase)
     }
 
-    /// XCUITest が座標で押す回(xcuitest モード・inapp-boost で XCUITest へ切り替えた回)は、覆いの文字が読めたら撃たずに断る文
-    /// (DR-234: 回帰 1,783 本で誤検知 0・xcuitest の貼り付く見出しで赤 6/6 に付いた)。in-app の activate と Android は nil = 注記のまま
-    func drawnCoverRefusal(_ drawnCover: (element: ElementInfo, text: String)?, step: FlowStep, viaFallbackXCUITest: Bool) -> String? {
-        guard let drawnCover, !isAndroid, !primaryCaptureOmitsSystemUI || viaFallbackXCUITest else { return nil }
+    /// iOS は覆いの文字が読めたら撃たずに断る文(XCUITest の座標 = DR-234 / in-app の activate・合成タッチ = DR-240。
+    /// activate は覆いを素通りして要素へ届く = 人には押せない物を押した緑になる)。Android は nil = 注記のまま
+    func drawnCoverRefusal(_ drawnCover: (element: ElementInfo, text: String)?, step: FlowStep) -> String? {
+        guard let drawnCover, !isAndroid else { return nil }
         let name = drawnCover.element.identifier.map { "#\($0)" } ?? "a \(drawnCover.element.type)"
         noteCodesThisStep.insert(.tapTargetDrawnOver)
         return "did not touch \(step.locatorSummary): where its frame is, the screen shows the text of \(name)"
