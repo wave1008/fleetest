@@ -24,4 +24,15 @@ final class FMDoctorMessageTests: XCTestCase {
         XCTAssertTrue(FMDoctor.visionLiveFailureDetail(reachedTheModel: true, error: nil)
             .contains("a live call failed"))
     }
+
+    /// サンドボックスの中で常駐に届かなかった回だけ「確かめていない」。モデルに訊けた失敗・外で届かなかった回は ❌ のまま
+    func testOnlyAnUnreachableResidentInsideASandboxIsNotChecked() {
+        XCTAssertTrue(FMDoctor.notCheckedInSandbox(reachedTheModel: false, sandboxed: true))
+        XCTAssertFalse(FMDoctor.notCheckedInSandbox(reachedTheModel: true, sandboxed: true))
+        XCTAssertFalse(FMDoctor.notCheckedInSandbox(reachedTheModel: false, sandboxed: false))
+        XCTAssertFalse(FMDoctor.notCheckedInSandbox(reachedTheModel: true, sandboxed: false))
+        let detail = FMDoctor.sandboxNotCheckedDetail("On-device model")
+        XCTAssertTrue(detail.hasPrefix("On-device model: not checked"), detail)
+        XCTAssertFalse(detail.contains("model assets"), "確かめていない回に資産の帰属を言わない")
+    }
 }

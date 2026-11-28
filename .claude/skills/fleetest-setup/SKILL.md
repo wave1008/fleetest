@@ -482,7 +482,7 @@ Claude Code 以外のエージェントは、このコピーを使わずクロ�
   （`unavailable (…)` = Apple Intelligence 要有効化 / `a live call failed` = 有効だが実呼び出しが失敗。再起動で直ることがある。
   後者を「Apple Intelligence が無効」と言わない）
 - Simulator の ⚠️（No booted simulators）は起動していないだけで正常
-- `On-device OCR` の ⚠️ `not checked — this doctor runs inside a sandbox` は、エージェントのシェルのサンドボックスの中で
+- `On-device OCR` の ⚠️ `not checked — this doctor runs inside a sandbox` と、FM の2行の ⚠️ `not checked — this process runs inside a sandbox` は、エージェントのシェルのサンドボックスの中で
   doctor を実行したため判定できなかっただけ（中では正常な Mac でも OCR が何も読めないことがある。テスト実行・拡張・MCP は外で動く）。
   **再起動を案内しない**。同じコマンドをサンドボックスの外での実行として求めて再実行し、その結果を報告する
   （外で実行できないなら「サンドボックスの中のため判定できず」と書く）

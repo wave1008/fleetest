@@ -147,10 +147,11 @@ struct Doctor: AsyncParsableCommand {
         // availability だけでは実呼び出しの可否が分からない(FMDoctor.checkLive の doc 参照)。
         // doctor は「本当に使えるか」を答える場所なので実呼び出しで確認する
         let fm = await FMDoctor.checkLive()
-        ConsoleOut.out(fm.available ? "✅ \(fm.detail)" : "❌ \(fm.detail)")
+        ConsoleOut.out((fm.available ? "✅ " : fm.notCheckedInSandbox ? "⚠️ " : "❌ ") + fm.detail)
         // **何が止まるかまで書く**(ft_doctor と同じ本文)。受け手向けドキュメントは FM の可否を
         // この経路で確かめろと案内しているので、ここが黙ると「使えない」しか分からない
-        if !fm.available { ConsoleOut.out("   " + FMDoctor.unavailableImpact) }
+        // 確かめていない回に「止まる」とは言わない(壊れていると読まれる)。外での再実行は vision の行の後で案内する
+        if !fm.available, !fm.notCheckedInSandbox { ConsoleOut.out("   " + FMDoctor.unavailableImpact) }
         // **視覚系も実呼び出しで確かめる**。text と vision は独立に死ぬ(実測)ので、text が
         // 通ったことは occlusion-guard が生きている証拠にならない。ここを能力判定だけに
         // していた頃は、vision 全滅の機械で `--fm-only` が 0 を返し、その run の緑が
@@ -158,7 +159,12 @@ struct Doctor: AsyncParsableCommand {
         let vision = await FMDoctor.visionCheckLive()
         // macOS が対応していないだけ(死ではない)のときは警告どまり、実呼び出しが落ちたら ❌
         let visionUnsupported = !FMVisionSupport.isSupported
-        ConsoleOut.out(vision.available ? "✅ \(vision.detail)" : (visionUnsupported ? "⚠️ " : "❌ ") + vision.detail)
+        ConsoleOut.out((vision.available ? "✅ " : visionUnsupported || vision.notCheckedInSandbox ? "⚠️ " : "❌ ")
+            + vision.detail)
+        if fm.notCheckedInSandbox || vision.notCheckedInSandbox {
+            ConsoleOut.out("   Run fleetest doctor again outside the sandbox to check it. Test runs, the VSCode extension and the"
+                + " MCP server run outside it.")
+        }
         Self.printFMHistory()
         if fmOnly {
             // 可: 0 / 不可: 1。呼び出し側が理由文字列を stdout から読める。
@@ -172,8 +178,9 @@ struct Doctor: AsyncParsableCommand {
         // 全体レポートだけ常に 0 を返していたので、exit code で門を作る呼び手
         // (スキル・CI)は赤い行を見落とした。⚠️(警告)は数えない
         var problems = 0
-        if !fm.available { problems += 1 }
-        if !vision.available, !visionUnsupported { problems += 1 }
+        // 確かめていない回(サンドボックスの中)は数えない。`--fm-only` は上で 1 にしている(使えるとは言えない)
+        if !fm.available, !fm.notCheckedInSandbox { problems += 1 }
+        if !vision.available, !visionUnsupported, !vision.notCheckedInSandbox { problems += 1 }
         // **OCR も実呼び出しで確かめる**(FM と独立に死ぬ。死んでいると OCR を使う判定が誤った理由で落ちる)。
         // 判定は OCRReaderCheck の1箇所(ft_doctor と共有)。`--fm-only` には含めない(FM の門)
         switch await OCRReaderCheck.run() {

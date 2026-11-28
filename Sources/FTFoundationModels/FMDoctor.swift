@@ -11,6 +11,20 @@ public enum FMDoctor {
     public struct Report {
         public let available: Bool
         public let detail: String
+        /// サンドボックスの中で常駐プロセスに届かなかった = 確かめていない(故障の証拠にならない)。
+        /// available は false のまま(`--fm-only` の門は「使える」と言えない回を 1 にする)。全体レポートは ❌ に数えない
+        public var notCheckedInSandbox = false
+    }
+
+    /// 常駐プロセス(fm-serve)は `~/.fleetest/fm.sock` を作るので、そこへ書けないサンドボックスの中では起動できない
+    /// (実測: 常駐が居ない状態で `sandbox-exec` の中から doctor → `could not be started`)。モデルに訊けた回の失敗は対象外
+    static func notCheckedInSandbox(reachedTheModel: Bool, sandboxed: Bool) -> Bool {
+        !reachedTheModel && sandboxed
+    }
+
+    static func sandboxNotCheckedDetail(_ subject: String) -> String {
+        subject + ": not checked — this process runs inside a sandbox (such as an AI assistant's shell sandbox), where"
+            + " the FM process (fleetest api fm-serve) cannot be started or reached"
     }
 
     /// availability だけを見る安価な同期ゲート。ホットパス(シナリオ毎の前提確認・
@@ -41,6 +55,9 @@ public enum FMDoctor {
         guard probe.verdict.state == .dead else {
             return Report(available: true, detail: "On-device model: available (confirmed by a live call)")
         }
+        if notCheckedInSandbox(reachedTheModel: probe.reachedTheModel, sandboxed: ProcessSandbox.isSandboxed) {
+            return Report(available: false, detail: sandboxNotCheckedDetail("On-device model"), notCheckedInSandbox: true)
+        }
         return Report(available: false, detail: textLiveFailureDetail(
             reachedTheModel: probe.reachedTheModel, error: probe.verdict.error))
     }
@@ -68,6 +85,10 @@ public enum FMDoctor {
             return Report(available: true,
                           detail: "FM visual verification (image input): available"
                               + " (confirmed by a live call)")
+        }
+        if notCheckedInSandbox(reachedTheModel: probe.reachedTheModel, sandboxed: ProcessSandbox.isSandboxed) {
+            return Report(available: false, detail: sandboxNotCheckedDetail("FM visual verification (image input)"),
+                          notCheckedInSandbox: true)
         }
         return Report(available: false, detail: visionLiveFailureDetail(
             reachedTheModel: probe.reachedTheModel, error: probe.verdict.error))

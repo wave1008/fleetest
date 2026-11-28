@@ -879,9 +879,11 @@ extension MCPServer {
                 + " screen, and the OCR stage of the text visibility check cannot read text (rebooting this"
                 + " Mac has cleared this state before)"
         }
-        return text((fm.available ? "✅ " : "❌ ") + fm.detail
-            + (fm.available ? "" : "\n   " + FMDoctor.unavailableImpact)
-            + "\n" + (vision.available ? "✅ " : FMVisionSupport.isSupported ? "❌ " : "⚠️ ") + vision.detail
+        // サンドボックスの中で常駐に届かなかった回は ⚠️(確かめていない)で、「止まる」の説明を付けない
+        return text((fm.available ? "✅ " : fm.notCheckedInSandbox ? "⚠️ " : "❌ ") + fm.detail
+            + (fm.available || fm.notCheckedInSandbox ? "" : "\n   " + FMDoctor.unavailableImpact)
+            + "\n" + (vision.available ? "✅ " : FMVisionSupport.isSupported && !vision.notCheckedInSandbox ? "❌ " : "⚠️ ")
+            + vision.detail
             + "\n" + ocrLine)
     }
 }
