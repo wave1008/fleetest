@@ -24,10 +24,30 @@ def _nfc(text):
     return unicodedata.normalize("NFC", text)
 
 
+def recent_run_files(project, pattern, since, until=None):
+    """`results/runs/<月>/<runID>/` の下の `pattern`("run.json" か "scenarios/*.json")のうち、mtime が窓に入るもの。
+    **run のフォルダを先に絞る**(全履歴を再帰の glob で舐めると手元の 49 万件で 35 秒かかった)。絞りは「中身を足した・置き換えた
+    フォルダの mtime は窓より古くならない」ことに頼る(書き手は新規作成か rename で置く。その場の上書きだけは拾えない)"""
+    runs = os.path.join(ROOT, "TestProjects", project, "results", "runs")
+    inner = os.path.dirname(pattern)   # "" か "scenarios"
+    for month in sorted(os.listdir(runs)) if os.path.isdir(runs) else []:
+        month_dir = os.path.join(runs, month)
+        if not os.path.isdir(month_dir) or os.path.getmtime(month_dir) < since:
+            continue
+        for run_id in sorted(os.listdir(month_dir)):
+            folder = os.path.join(month_dir, run_id, inner)
+            try:
+                if os.path.getmtime(folder) < since:
+                    continue
+            except OSError:
+                continue
+            for path in glob.glob(os.path.join(month_dir, run_id, pattern)):
+                if since <= os.path.getmtime(path) and (until is None or os.path.getmtime(path) <= until):
+                    yield path
+
+
 def _recent(pattern, since, until):
-    for path in glob.glob(os.path.join(ROOT, "TestProjects", PROJECT, "results", "runs", "**", pattern), recursive=True):
-        if since <= os.path.getmtime(path) and (until is None or os.path.getmtime(path) <= until):
-            yield path
+    return recent_run_files(PROJECT, pattern, since, until)
 
 
 def placement_findings(since, until=None):

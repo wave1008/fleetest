@@ -327,10 +327,7 @@ def degraded_scenarios(projects, since):
     checkIsON/OFF は黙って a11y へ倒れ、a11y で読める部品では緑のまま通るので赤にする(同期相手: Scripts/e2e.sh の run_profile)"""
     found = []
     for project in sorted(projects):
-        for path in glob.glob(os.path.join(ROOT, "TestProjects", project, "results", "runs", "**", "scenarios", "*.json"),
-                              recursive=True):
-            if os.path.getmtime(path) < since:
-                continue
+        for path in regress_placement_checks.recent_run_files(project, os.path.join("scenarios", "*.json"), since):
             with open(path, errors="replace") as f:
                 if '"vision-classifier-unavailable"' in f.read():
                     found.append(os.path.relpath(path, ROOT))
